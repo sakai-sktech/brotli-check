@@ -167,6 +167,23 @@ NOT_APPLICABLE ではなく「情報」として版だけ出す。さらに配�
 - 環境変数は読まない（自分の `PATH` を除く）。コマンドラインは `--show-cmdline` のときだけ。
 - 他ユーザーのホームは `getent passwd` で列挙し、読めなければ SKIPPED に積む。
 
+### 7.1 依頼文の解釈（実装時に確定・2026-10-26）
+
+- **`--no-exec` が止めるのは「見つけたプログラム」の実行。** node・bun・curl・envoy・ブラウザの `--version`、
+  見つけた実行ファイルへの `ldd`、コンテナ内での実行を止める。システムの照会コマンド
+  （dpkg-query・dpkg・readelf・ldconfig・ss・snap・flatpak・docker ps）は止めない（依頼文 2 章 4 の
+  「見つけたプログラムの実行」の範囲外と読む）。
+- **外部コマンドはすべて `LC_ALL=C` で動かす。** 開発機の readelf は出力が日本語化されていた（「共有ライブラリ」）。
+  見つけたプログラムは `env -i` で環境変数を空にして動かす（`NODE_OPTIONS` などの影響を受けないため）。
+- **`--output` は既存のファイルを上書きしない**（noclobber）。root で動かしたときに、
+  他人が置いたシンボリックリンク経由で別のファイルを壊さないため。
+- **テスト用の差し替え口**として `BCC_PROC_ROOT`・`BCC_OS_RELEASE`・`BCC_HOME_DIRS`・`BCC_MOUNTINFO`・`BCC_TODAY`
+  だけは環境変数から読む（7 章の「環境変数は読まない」の例外。いずれもツール自身の変数）。
+- **C09 の名前による探索は常に行う。** `libbrotlidec.so*` を dpkg 管理外（/usr/local、/opt、conda など）で
+  ファイル名から探すのは軽いので既定で行い、ファイル名の版で判定する。ELF の中身を読む汎用探索だけを `--deep` にする。
+- **C02 と「C01 に委ねる」判定は所見ではなく情報として出す。** 所見にすると、apt の 1 回の更新で直るものを
+  「更新が必要」として二重に数えるため。JSON では `findings[]` と別に `info[]` に入れる。
+
 ## 8. テスト計画
 
 - 単体: bats-core。偽の `dpkg-query`・`node`・`bun`・`ldd` を PATH の先頭に置く。偽の dist-info、偽の `/proc`（`BCC_PROC_ROOT`）。

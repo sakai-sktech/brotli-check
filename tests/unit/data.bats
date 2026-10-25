@@ -84,27 +84,27 @@ write_data() {
 
 @test "data: a row with 6 columns is rejected" {
   write_data '# snapshot: 2026-10-26' 'node|22|22.23.4|fixed|https://x|2026-10-26'
-  run bcc_load_data "$DATA" <"$DATA"
+  run bcc_load_data test-data <"$DATA"
   [ "$status" -eq 3 ]
   [[ $output == *"7 tab-separated columns"* ]]
 }
 
 @test "data: an unknown status is rejected" {
   write_data '# snapshot: 2026-10-26' 'node|22|22.23.4|maybe|https://x|2026-10-26|'
-  run bcc_load_data "$DATA" <"$DATA"
+  run bcc_load_data test-data <"$DATA"
   [ "$status" -eq 3 ]
   [[ $output == *"unknown status"* ]]
 }
 
 @test "data: a source that is not https is rejected" {
   write_data '# snapshot: 2026-10-26' 'node|22|22.23.4|fixed|http://x|2026-10-26|'
-  run bcc_load_data "$DATA" <"$DATA"
+  run bcc_load_data test-data <"$DATA"
   [ "$status" -eq 3 ]
 }
 
 @test "data: a missing snapshot line is rejected" {
   write_data 'node|22|22.23.4|fixed|https://x|2026-10-26|'
-  run bcc_load_data "$DATA" <"$DATA"
+  run bcc_load_data test-data <"$DATA"
   [ "$status" -eq 3 ]
   [[ $output == *"snapshot"* ]]
 }
@@ -112,6 +112,6 @@ write_data() {
 @test "data: age is computed against today" {
   write_data '# snapshot: 2026-10-26' 'node|22|22.23.4|fixed|https://x|2026-10-26|'
   BCC_TODAY=2026-12-01
-  bcc_load_data "$DATA" <"$DATA"
+  bcc_load_data test-data <"$DATA"
   [ "$BCC_DATA_AGE_DAYS" -eq 36 ]
 }

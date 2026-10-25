@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-unit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck and bats
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck bats binutils
+      - name: shellcheck (zero warnings)
+        run: make lint
+      - name: bats unit tests
+        run: make test
+      - name: Single-file build
+        run: make dist && cat dist/SHA256SUMS
+
+  integration:
+    needs: lint-and-unit
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        base: ["ubuntu:22.04", "ubuntu:24.04", "ubuntu:26.04", "debian:12", "debian:13"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: make dist
+      - name: Scan a container with known unfixed and fixed copies
+        env:
+          ONLY: ${{ matrix.base }}
+          SKIP_BASH42: "1"
+        run: bash tests/integration/run.sh
+
+  bash42:
+    needs: lint-and-unit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: make dist
+      - name: Run under bash 4.2 (oldest supported)
+        env:
+          ONLY: none
+        run: bash tests/integration/run.sh

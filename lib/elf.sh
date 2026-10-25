@@ -63,12 +63,12 @@ bcc_elf_resolve() {
 # Prints the resolved libbrotlidec path and the method (ldd | readelf).
 # Status: 0 linked, 1 not linked (static copy or no Brotli), 2 undetermined.
 bcc_links_brotlidec() {
-  local file=$1 out lib
-  if ((!BCC_NO_EXEC)) && bcc_have ldd && bcc_safe_to_exec "$file"; then
+  local file=$1 out lib safe
+  if ((!BCC_NO_EXEC)) && bcc_have ldd && safe=$(bcc_safe_to_exec "$file"); then
     # glibc's ldd asks the system dynamic loader to list dependencies (--list); the
     # file's own code does not run. ldd(1) still warns against untrusted files, so
     # files others could modify go to the readelf walk below.
-    out=$(bcc_sys ldd -- "$file")
+    out=$(bcc_sys ldd -- "$safe")
     if [[ $out == *"not a dynamic executable"* || $out == *"statically linked"* ]]; then
       return 1
     fi

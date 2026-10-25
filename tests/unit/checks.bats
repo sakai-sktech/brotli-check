@@ -205,7 +205,7 @@ fake_proc() {
   chmod 755 "$REPO_ROOT/tests/tmp" "$SAFE" "$SAFE/n" "$SAFE/n/bin"
   printf '#include <stdio.h>\nint main(void){puts("v24.22.0");return 0;}\n' >"$SAFE/stub.c"
   cc -o "$SAFE/n/bin/node" "$SAFE/stub.c"
-  bcc_safe_to_exec "$SAFE/n/bin/node" || { rm -rf "$SAFE"; skip "repository path is writable by others"; }
+  bcc_safe_to_exec "$SAFE/n/bin/node" >/dev/null || { rm -rf "$SAFE"; skip "repository path is writable by others"; }
   BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
   mkdir -p "$BCC_PROC_ROOT"
   BCC_IDX_NODE=("$SAFE/n/bin/node")
@@ -226,6 +226,17 @@ fake_proc() {
   [ "$status" -eq 126 ]
   [ -z "$output" ]
   run bcc_safe_to_exec "$T/opt/n/bin/node"
+  [ "$status" -eq 1 ]
+}
+
+@test "exec safety: a path through a symlink is refused (checked path = executed path)" {
+  SAFE="$REPO_ROOT/tests/tmp/$BATS_TEST_NUMBER-$$"
+  mkdir -p "$SAFE"
+  chmod 755 "$REPO_ROOT/tests/tmp" "$SAFE"
+  cp /bin/true "$SAFE/real"
+  ln -s "$SAFE/real" "$SAFE/link"
+  run bcc_safe_to_exec "$SAFE/link"
+  rm -rf "$SAFE"
   [ "$status" -eq 1 ]
 }
 

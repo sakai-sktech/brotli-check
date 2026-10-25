@@ -28,10 +28,13 @@ bcc_sys() {
 # have replaced it: the file and every directory above it belong to root (or, when not
 # running as root, to the current user) and none is writable by group or others.
 # Otherwise a less privileged user could make root run their code via "--version".
+# The path must already be canonical (no symlink anywhere in it), so the checked path is
+# exactly the one that runs; prints it on success.
 bcc_safe_to_exec() {
-  local p uid mode
-  p=$(bcc_realpath "$1") || return 1
-  [[ -n $p ]] || return 1
+  local p uid mode real
+  real=$(bcc_realpath "$1") || return 1
+  [[ -n $real && $real == "$1" ]] || return 1
+  p=$real
   while :; do
     read -r uid mode < <(stat -L -c '%u %a' -- "$p" 2>/dev/null) || return 1
     [[ $uid =~ ^[0-9]+$ && $mode =~ ^[0-7]+$ ]] || return 1
@@ -44,25 +47,25 @@ bcc_safe_to_exec() {
     [[ $p == / ]] && break
     p=$(dirname -- "$p")
   done
-  return 0
+  printf '%s\n' "$real"
 }
 
 # Record (in the main shell) that a found program will not be run because it is not
 # safe to run; reported once as information.
 bcc_note_exec_safety() {
   ((BCC_NO_EXEC)) && return 0
-  bcc_safe_to_exec "$1" || BCC_UNSAFE_EXEC[$1]=1
+  bcc_safe_to_exec "$1" >/dev/null || BCC_UNSAFE_EXEC[$1]=1
 }
 
 # Run a program the scan found, for its version only. Returns 125 under --no-exec
 # and 126 when the program is not safe to run (bcc_safe_to_exec).
 bcc_probe() {
-  local bin=$1 a
-  shift
+  local bin a
   if ((BCC_NO_EXEC)); then
     return 125
   fi
-  bcc_safe_to_exec "$bin" || return 126
+  bin=$(bcc_safe_to_exec "$1") || return 126
+  shift
   for a in "$@"; do
     case $a in
       --version | -v | -V | version) ;;

@@ -23,3 +23,9 @@ out/
 
 # 依頼文の原本（社内文書・OSS に載せない。docs/design.md 9 章）
 /brotli_check_script_prompt_*.html
+
+# bats scratch for files that must not live under /tmp
+/tests/tmp/
+
+# make dist の生成物（リリースに添付する。リポジトリには入れない）
+/dist/

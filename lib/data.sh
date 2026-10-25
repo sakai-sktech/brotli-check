@@ -73,7 +73,7 @@ bcc_data_lookup() {
 # Sets BCC_J_STATUS (FIXED | VULNERABLE | NO_FIX_AVAILABLE | UNKNOWN), BCC_J_REASON,
 # BCC_J_NEXT (empty: caller decides), BCC_J_EVIDENCE, BCC_J_FIXED.
 bcc_judge() {
-  local comp=$1 series=$2 kind=$3 ver=$4 rc
+  local comp=$1 series=$2 kind=$3 ver=$4 rc=0
   BCC_J_STATUS=UNKNOWN
   BCC_J_REASON=""
   BCC_J_NEXT=""
@@ -88,8 +88,8 @@ bcc_judge() {
   BCC_J_EVIDENCE="data: $comp $BCC_D_BRANCH; $BCC_D_URL ($BCC_D_RETRIEVED)"
   case $BCC_D_STATUS in
     fixed | analysis | unreleased)
-      bcc_version_ge "$kind" "$ver" "$BCC_D_FIXED"
-      rc=$?
+      rc=0
+      bcc_version_ge "$kind" "$ver" "$BCC_D_FIXED" || rc=$?
       if ((rc == 0)); then
         BCC_J_STATUS=FIXED
         BCC_J_REASON=$(bcc_msg r_fixed_ge "$BCC_D_FIXED")

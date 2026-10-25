@@ -1,0 +1,22 @@
+# Claude Code（ローカル専用・リポジトリに載せない）
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# ローカル設定・秘密
+.env
+.env.*
+
+# 実行時の一時出力
+*.log
+tmp/
+out/

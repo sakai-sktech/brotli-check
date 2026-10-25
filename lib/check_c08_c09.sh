@@ -81,6 +81,17 @@ bcc_check_c09_libs() {
   done
 }
 
+# The extension module of a PyPI Brotli/brotlicffi that C06 already judged by its metadata.
+bcc_c09_judged_by_c06() {
+  local f=$1 site
+  case $f in
+    */_brotli*.so) site=${f%/*} ;;
+    */brotlicffi/*.so) site=${f%/brotlicffi/*} ;;
+    *) return 1 ;;
+  esac
+  [[ -n ${BCC_C06_SITES[$site]:-} ]]
+}
+
 bcc_c09_collect() {
   BCC_C09_FILES+=("$1")
 }
@@ -96,6 +107,7 @@ bcc_check_c09_deep() {
   while IFS= read -r -d '' f; do
     [[ -z ${BCC_JUDGED[$f]:-} ]] || continue
     bcc_is_pkg_cache "$f" && continue
+    bcc_c09_judged_by_c06 "$f" && continue
     bcc_is_elf "$f" || continue
     [[ ${f##*/} == libbrotlidec* ]] && continue
     # A program that links libbrotlidec dynamically names the decoder symbols in .dynstr; not a copy.

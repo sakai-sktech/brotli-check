@@ -57,6 +57,7 @@ bcc_c06_entry() {
     return 0
   fi
   bcc_judge "$comp" '*' pep440 "$ver"
+  BCC_C06_SITES[$site]=1
   local next=$BCC_J_NEXT
   [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_pip_upgrade "$(printf '%q' "$site")" "$lname" "$BCC_J_FIXED")
   bcc_add_finding C06 "$BCC_J_STATUS" "$name" "$p" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
@@ -97,6 +98,7 @@ bcc_c06_conda() {
 
 bcc_check_c06() {
   local p
+  declare -gA BCC_C06_SITES=()
   for p in ${BCC_IDX_PY[@]+"${BCC_IDX_PY[@]}"}; do bcc_c06_entry "$p"; done
   for p in ${BCC_IDX_CONDA[@]+"${BCC_IDX_CONDA[@]}"}; do bcc_c06_conda "$p"; done
 }

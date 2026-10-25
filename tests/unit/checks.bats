@@ -229,6 +229,18 @@ fake_proc() {
   [ "$status" -eq 1 ]
 }
 
+@test "exec safety: a directory writable only by your own private group is fine" {
+  SAFE="$REPO_ROOT/tests/tmp/$BATS_TEST_NUMBER-$$"
+  mkdir -p "$SAFE/d"
+  chmod 755 "$REPO_ROOT/tests/tmp" "$SAFE"
+  chmod 775 "$SAFE/d"
+  cp /bin/true "$SAFE/d/prog"
+  bcc_group_is_private "$(id -u)" "$(stat -c %g "$SAFE/d")" || { rm -rf "$SAFE"; skip "primary group is shared"; }
+  run bcc_safe_to_exec "$SAFE/d/prog"
+  rm -rf "$SAFE"
+  [ "$status" -eq 0 ]
+}
+
 @test "exec safety: a path through a symlink is refused (checked path = executed path)" {
   SAFE="$REPO_ROOT/tests/tmp/$BATS_TEST_NUMBER-$$"
   mkdir -p "$SAFE"
@@ -359,6 +371,21 @@ make_dist_info() { # site name version
   bcc_check_c09_deep
   run findings_brief
   [[ $output == *"LIKELY_VULNERABLE|C09|server|$T/srv/app/bin/server|"* ]]
+}
+
+@test "C09 --deep: the extension module of a Brotli that C06 judged is not reported twice" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.0
+  make_fake_elf "$site/_brotli.cpython-312-x86_64-linux-gnu.so" "$FIXTURES/c09/pypi-Brotli-1.2.0.txt"
+  printf 'BrotliDecoderDecompressStream\0' >>"$site/_brotli.cpython-312-x86_64-linux-gnu.so"
+  BCC_IDX_PY=("$site/Brotli-1.2.0.dist-info")
+  BCC_IDX_CONDA=()
+  BCC_ROOTS=("$T/srv")
+  bcc_check_c06
+  bcc_check_c09_deep
+  run findings_brief
+  [[ $output == *"VULNERABLE|C06|Brotli|"* ]]
+  [[ $output != *"|C09|"* ]]
 }
 
 # --- C10 / C13 ----------------------------------------------------------------------

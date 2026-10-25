@@ -24,26 +24,52 @@ bcc_sys() {
   timeout -k 2 "$BCC_TIMEOUT" env LC_ALL=C "$@" </dev/null 2>/dev/null
 }
 
+# Is GID a private group of UID (user private groups, umask 002)? True when no user other
+# than UID has it as primary group and its member list names nobody else. Unknown -> false.
+bcc_group_is_private() {
+  local uid=$1 gid=$2 key="$1:$2" grp owner others
+  if [[ -n ${BCC_PRIVGRP_CACHE[$key]+x} ]]; then
+    return "${BCC_PRIVGRP_CACHE[$key]}"
+  fi
+  BCC_PRIVGRP_CACHE[$key]=1
+  bcc_have getent || return 1
+  grp=$(getent group "$gid" 2>/dev/null) || return 1
+  owner=$(getent passwd "$uid" 2>/dev/null | cut -d: -f1) || return 1
+  [[ -n $owner ]] || return 1
+  others=$(getent passwd 2>/dev/null | awk -F: -v g="$gid" -v u="$uid" '$4 == g && $3 != u' | head -n 1)
+  [[ -z $others ]] || return 1
+  local members=${grp##*:} m
+  for m in ${members//,/ }; do
+    [[ $m == "$owner" ]] || return 1
+  done
+  BCC_PRIVGRP_CACHE[$key]=0
+  return 0
+}
+
 # May a program the scan found be run by the current user? Only when nobody else could
 # have replaced it: the file and every directory above it belong to root (or, when not
-# running as root, to the current user) and none is writable by group or others.
+# running as root, to the current user), none is writable by others, and none is writable
+# by a group other than the owner's private group.
 # Otherwise a less privileged user could make root run their code via "--version".
 # The path must already be canonical (no symlink anywhere in it), so the checked path is
 # exactly the one that runs; prints it on success.
 bcc_safe_to_exec() {
-  local p uid mode real
+  local p uid gid mode real
   real=$(bcc_realpath "$1") || return 1
   [[ -n $real && $real == "$1" ]] || return 1
   p=$real
   while :; do
-    read -r uid mode < <(stat -L -c '%u %a' -- "$p" 2>/dev/null) || return 1
-    [[ $uid =~ ^[0-9]+$ && $mode =~ ^[0-7]+$ ]] || return 1
+    read -r uid gid mode < <(stat -L -c '%u %g %a' -- "$p" 2>/dev/null) || return 1
+    [[ $uid =~ ^[0-9]+$ && $gid =~ ^[0-9]+$ && $mode =~ ^[0-7]+$ ]] || return 1
     if ((EUID == 0)); then
       ((uid == 0)) || return 1
     else
       ((uid == 0 || uid == EUID)) || return 1
     fi
-    (((8#$mode & 8#022) == 0)) || return 1
+    (((8#$mode & 8#002) == 0)) || return 1
+    if (((8#$mode & 8#020) != 0)); then
+      bcc_group_is_private "$uid" "$gid" || return 1
+    fi
     [[ $p == / ]] && break
     p=$(dirname -- "$p")
   done

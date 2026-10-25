@@ -7,12 +7,13 @@ bcc_check_c08() {
   mapfile -t cands < <(printf '%s\n' /usr/bin/curl /usr/local/bin/curl '/opt/*/bin/curl' | bcc_candidates curl)
   for bin in ${cands[@]+"${cands[@]}"}; do
     BCC_JUDGED[$bin]=1
+    bcc_note_exec_safety "$bin"
     has_br=""
     if out=$(bcc_probe "$bin" -V); then
       if grep -i '^Features:' <<<"$out" | grep -qiw brotli; then has_br=1; else has_br=0; fi
     fi
-    link=$(bcc_links_brotlidec "$bin")
-    rc=$?
+    rc=0
+    link=$(bcc_links_brotlidec "$bin") || rc=$?
     if ((rc == 0)); then
       bcc_split_tab "$link"
       libpath=${BCC_F[0]}

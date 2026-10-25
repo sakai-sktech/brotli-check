@@ -37,7 +37,7 @@ bcc_check_c01() {
     fi
     next=$BCC_J_NEXT
     case $BCC_J_STATUS in
-      VULNERABLE) next=$(bcc_msg n_update_pkg "${pkg%%:*}" "$BCC_J_FIXED") ;;
+      VULNERABLE) next=$(bcc_msg n_update_pkg "$(printf '%q' "${pkg%%:*}")" "$BCC_J_FIXED") ;;
       FIXED) next=$(bcc_msg n_restart_after_update) ;;
     esac
     bcc_add_finding C01 "$BCC_J_STATUS" "${pkg%%:*}" "dpkg ($BCC_DEB_SERIES)" "$ver" "$BCC_J_REASON" "$next" \

@@ -18,7 +18,9 @@ bcc_elf_runpath() {
   origin=$(dirname -- "$file")
   bcc_sys readelf -d -- "$file" | sed -n 's/.*(R\(UN\)\{0,1\}PATH).*\[\(.*\)\].*/\2/p' | tr ':' '\n' |
     while IFS= read -r p; do
+      # shellcheck disable=SC2016  # the literal token $ORIGIN is replaced
       p=${p//'$ORIGIN'/$origin}
+      # shellcheck disable=SC2016
       p=${p//'${ORIGIN}'/$origin}
       [[ -n $p ]] && printf '%s\n' "$p"
     done
@@ -62,9 +64,10 @@ bcc_elf_resolve() {
 # Status: 0 linked, 1 not linked (static copy or no Brotli), 2 undetermined.
 bcc_links_brotlidec() {
   local file=$1 out lib
-  if ((!BCC_NO_EXEC)) && bcc_have ldd; then
-    # glibc's ldd asks the system dynamic loader to list dependencies (--list);
-    # the file's own code does not run.
+  if ((!BCC_NO_EXEC)) && bcc_have ldd && bcc_safe_to_exec "$file"; then
+    # glibc's ldd asks the system dynamic loader to list dependencies (--list); the
+    # file's own code does not run. ldd(1) still warns against untrusted files, so
+    # files others could modify go to the readelf walk below.
     out=$(bcc_sys ldd -- "$file")
     if [[ $out == *"not a dynamic executable"* || $out == *"statically linked"* ]]; then
       return 1
@@ -79,11 +82,11 @@ bcc_links_brotlidec() {
   bcc_have readelf || return 2
   # Breadth-first walk over NEEDED entries (depth-limited).
   local -A seen=()
-  local -a queue=("$file") next=()
+  local -a queue=("$file") next_queue=()
   local depth cur so path
   local -a rp=()
   for ((depth = 0; depth < 8 && ${#queue[@]}; depth++)); do
-    next=()
+    next_queue=()
     for cur in "${queue[@]}"; do
       [[ -z ${seen[$cur]:-} ]] || continue
       seen[$cur]=1
@@ -95,10 +98,10 @@ bcc_links_brotlidec() {
           printf '%s\treadelf\n' "$path"
           return 0
         fi
-        next+=("$path")
+        next_queue+=("$path")
       done < <(bcc_elf_needed "$cur")
     done
-    queue=(${next[@]+"${next[@]}"})
+    queue=(${next_queue[@]+"${next_queue[@]}"})
   done
   return 1
 }

@@ -108,10 +108,11 @@ bcc_check_c04() {
   done
   for bin in ${cands[@]+"${cands[@]}"}; do
     BCC_JUDGED[$bin]=1
+    bcc_note_exec_safety "$bin"
     pids=$(bcc_pids_of "$bin")
     if owner=$(bcc_dpkg_owner "$bin"); then
-      link=$(bcc_links_brotlidec "$bin")
-      rc=$?
+      rc=0
+      link=$(bcc_links_brotlidec "$bin") || rc=$?
       if ((rc == 0)); then
         bcc_split_tab "$link"
         libpath=${BCC_F[0]}
@@ -165,10 +166,11 @@ bcc_check_c05() {
   bcc_scan_proc_exes C05 bun
   for bin in ${cands[@]+"${cands[@]}"}; do
     BCC_JUDGED[$bin]=1
+    bcc_note_exec_safety "$bin"
     pids=$(bcc_pids_of "$bin")
     ver=""
     if out=$(bcc_probe "$bin" --version) && ver=$(bcc_version_from_output "$out" '^([0-9]+\.[0-9]+\.[0-9]+)([-+][0-9A-Za-z.]+)?[[:space:]]*$'); then
-      method=exec
+      method="exec"
     else
       ver=""
     fi

@@ -114,16 +114,20 @@ bcc_check_roots() {
 }
 
 bcc_load_data_source() {
+  local src=""
   if [[ -n $BCC_DATA_FILE ]]; then
     [[ -r $BCC_DATA_FILE ]] || bcc_die "$(bcc_msg err_data_unreadable "$BCC_DATA_FILE")"
-    bcc_load_data "$BCC_DATA_FILE" <"$BCC_DATA_FILE"
-    BCC_DATA_LABEL=$BCC_DATA_FILE
+    src=$BCC_DATA_FILE
+  fi
+  if [[ -z $src ]] && ! declare -F bcc_embedded_data >/dev/null && [[ -n ${BCC_DEFAULT_DATA:-} && -r $BCC_DEFAULT_DATA ]]; then
+    src=$BCC_DEFAULT_DATA
+  fi
+  if [[ -n $src ]]; then
+    BCC_DATA_LABEL=$src
+    bcc_load_data "$BCC_DATA_LABEL" <"$src"
   elif declare -F bcc_embedded_data >/dev/null; then
-    bcc_load_data embedded < <(bcc_embedded_data)
     BCC_DATA_LABEL=embedded
-  elif [[ -n ${BCC_DEFAULT_DATA:-} && -r $BCC_DEFAULT_DATA ]]; then
-    bcc_load_data "$BCC_DEFAULT_DATA" <"$BCC_DEFAULT_DATA"
-    BCC_DATA_LABEL=$BCC_DEFAULT_DATA
+    bcc_load_data embedded < <(bcc_embedded_data)
   else
     bcc_die "$(bcc_msg err_data_unreadable "${BCC_DEFAULT_DATA:-data/advisories.tsv}")"
   fi
@@ -145,6 +149,7 @@ bcc_note_disabled() {
 
 bcc_run_checks() {
   declare -gA BCC_JUDGED=()
+  declare -gA BCC_UNSAFE_EXEC=()
   bcc_build_index
   bcc_check_c01
   bcc_check_c02
@@ -162,6 +167,7 @@ bcc_run_checks() {
   bcc_check_c13
   ((BCC_CONTAINERS)) && bcc_check_c14
   ((BCC_EXPOSURE)) && bcc_check_c15
+  ((${#BCC_UNSAFE_EXEC[@]} == 0)) || bcc_add_info C04 "$(bcc_msg i_unsafe_exec "${#BCC_UNSAFE_EXEC[@]}")"
   return 0
 }
 
@@ -190,7 +196,7 @@ bcc_main() {
   if ((BCC_JSON)); then
     report=$(bcc_render_json)
   else
-    report=$(bcc_render_text)
+    report=$(bcc_render_text | bcc_text_safe)
   fi
   printf '%s\n' "$report"
   if [[ -n $BCC_OUTPUT ]]; then

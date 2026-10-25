@@ -80,15 +80,21 @@ bcc_render_text() {
   printf '\n'
 }
 
+# Paths and names come from the scanned host; control characters (C0, DEL, C1) in them
+# could rewrite the terminal, so the text report shows them as "?". JSON escapes them.
+bcc_text_safe() {
+  LC_ALL=C sed -e 's/[\x01-\x08\x0b-\x1f\x7f]/?/g' -e 's/\xc2[\x80-\x9f]/?/g'
+}
+
 bcc_skipped_scopes() {
   local f
-  local -a s=()
+  local -a scopes=()
   for f in ${BCC_SKIPPED[@]+"${BCC_SKIPPED[@]}"}; do
     bcc_split_tab "$f"
-    s+=("${BCC_F[0]}")
+    scopes+=("${BCC_F[0]}")
   done
-  if ((${#s[@]})); then
-    printf '%s\n' "${s[@]}" | awk '!seen[$0]++' | paste -sd, - | sed 's/,/, /g'
+  if ((${#scopes[@]})); then
+    printf '%s\n' "${scopes[@]}" | awk '!seen[$0]++' | paste -sd, - | sed 's/,/, /g'
   else
     bcc_msg s_skipped_none
   fi

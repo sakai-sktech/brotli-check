@@ -8,6 +8,7 @@ bcc_check_c10() {
   mapfile -t cands < <({ printf '%s\n' "${pats[@]}"; bcc_index_list ${BCC_IDX_ENVOY[@]+"${BCC_IDX_ENVOY[@]}"}; } | bcc_candidates envoy)
   for bin in ${cands[@]+"${cands[@]}"}; do
     BCC_JUDGED[$bin]=1
+    bcc_note_exec_safety "$bin"
     ver=""
     # "envoy  version: <sha>/1.38.6/Clean/RELEASE/BoringSSL"
     out=$(bcc_probe "$bin" --version) && ver=$(bcc_version_from_output "$out" 'version: [0-9a-f]+/([0-9]+\.[0-9]+\.[0-9]+)/') || ver=""
@@ -42,8 +43,8 @@ bcc_c11_file() {
     bcc_report_by_strings C11 "$prod" "$f" "" "$(bcc_msg r_c09_vendored)"
     return
   fi
-  link=$(bcc_links_brotlidec "$f")
-  rc=$?
+  rc=0
+  link=$(bcc_links_brotlidec "$f") || rc=$?
   if ((rc == 0)); then
     bcc_split_tab "$link"
     bcc_add_info C11 "$(bcc_msg i_uses_os_lib "$f" "$prod" "${BCC_F[0]}" "${BCC_F[1]}")"
@@ -207,6 +208,8 @@ bcc_check_c13() {
     mapfile -t cands < <(tr ' ' '\n' <<<"${spec##*:}" | bcc_candidates "$names")
     for bin in ${cands[@]+"${cands[@]}"}; do
       BCC_JUDGED[$bin]=1
+      bcc_note_exec_safety "$bin"
+    bcc_note_exec_safety "$bin"
       ver=""
       if out=$(bcc_probe "$bin" --version); then
         if [[ $kind == chromium ]]; then
@@ -221,6 +224,7 @@ bcc_check_c13() {
       fi
       # Without running it, a packaged browser's version is the package version.
       if [[ -z $ver ]] && owner=$(bcc_dpkg_owner "$bin"); then
+        # shellcheck disable=SC2016  # dpkg-query format
         ver=$(bcc_sys dpkg-query -W -f '${Version}' "${owner%%,*}")
         ver=${ver%%-*}
       fi

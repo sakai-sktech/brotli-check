@@ -58,7 +58,7 @@ bcc_c06_entry() {
   fi
   bcc_judge "$comp" '*' pep440 "$ver"
   local next=$BCC_J_NEXT
-  [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_pip_upgrade "$name" "$BCC_J_FIXED" "$site")
+  [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_pip_upgrade "$(printf '%q' "$site")" "$lname" "$BCC_J_FIXED")
   bcc_add_finding C06 "$BCC_J_STATUS" "$name" "$p" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
   bcc_c06_exposure "$site"
 }
@@ -91,7 +91,7 @@ bcc_c06_conda() {
   series=${ver%.*}
   bcc_judge brotli "$series" semver "$ver"
   local next=$BCC_J_NEXT
-  [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_conda_update "$(dirname -- "$(dirname -- "$f")")")
+  [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_conda_update "$(printf '%q' "$(dirname -- "$(dirname -- "$f")")")")
   bcc_add_finding C06 "$BCC_J_STATUS" "conda:libbrotlidec" "$f" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
 }
 
@@ -105,8 +105,9 @@ bcc_check_c06() {
 BCC_C07_INBOUND="body-parser express @fastify/compress koa-body co-body inflation"
 BCC_C07_OUTBOUND="undici axios got node-fetch"
 
+# The first "version" key of a package.json (top-level in practice; also works when minified).
 bcc_pkg_version() {
-  sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" 2>/dev/null | head -n 1
+  grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$1" 2>/dev/null | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/'
 }
 
 bcc_c07_entry() {

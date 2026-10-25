@@ -20,3 +20,6 @@ Thumbs.db
 *.log
 tmp/
 out/
+
+# 依頼文の原本（社内文書・OSS に載せない。docs/design.md 9 章）
+/brotli_check_script_prompt_*.html

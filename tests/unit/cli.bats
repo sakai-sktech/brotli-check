@@ -123,3 +123,8 @@ EOF
   after=$(find "$T/srv" -printf '%p %s %T@ %m\n' | sort)
   [ "$before" = "$after" ]
 }
+
+@test "a root named with --roots that does not exist is listed as not scanned" {
+  run "$BIN" --roots "$T/srv,$T/nope" --no-exec
+  [[ $output == *"[SKIPPED] $T/nope | does not exist"* ]]
+}

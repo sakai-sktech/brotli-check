@@ -97,12 +97,14 @@ bcc_parse_args() {
   fi
 }
 
-# Roots that do not exist or cannot be read are reported, not silently dropped.
+# Unreadable roots are reported. Missing default roots (/srv, /var/www) are normal and
+# dropped quietly; a missing root the user named is reported.
 bcc_check_roots() {
   local r
   local -a ok=()
   for r in ${BCC_ROOTS[@]+"${BCC_ROOTS[@]}"}; do
     if [[ ! -e $r ]]; then
+      [[ $BCC_ROOTS_RAW == "$BCC_DEFAULT_ROOTS" ]] || bcc_skip "$r" "$(bcc_msg skip_missing)"
       continue
     elif [[ ! -r $r || ! -x $r ]]; then
       bcc_skip "$r" "$(bcc_msg skip_unreadable)"

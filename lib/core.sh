@@ -24,50 +24,59 @@ bcc_sys() {
   timeout -k 2 "$BCC_TIMEOUT" env LC_ALL=C "$@" </dev/null 2>/dev/null
 }
 
-# Is GID a private group of UID (user private groups, umask 002)? True when no user other
-# than UID has it as primary group and its member list names nobody else. Unknown -> false.
+# Is GID the user private group of UID (umask 002 setups)? All must hold: the group's name
+# is the owner's login name, it is the owner's primary group, exactly one group entry has
+# this GID, its member list names nobody but the owner, and no other user has it as primary
+# group. Any lookup that fails means "no". Used only when not running as root.
 bcc_group_is_private() {
-  local uid=$1 gid=$2 key="$1:$2" grp owner others
+  local uid=$1 gid=$2 key="$1:$2" pw grp name members m n
   if [[ -n ${BCC_PRIVGRP_CACHE[$key]+x} ]]; then
     return "${BCC_PRIVGRP_CACHE[$key]}"
   fi
   BCC_PRIVGRP_CACHE[$key]=1
   bcc_have getent || return 1
+  pw=$(getent passwd "$uid" 2>/dev/null) || return 1
+  name=${pw%%:*}
+  [[ -n $name && $(cut -d: -f4 <<<"$pw") == "$gid" ]] || return 1
   grp=$(getent group "$gid" 2>/dev/null) || return 1
-  owner=$(getent passwd "$uid" 2>/dev/null | cut -d: -f1) || return 1
-  [[ -n $owner ]] || return 1
-  others=$(getent passwd 2>/dev/null | awk -F: -v g="$gid" -v u="$uid" '$4 == g && $3 != u' | head -n 1)
-  [[ -z $others ]] || return 1
-  local members=${grp##*:} m
+  [[ ${grp%%:*} == "$name" ]] || return 1
+  n=$(getent group 2>/dev/null | awk -F: -v g="$gid" '$3 == g' | grep -c .) || return 1
+  ((n == 1)) || return 1
+  members=${grp##*:}
   for m in ${members//,/ }; do
-    [[ $m == "$owner" ]] || return 1
+    [[ $m == "$name" ]] || return 1
   done
+  [[ -z $(getent passwd 2>/dev/null | awk -F: -v g="$gid" -v u="$uid" '$4 == g && $3 != u' | head -n 1) ]] || return 1
   BCC_PRIVGRP_CACHE[$key]=0
   return 0
 }
 
 # May a program the scan found be run by the current user? Only when nobody else could
 # have replaced it: the file and every directory above it belong to root (or, when not
-# running as root, to the current user), none is writable by others, and none is writable
-# by a group other than the owner's private group.
+# running as root, to the current user) and none is writable by others. Group-writable is
+# refused when running as root; otherwise it is accepted only for the owner's user
+# private group (bcc_group_is_private).
 # Otherwise a less privileged user could make root run their code via "--version".
 # The path must already be canonical (no symlink anywhere in it), so the checked path is
 # exactly the one that runs; prints it on success.
+# Usage: bcc_safe_to_exec PATH [EFFECTIVE-UID]  (the second argument exists for tests only)
 bcc_safe_to_exec() {
-  local p uid gid mode real
+  local p uid gid mode real euid=${2:-$EUID}
   real=$(bcc_realpath "$1") || return 1
   [[ -n $real && $real == "$1" ]] || return 1
   p=$real
   while :; do
     read -r uid gid mode < <(stat -L -c '%u %g %a' -- "$p" 2>/dev/null) || return 1
     [[ $uid =~ ^[0-9]+$ && $gid =~ ^[0-9]+$ && $mode =~ ^[0-7]+$ ]] || return 1
-    if ((EUID == 0)); then
+    if ((euid == 0)); then
       ((uid == 0)) || return 1
     else
-      ((uid == 0 || uid == EUID)) || return 1
+      ((uid == 0 || uid == euid)) || return 1
     fi
     (((8#$mode & 8#002) == 0)) || return 1
     if (((8#$mode & 8#020) != 0)); then
+      # Never for root, never on root-owned paths; otherwise only the user private group.
+      ((euid != 0 && uid != 0)) || return 1
       bcc_group_is_private "$uid" "$gid" || return 1
     fi
     [[ $p == / ]] && break

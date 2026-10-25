@@ -241,6 +241,19 @@ fake_proc() {
   [ "$status" -eq 0 ]
 }
 
+@test "exec safety: as root, a program owned by an ordinary user is never run" {
+  [ "$(id -u)" -ne 0 ] || skip "needs a non-root test user"
+  SAFE="$REPO_ROOT/tests/tmp/$BATS_TEST_NUMBER-$$"
+  mkdir -p "$SAFE"
+  chmod 755 "$REPO_ROOT/tests/tmp" "$SAFE"
+  cp /bin/true "$SAFE/prog"
+  run bcc_safe_to_exec "$SAFE/prog"
+  [ "$status" -eq 0 ]
+  run bcc_safe_to_exec "$SAFE/prog" 0
+  rm -rf "$SAFE"
+  [ "$status" -eq 1 ]
+}
+
 @test "exec safety: a path through a symlink is refused (checked path = executed path)" {
   SAFE="$REPO_ROOT/tests/tmp/$BATS_TEST_NUMBER-$$"
   mkdir -p "$SAFE"

@@ -65,7 +65,11 @@ a file name says one thing and the strings another, the tool reports `UNKNOWN`.
 
 The tool runs a found program only for `--version` (or `-V`), with an empty environment and a
 timeout, and only if the file and every directory above it belong to root (or to you, when you
-are not root) and are not writable by group or others. Others are judged from files. `ldd` is
+are not root) and are not writable by others. As root, group-writable paths are never run.
+As an ordinary user, a group-writable directory is accepted only when its group is your user
+private group (same name as you, your primary group, one entry for the GID, no other members,
+nobody else's primary group). This cannot see group passwords (`gshadow`) or users that a
+directory service does not enumerate; use `--no-exec` where that matters. Others are judged from files. `ldd` is
 subject to the same rule; otherwise linkage is followed with `readelf` and `ldconfig -p`,
 which can miss unusual `RUNPATH` setups. `--inspect-containers` runs a fixed read-only script
 inside running containers.

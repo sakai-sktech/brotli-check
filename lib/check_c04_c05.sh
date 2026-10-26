@@ -137,6 +137,7 @@ bcc_check_c04() {
     method=${BCC_F[1]}
     major=${ver%%.*}
     bcc_judge node "$major" semver "$ver"
+    [[ $method == exec ]] || bcc_crosscheck_fixed "$bin"
     next=$BCC_J_NEXT
     if [[ $BCC_J_STATUS == VULNERABLE ]]; then
       if [[ $BCC_D_STATUS == derived ]]; then
@@ -183,6 +184,7 @@ bcc_check_c05() {
       continue
     fi
     bcc_judge bun '*' semver "$ver"
+    [[ $method == exec ]] || bcc_crosscheck_fixed "$bin"
     next=$BCC_J_NEXT
     if [[ $BCC_J_STATUS == VULNERABLE ]]; then
       next=$(bcc_msg n_update_runtime "$BCC_J_FIXED")

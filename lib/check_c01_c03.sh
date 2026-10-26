@@ -81,7 +81,7 @@ bcc_check_c03() {
     fi
     [[ -n $maps ]] || continue
     hit=$(grep -E '/(libbrotlidec[^/]*\.so[^/]*|_brotli[^/]*\.so) \(deleted\)$' <<<"$maps" |
-      sed -E 's/^([^ ]+ +){5}//' | sort -u | head -n 3 | paste -sd, - | sed 's/,/, /g')
+      sed -E 's/^([^ ]+ +){5}//' | sort -u | head -n 3 | paste -sd, - | sed 's/,/, /g' || true)
     [[ -n $hit ]] || continue
     exe=$(readlink -- "$d/exe" 2>/dev/null) || exe="?"
     bcc_add_finding C03 RESTART_REQUIRED "pid $pid" "$exe" "" "$(bcc_msg r_c03_deleted_lib "$hit")" \

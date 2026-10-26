@@ -2,11 +2,12 @@
 # C14 containers (--containers, --inspect-containers), C15 listening sockets (--exposure).
 
 # Fixed, read-only script run inside a container with --inspect-containers.
-# It prints tagged lines only; nothing is installed, written, or started.
+# It prints tagged lines only; nothing is installed, written, or started. os-release is
+# read with sed, never sourced (it is a file the image's author controls).
 # shellcheck disable=SC2016  # expanded inside the container, not here
 BCC_C14_PROBE='
-. /etc/os-release 2>/dev/null
-echo "OS	${ID:-}	${VERSION_CODENAME:-}	${UBUNTU_CODENAME:-}"
+osr() { sed -n "s/^$1=//p" /etc/os-release 2>/dev/null | head -n 1 | tr -d "\"\047"; }
+echo "OS	$(osr ID)	$(osr VERSION_CODENAME)	$(osr UBUNTU_CODENAME)"
 if command -v dpkg-query >/dev/null 2>&1; then
   dpkg-query -W -f "PKG	\${db:Status-Abbrev}	\${binary:Package}	\${Version}	\${source:Package}	\${source:Version}\n" libbrotli1 python3-brotli 2>/dev/null
 fi
@@ -83,23 +84,23 @@ bcc_c14_inspect() {
         bcc_add_finding C14 "$BCC_J_STATUS" "$pkg" "$where" "$ver" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
         ;;
       NODE)
-        local nver
+        local nver npath=${BCC_F[1]:-}
         nver=$(bcc_version_extract "${BCC_F[2]:-}")
         if [[ -z $nver ]]; then
-          bcc_add_finding C14 UNKNOWN node "$where ${BCC_F[1]}" "" "$(bcc_msg r_version_unknown)" "$(bcc_msg n_check_vendor)" "" ""
+          bcc_add_finding C14 UNKNOWN node "$where $npath" "" "$(bcc_msg r_version_unknown)" "$(bcc_msg n_check_vendor)" "" ""
           continue
         fi
         bcc_judge node "${nver%%.*}" semver "$nver"
-        bcc_add_finding C14 "$BCC_J_STATUS" node "$where ${BCC_F[1]}" "$nver" "$BCC_J_REASON $(bcc_msg r_c14_node_vs_os)" \
+        bcc_add_finding C14 "$BCC_J_STATUS" node "$where $npath" "$nver" "$BCC_J_REASON $(bcc_msg r_c14_node_vs_os)" \
           "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
         ;;
       PY)
-        local lname
-        lname=$(tr '[:upper:]' '[:lower:]' <<<"${BCC_F[2]:-}")
+        local lname meta=${BCC_F[1]:-} pname=${BCC_F[2]:-} pver=${BCC_F[3]:-}
+        lname=$(tr '[:upper:]' '[:lower:]' <<<"$pname")
         [[ $lname == brotli || $lname == brotlicffi ]] || continue
-        [[ ${BCC_F[1]} == /usr/lib/python3/dist-packages/* ]] && continue # distribution package: PKG line
-        bcc_judge "pypi:$lname" '*' pep440 "${BCC_F[3]:-}"
-        bcc_add_finding C14 "$BCC_J_STATUS" "${BCC_F[2]}" "$where ${BCC_F[1]%/*}" "${BCC_F[3]:-}" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
+        [[ $meta == /usr/lib/python3/dist-packages/* ]] && continue # distribution package: PKG line
+        bcc_judge "pypi:$lname" '*' pep440 "$pver"
+        bcc_add_finding C14 "$BCC_J_STATUS" "$pname" "$where ${meta%/*}" "$pver" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
         ;;
     esac
   done <<<"$out"

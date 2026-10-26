@@ -42,6 +42,8 @@ bcc_load_data() {
 # Sets BCC_D_BRANCH BCC_D_FIXED BCC_D_STATUS BCC_D_URL BCC_D_RETRIEVED BCC_D_NOTE.
 bcc_data_lookup() {
   local comp=$1 series=$2 row pass br c
+  # Callers hold their own fields in BCC_F; restore them on return.
+  local -a saved=(${BCC_F[@]+"${BCC_F[@]}"})
   for pass in exact other; do
     for row in "${BCC_DATA_ROWS[@]}"; do
       bcc_split_tab "$row"
@@ -63,9 +65,11 @@ bcc_data_lookup() {
       BCC_D_URL=${BCC_F[4]}
       BCC_D_RETRIEVED=${BCC_F[5]}
       BCC_D_NOTE=${BCC_F[6]}
+      BCC_F=(${saved[@]+"${saved[@]}"})
       return 0
     done
   done
+  BCC_F=(${saved[@]+"${saved[@]}"})
   return 1
 }
 

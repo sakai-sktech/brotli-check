@@ -11,6 +11,8 @@ load_libs() {
     # shellcheck source=/dev/null
     . "$f"
   done
+  # The tool runs with pipefail (bin/brotli-cve-check); test under the same rules.
+  set -o pipefail
   BCC_LANG=en
   BCC_NO_EXEC=0
   BCC_SHOW_CMDLINE=0

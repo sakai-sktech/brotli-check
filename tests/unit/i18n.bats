@@ -28,8 +28,8 @@ setup() {
 @test "both languages take the same number of arguments for each key" {
   local k en ja bad=""
   for k in "${!BCC_MSG_EN[@]}"; do
-    en=$(grep -o '%s' <<<"${BCC_MSG_EN[$k]}" | wc -l)
-    ja=$(grep -o '%s' <<<"${BCC_MSG_JA[$k]}" | wc -l)
+    en=$(grep -o '%s' <<<"${BCC_MSG_EN[$k]}" | wc -l || true)
+    ja=$(grep -o '%s' <<<"${BCC_MSG_JA[$k]}" | wc -l || true)
     [ "$en" -eq "$ja" ] || bad+=" $k($en/$ja)"
   done
   [ -z "$bad" ] || { echo "mismatch:$bad"; return 1; }

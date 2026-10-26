@@ -301,11 +301,11 @@ bcc_candidates() {
 # Start time of a process as UTC ISO 8601, from DIR=/proc/<pid>. Prints "?" when unknown.
 bcc_proc_start_time() {
   local dir=$1 stat rest btime tck start
-  local -a f=()
+  local -a fields=()
   stat=$(cat -- "$dir/stat" 2>/dev/null) || { printf '?'; return; }
   rest=${stat##*) }
-  read -r -a f <<<"$rest"
-  start=${f[19]:-}
+  read -r -a fields <<<"$rest"
+  start=${fields[19]:-}
   btime=$(sed -n 's/^btime //p' "${BCC_PROC_ROOT:-/proc}/stat" 2>/dev/null)
   tck=$(getconf CLK_TCK 2>/dev/null || printf 100)
   if [[ $start =~ ^[0-9]+$ && $btime =~ ^[0-9]+$ && $tck =~ ^[0-9]+$ ]] && ((tck > 0)); then

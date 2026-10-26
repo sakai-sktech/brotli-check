@@ -50,6 +50,28 @@ setup() {
   [ ! -s "$T/existing" ]
 }
 
+@test "--output refuses a dangling symlink (it would be followed)" {
+  ln -s "$T/somewhere-else" "$T/out.txt"
+  run "$BIN" "${ARGS[@]}" --output "$T/out.txt"
+  [ "$status" -eq 3 ]
+  [ ! -e "$T/somewhere-else" ]
+}
+
+@test "--output refuses a directory others can modify without the sticky bit" {
+  mkdir -p "$T/open"
+  chmod 777 "$T/open"
+  run "$BIN" "${ARGS[@]}" --output "$T/open/out.txt"
+  [ "$status" -eq 3 ]
+  [ ! -e "$T/open/out.txt" ]
+}
+
+@test "--output leaves exactly one new file (no temporary file behind)" {
+  mkdir -p "$T/o"
+  run "$BIN" "${ARGS[@]}" --output "$T/o/report.txt"
+  [ -s "$T/o/report.txt" ]
+  [ "$(find "$T/o" -mindepth 1 | wc -l)" -eq 1 ]
+}
+
 @test "--output writes the same report as stdout" {
   run --separate-stderr "$BIN" "${ARGS[@]}" --json --output "$T/out.json"
   [ -s "$T/out.json" ]

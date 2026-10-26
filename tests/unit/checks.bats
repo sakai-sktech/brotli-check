@@ -401,6 +401,57 @@ make_dist_info() { # site name version
   [[ $output != *"|C09|"* ]]
 }
 
+# --- Codex review regressions (2026-10-26) --------------------------------------------
+
+@test "lookup keeps the caller's BCC_F (judging must not clobber parsed fields)" {
+  bcc_split_tab $'NODE\t/usr/local/bin/node\tv22.23.3'
+  bcc_judge node 22 semver 22.23.3
+  [ "${BCC_F[1]}" = /usr/local/bin/node ]
+}
+
+@test "C14: two node copies in one container are both reported (no dedup collision)" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\ttrixie\t\nNODE\t/opt/a/bin/node\tv22.23.4\nNODE\t/opt/b/bin/node\tv22.23.3\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [[ $output == *"FIXED|C14|node|container web (img:1) /opt/a/bin/node|22.23.4"* ]]
+  [[ $output == *"VULNERABLE|C14|node|container web (img:1) /opt/b/bin/node|22.23.3"* ]]
+}
+
+@test "linkage that cannot be followed is undetermined (2), never 'not linked'" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  make_fake_elf "$T/broken"
+  run bcc_links_brotlidec "$T/broken"
+  [ "$status" -eq 2 ]
+}
+
+@test "C04: a path saying 22.23.4 over an unfixed decoder is UNKNOWN, not FIXED" {
+  BCC_NO_EXEC=1
+  make_fake_elf "$T/opt/node-v22.23.4-linux-x64/bin/node" "$FIXTURES/c09/node-v22.23.3.txt"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_IDX_NODE=("$T/opt/node-v22.23.4-linux-x64/bin/node")
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
+  run findings_brief
+  [[ $output == *"UNKNOWN|C04|node|$T/opt/node-v22.23.4-linux-x64/bin/node|22.23.4"* ]]
+}
+
+@test "C06: metadata saying 1.2.1 over an unfixed _brotli module is UNKNOWN, not FIXED" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.1
+  tr '\n' '\0' <"$FIXTURES/c09/pypi-Brotli-1.2.0.txt" >"$site/_brotli.cpython-312-x86_64-linux-gnu.so"
+  BCC_IDX_PY=("$site/Brotli-1.2.1.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|Brotli|"* ]]
+  [[ $output != *"FIXED|C06|Brotli|"* ]]
+}
+
 # --- C10 / C13 ----------------------------------------------------------------------
 
 @test "C10: an Envoy configuration with a Brotli decompressor is EXPOSURE" {

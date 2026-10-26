@@ -92,9 +92,43 @@ bcc_parse_args() {
   for r in ${BCC_EXCLUDES[@]+"${BCC_EXCLUDES[@]}"}; do
     [[ $r == /* ]] || bcc_die "$(bcc_msg err_relative "$r")"
   done
-  if [[ -n $BCC_OUTPUT && -e $BCC_OUTPUT ]]; then
-    bcc_die "$(bcc_msg err_output_exists "$BCC_OUTPUT")"
+  if [[ -n $BCC_OUTPUT ]]; then
+    if [[ -e $BCC_OUTPUT || -L $BCC_OUTPUT ]]; then
+      bcc_die "$(bcc_msg err_output_exists "$BCC_OUTPUT")"
+    fi
+    bcc_output_dir_ok "$(dirname -- "$BCC_OUTPUT")" || bcc_die "$(bcc_msg err_output_dir "$BCC_OUTPUT")"
   fi
+}
+
+# May the --output file be created in DIR? Not when another user could swap our temporary
+# file there: a directory writable by others needs the sticky bit (like /tmp); a
+# group-writable one needs the sticky bit or, when not root, the owner's private group.
+bcc_output_dir_ok() {
+  local dir=$1 uid gid mode
+  read -r uid gid mode < <(stat -L -c '%u %g %a' -- "$dir" 2>/dev/null) || return 1
+  [[ $mode =~ ^[0-7]+$ ]] || return 1
+  (((8#$mode & 8#1000) != 0)) && return 0
+  (((8#$mode & 8#002) == 0)) || return 1
+  if (((8#$mode & 8#020) != 0)); then
+    ((EUID != 0)) || return 1
+    bcc_group_is_private "$uid" "$gid" || return 1
+  fi
+  return 0
+}
+
+# Write the report to a new file. A temporary file is created exclusively (mktemp) in the
+# same directory and hard-linked to the final name: link(2) fails on any existing name and
+# never follows a symlink, so a FIFO, device or symlink planted after the option check is
+# never opened (bash's noclobber still opens existing non-regular files).
+bcc_write_output() {
+  local out=$1 report=$2 tmp
+  tmp=$(mktemp -- "$(dirname -- "$out")/.brotli-cve-check.XXXXXX" 2>/dev/null) || return 1
+  if printf '%s\n' "$report" 2>/dev/null >>"$tmp" && ln -- "$tmp" "$out" 2>/dev/null; then
+    rm -f -- "$tmp"
+    return 0
+  fi
+  rm -f -- "$tmp"
+  return 1
 }
 
 # Unreadable roots are reported. Missing default roots (/srv, /var/www) are normal and
@@ -177,12 +211,12 @@ bcc_main() {
     exit 3
   fi
   BCC_LANG=en
+  bcc_init_findings
   bcc_parse_args "$@"
   local t
   for t in find grep sed awk sort od tr timeout readlink date; do
     bcc_have "$t" || bcc_die "$(bcc_msg err_missing_tool "$t")"
   done
-  bcc_init_findings
   bcc_load_data_source
   bcc_init_host
   bcc_init_homes
@@ -200,7 +234,7 @@ bcc_main() {
   fi
   printf '%s\n' "$report"
   if [[ -n $BCC_OUTPUT ]]; then
-    (set -o noclobber && printf '%s\n' "$report" >"$BCC_OUTPUT") || bcc_die "$(bcc_msg err_output_write "$BCC_OUTPUT")"
+    bcc_write_output "$BCC_OUTPUT" "$report" || bcc_die "$(bcc_msg err_output_write "$BCC_OUTPUT")"
   fi
   exit "$BCC_EXIT"
 }

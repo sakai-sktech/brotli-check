@@ -57,6 +57,10 @@ bcc_c06_entry() {
     return 0
   fi
   bcc_judge "$comp" '*' pep440 "$ver"
+  local ext
+  while IFS= read -r ext; do
+    bcc_crosscheck_fixed "$ext"
+  done < <(compgen -G "$site/_brotli*.so" || true; compgen -G "$site/brotlicffi/_brotlicffi*.so" || true)
   BCC_C06_SITES[$site]=1
   local next=$BCC_J_NEXT
   [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_pip_upgrade "$(printf '%q' "$site")" "$lname" "$BCC_J_FIXED")

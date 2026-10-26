@@ -205,8 +205,12 @@ and reported with a reason.
 - **Every external command runs with `LC_ALL=C`.** The development host's readelf printed localized
   output. Found programs run with an emptied environment (`env -i`) so that `NODE_OPTIONS` and the
   like have no effect.
-- **`--output` never overwrites an existing file** (noclobber), so that a symlink planted by another
-  user cannot make root overwrite something else.
+- **`--output` never overwrites or opens an existing file.** The report goes to a temporary file
+  created exclusively in the same directory, which is then hard-linked to the requested name
+  (link(2) fails on any existing name and never follows symlinks). Directories that other users
+  can modify without the sticky bit are refused. (First implemented with bash's noclobber; the
+  Codex review showed that noclobber still opens existing FIFOs and devices, e.g. a symlink to a
+  disk planted after the option check.)
 - **Test hooks**: only `BCC_PROC_ROOT`, `BCC_OS_RELEASE`, `BCC_HOME_DIRS`, `BCC_MOUNTINFO` and
   `BCC_TODAY` are read from the environment (the exception to "no environment variables"; all are
   the tool's own).

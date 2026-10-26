@@ -5,10 +5,13 @@ bcc_is_elf() {
   [[ $(od -An -tx1 -N4 -- "$1" 2>/dev/null | tr -d ' \n') == 7f454c46 ]]
 }
 
-# NEEDED entries of an ELF file. Status 2 when readelf is not available.
+# NEEDED entries of an ELF file. Status 1 when readelf fails on it, 2 when readelf is not
+# available. (Captured first so the status does not depend on pipefail.)
 bcc_elf_needed() {
+  local out
   bcc_have readelf || return 2
-  bcc_sys readelf -d -- "$1" | sed -n 's/.*(NEEDED).*\[\(.*\)\].*/\1/p'
+  out=$(bcc_sys readelf -d -- "$1") || return 1
+  sed -n 's/.*(NEEDED).*\[\(.*\)\].*/\1/p' <<<"$out"
 }
 
 # RUNPATH/RPATH directories of an ELF file, with $ORIGIN expanded.
@@ -59,9 +62,28 @@ bcc_elf_resolve() {
   return 1
 }
 
+# A version taken from a path, a header file or package metadata (not from the program
+# itself) is only as good as whoever named the directory or wrote the file. Before such a
+# version yields FIXED, look at the decoder that FILE actually contains: if its strings
+# lack the fix's error name, report UNKNOWN instead. Acts on BCC_J_* from bcc_judge.
+# Usage: bcc_crosscheck_fixed FILE
+bcc_crosscheck_fixed() {
+  local f=$1 res
+  [[ $BCC_J_STATUS == FIXED && -f $f && -r $f ]] || return 0
+  res=$(bcc_brotli_heuristic "$f")
+  if [[ ${res%%$'\t'*} == LIKELY_VULNERABLE ]]; then
+    BCC_J_STATUS=UNKNOWN
+    BCC_J_REASON=$(bcc_msg r_crosscheck_conflict "$BCC_J_REASON")
+    BCC_J_NEXT=$(bcc_msg n_check_vendor)
+  fi
+  return 0
+}
+
 # Does FILE load libbrotlidec, directly or through other libraries?
 # Prints the resolved libbrotlidec path and the method (ldd | readelf).
-# Status: 0 linked, 1 not linked (static copy or no Brotli), 2 undetermined.
+# Status: 0 linked, 1 not linked (static copy or no Brotli), 2 undetermined. Anything that
+# could not be followed to the end (readelf failure, unresolvable dependency, depth limit,
+# "not found" in ldd) is 2, never 1: "not linked" leads to NOT_APPLICABLE.
 bcc_links_brotlidec() {
   local file=$1 out lib safe
   if ((!BCC_NO_EXEC)) && bcc_have ldd && safe=$(bcc_safe_to_exec "$file"); then
@@ -72,37 +94,50 @@ bcc_links_brotlidec() {
     if [[ $out == *"not a dynamic executable"* || $out == *"statically linked"* ]]; then
       return 1
     fi
-    lib=$(sed -n 's/^[[:space:]]*libbrotlidec[^ ]* => \([^ ]*\) .*/\1/p' <<<"$out" | head -n 1)
+    lib=$(sed -n 's/^[[:space:]]*libbrotlidec[^ ]* => \(.*\)$/\1/p' <<<"$out" | head -n 1)
     if [[ -n $lib ]]; then
+      lib=${lib% (0x*}
       printf '%s\tldd\n' "$lib"
       return 0
     fi
-    [[ -n $out ]] && return 1
+    if [[ -n $out && $out != *"=> not found"* ]]; then
+      return 1
+    fi
   fi
   bcc_have readelf || return 2
   # Breadth-first walk over NEEDED entries (depth-limited).
   local -A seen=()
   local -a queue=("$file") next_queue=()
-  local depth cur so path
+  local depth cur so path needed incomplete=0
   local -a rp=()
   for ((depth = 0; depth < 8 && ${#queue[@]}; depth++)); do
     next_queue=()
     for cur in "${queue[@]}"; do
       [[ -z ${seen[$cur]:-} ]] || continue
       seen[$cur]=1
+      if ! needed=$(bcc_elf_needed "$cur"); then
+        incomplete=1
+        continue
+      fi
       mapfile -t rp < <(bcc_elf_runpath "$cur")
       while IFS= read -r so; do
         [[ -n $so ]] || continue
-        path=$(bcc_elf_resolve "$so" ${rp[@]+"${rp[@]}"}) || continue
+        path=$(bcc_elf_resolve "$so" ${rp[@]+"${rp[@]}"}) || path=""
         if [[ $so == libbrotlidec* ]]; then
-          printf '%s\treadelf\n' "$path"
+          printf '%s\treadelf\n' "${path:-$so (not found)}"
           return 0
         fi
+        if [[ -z $path ]]; then
+          incomplete=1
+          continue
+        fi
         next_queue+=("$path")
-      done < <(bcc_elf_needed "$cur")
+      done <<<"$needed"
     done
     queue=(${next_queue[@]+"${next_queue[@]}"})
   done
+  ((${#queue[@]} == 0)) || incomplete=1
+  ((incomplete)) && return 2
   return 1
 }
 

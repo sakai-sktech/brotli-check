@@ -40,7 +40,11 @@ for row in "${matrix[@]}"; do
   IFS='|' read -r base lib py <<<"$row"
   tag="bcc-it:${base//[:.]/-}"
   echo "== $base"
-  "$engine" build -q --build-arg "BASE=$base" -t "$tag" "$ctx" >/dev/null
+  if ! "$engine" build -q --build-arg "BASE=$base" -t "$tag" "$ctx" >"$out/${tag#bcc-it:}-build.log" 2>&1; then
+    echo "FAIL $base: image build failed (see $out/${tag#bcc-it:}-build.log)"
+    failed=1
+    continue
+  fi
   for who in root tester; do
     report="$out/${tag#bcc-it:}-$who.json"
     args=(--json --roots '/opt,/srv')
@@ -68,15 +72,18 @@ if [[ -n ${SKIP_BASH42:-} ]]; then
   exit "$failed"
 fi
 
-# bash 4.2 (the oldest supported) with GNU tools: the scan must run and produce valid JSON.
+# bash 4.2 (the oldest supported) with GNU tools: a PyPI Brotli 1.2.0 must be found and judged
+# (exit 1), and the JSON must parse.
 echo "== bash:4.2"
 set +e
-"$engine" run --rm -v "$root/dist/brotli-cve-check:/bcc:ro" bash:4.2 sh -c \
-  'apk add -q --no-cache coreutils findutils grep sed gawk binutils >/dev/null && bash /bcc --json --roots /usr --timeout 60' \
-  >"$out/bash42.json"
+"$engine" run --rm -v "$root/dist/brotli-cve-check:/bcc:ro" bash:4.2 sh -c '
+  apk add -q --no-cache coreutils findutils grep sed gawk binutils >/dev/null &&
+  mkdir -p /srv/venv/lib/python3.12/site-packages/Brotli-1.2.0.dist-info &&
+  printf "Name: Brotli\nVersion: 1.2.0\n" >/srv/venv/lib/python3.12/site-packages/Brotli-1.2.0.dist-info/METADATA &&
+  bash /bcc --json --roots /srv,/usr --timeout 60' >"$out/bash42.json"
 rc=$?
 set -e
-if ((rc != 3)) && python3 -I -c 'import json,sys; json.load(open(sys.argv[1]))' "$out/bash42.json"; then
+if ((rc == 1)) && python3 -I "$root/tests/integration/assert.py" "$out/bash42.json" "C06|/srv/venv/|VULNERABLE"; then
   echo "ok   bash 4.2, exit $rc"
 else
   echo "FAIL bash 4.2 (exit $rc), report: $out/bash42.json"

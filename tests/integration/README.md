@@ -13,11 +13,12 @@ Every image also contains:
 
 - official Node.js 22.23.3 (expected `VULNERABLE`) and 22.23.4 (`FIXED`) in `/opt`,
   downloaded at build time and verified against the release's `SHASUMS256.txt`;
-- PyPI Brotli 1.2.0 in `/srv/venv-old` (`VULNERABLE`, plus `EXPOSURE` for its HTTP
-  clients) and 1.2.1 in `/srv/venv-new` (`FIXED`).
+- PyPI Brotli 1.2.0 with urllib3 in `/srv/venv-old` (`VULNERABLE`, plus `EXPOSURE` because
+  urllib3 decodes Brotli responses automatically) and 1.2.1 in `/srv/venv-new` (`FIXED`).
 
 A last step runs the single-file build under `bash:4.2` (the oldest supported version) with
-GNU tools added, and checks that the JSON output parses.
+GNU tools added, places a PyPI Brotli 1.2.0 record, and expects exit status 1 with that
+finding `VULNERABLE` in valid JSON.
 
 When the expected verdicts change (for example Ubuntu releases a fix), update the matrix in
 `run.sh` together with `data/advisories.tsv`.

@@ -10,10 +10,11 @@ RUN apt-get update \
 
 # Official Node.js tarballs, verified against SHASUMS256.txt.
 COPY fetch-node.sh /usr/local/sbin/fetch-node
-RUN fetch-node 22.23.3 && fetch-node 22.23.4
+RUN sh /usr/local/sbin/fetch-node 22.23.3 && sh /usr/local/sbin/fetch-node 22.23.4
 
-# PyPI Brotli before and after the fix, each in its own virtual environment.
-RUN python3 -m venv /srv/venv-old && /srv/venv-old/bin/pip install --no-cache-dir --only-binary=:all: 'brotli==1.2.0' \
+# PyPI Brotli before and after the fix, each in its own virtual environment. urllib3 next to
+# the old one gives the EXPOSURE hint something to find.
+RUN python3 -m venv /srv/venv-old && /srv/venv-old/bin/pip install --no-cache-dir --only-binary=:all: 'brotli==1.2.0' urllib3 \
  && python3 -m venv /srv/venv-new && /srv/venv-new/bin/pip install --no-cache-dir --only-binary=:all: 'brotli==1.2.1'
 
 RUN useradd -m tester

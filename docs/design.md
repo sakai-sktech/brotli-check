@@ -1,232 +1,286 @@
-# 設計メモ — CVE-2026-111497 点検スクリプト
+# Design notes — CVE-2026-111497 check script
 
-- 状態: **了承済み** 2026-10-26（9 章の未決事項も同日に決定）
-- 依頼文: `brotli_check_script_prompt_20261026.html`（株式会社ジェイ・メディック、2026-10-26）
-- この文書の位置づけ: 依頼文「12. 作業の進め方」の手順 2。了承を得るまで実装に入らない。
+日本語: [design.ja.md](design.ja.md)
 
-## 1. 目的と、やらないこと
+- Status: **approved** 2026-10-26 (the open points in section 9 were decided the same day)
+- Request: `brotli_check_script_prompt_20261026.html` (株式会社ジェイ・メディック, 2026-10-26; not in the repository)
+- Role of this document: step 2 of the request ("write the design notes and get approval before implementing").
 
-Ubuntu 22.04 / 24.04 / 26.04（と Debian 12 / 13）の 1 台のホストで、CVE-2026-111497 に該当しうる
-Brotli デコーダーのコピーを**読み取り専用で**洗い出す。
+## 1. Purpose, and what the tool must not do
 
-やらないこと（依頼文 2 章の絶対条件をそのまま設計の制約にする）:
-インストール・更新・削除・再起動・設定変更／ネットワークアクセス／他ホストの走査／
-攻撃データの生成・取得・同梱／侵入の有無の調査／「安全」という表示。
+On one Ubuntu 22.04 / 24.04 / 26.04 host (and Debian 12 / 13), list **read-only** every copy of
+the Brotli decoder that may be affected by CVE-2026-111497.
 
-## 2. 一次資料の再確認結果（2026-10-26 確定分）
+Hard constraints (section 2 of the request, used as design constraints): no installing, updating,
+removing, restarting or reconfiguring; no network access; no scanning of other hosts; no
+generating, downloading or shipping attack data; no intrusion check; never say "safe".
 
-依頼文 8 章の既知データとの差分と、本人の確認・指示（2026-10-26）を反映した確定事項。
-取得日はすべて 2026-10-26（JST）。`data/advisories.tsv` の各行に URL と取得日を持たせる。
+## 2. Primary sources re-checked (settled 2026-10-26)
 
-| # | 項目 | 依頼文 8 章 | 確認結果 → データへの反映 | 根拠 |
+Differences from the snapshot in section 8 of the request, with the requester's confirmations and
+instructions of 2026-10-26. All retrieved on 2026-10-26 (JST). Every row of
+`data/advisories.tsv` carries its URL and retrieval date.
+
+| # | Item | Request (section 8) | Result → data | Source |
 |---|---|---|---|---|
-| 1 | Google Brotli | 1.0.10 / 1.1.1 / 1.2.1 | 一致。修正コミットは系列ごとに b418fa81（v1.2.1）／da980636（v1.1.1）／50a9b70a（v1.0.10）。0ed4268a は main 上の元コミット | github.com/google/brotli/releases、Debian tracker の notes |
-| 2 | PyPI Brotli / brotlicffi | 1.2.1 / 1.2.1.0、PYSEC-2026-4322 / 4323 | 一致（4322=brotli、4323=brotlicffi） | `pypa/advisory-database` の `vulns/brotli/PYSEC-2026-4322.yaml`、`vulns/brotlicffi/PYSEC-2026-4323.yaml`（raw） |
-| 3 | Bun | 1.4.4 | 一致。ただし根拠はリリースノートではなく**ソース**: タグ `bun-v1.4.4` の `scripts/build/deps/brotli.ts` が `db24a98a`（v1.2.1）、`bun-v1.4.3` が `028fb5a2`（v1.2.0） | raw.githubusercontent.com/oven-sh/bun/bun-v1.4.4/scripts/build/deps/brotli.ts |
-| 4 | Node.js 修正版 | 22.23.4 / 24.22.1 / 26.12.1 | 一致 | nodejs.org/en/blog/vulnerability/october-2026-security-releases |
-| 5 | Node.js の EOL 系列 | 20 以前・21・23・25 は修正なし | 告知に系列の名指しは無い。「EOL は常に影響」＋修正版が出ていない、からの**導出**として `status=derived` と根拠を明記 | 同上 |
-| 6 | `process.versions.brotli` | 修正版でも "1.1.0" | 一致。nodejs/node タグ v22.23.4 の `deps/brotli/c/common/version.h` が 1.1.0、`decode.h` に `BROTLI_ERROR_CODE(_ERROR_FORMAT_, BLOCK_SWITCH, -17)`。v22.23.3 の `decode.h` は `/* -17 code is reserved */`。（v24.22.1 の version.h は 1.2.0。系列ごとに値が違うので判定に使えない） | raw.githubusercontent.com/nodejs/node/v22.23.{3,4}/deps/brotli/… |
-| 7 | Debian bookworm / trixie | +deb12u1（DLA-4855-1）／+deb13u1（DSA-6582-1） | 一致 | security-tracker.debian.org/tracker/CVE-2026-111497 |
-| 8 | Debian sid / forky | 1.2.0-4 は未修正 | tracker の「Fixed Version」表に `brotli source (unstable) 1.2.0-4.1`（bug 1151690）の行がある（2026-10-25T21:40Z 取得）。一方、アーカイブ（sources.debian.org/api/src/brotli/）は forky / sid とも 1.2.0-4 のみ。**アーカイブに入るまで未修正扱い**（→ 5.1 の `unreleased`） | 同 tracker、sources.debian.org |
-| 9 | Debian の nodejs | （記載なし） | tracker 上は全版 vulnerable（unstable は unfixed・unimportant、notes「nodejs uses system provided brotli library」）。依存は nodejs ではなく libnode108 / libnode115 に付く。**判定は dpkg の Depends ではなく ldd の推移的な解決結果で行う** | 同 tracker、packages.debian.org |
-| 10 | Ubuntu | 全版 Needs evaluation、USN なし | 一致（jammy / noble / resolute / 26.10 stonking とも brotli・nodejs が Needs evaluation）。noble の brotli は 1.1.0-2build2（このホストの実測も同じ） | ubuntu.com/security/CVE-2026-111497、launchpad.net/ubuntu/+source/brotli |
-| 11 | Amazon Linux | 勧告なし | **更新**: AL2023 brotli ALAS2023-2026-3334、nodejs24 ALAS2023-2026-3330（2026-10-24, Fixed） | explore.alas.aws.amazon.com/CVE-2026-111497.html |
-| 12 | Alpine | edge 1.2.1-r0（3.23/3.24 は要確認） | 3.23 / 3.24 / edge とも 1.2.1-r0、secdb に記載あり | pkgs.alpinelinux.org、secdb.alpinelinux.org |
-| 13 | Envoy | 勧告と公式タグに食い違い | **食い違いは無かった**。v1.36.12 / 1.37.8 / 1.38.6 / 1.39.3 のタグはすべて Brotli を `42a2ed43` に固定（0ed4268a の 129 コミット先＝修正を含む）。v1.38.5 は 1.2.0。依頼文の「食い違いが残っていれば UNKNOWN」の条件に当たらないので、**勧告どおり FIXED** とする | GHSA-3wvj-j6qm-62mr、各タグの `bazel/repository_locations.bzl`、GitHub compare API |
-| 14 | Istio | 1.31.2 / 1.30.6 / 1.29.9 | 一致（ISTIO-SECURITY-2026-007、2026-10-15。Envoy の勧告より早い） | istio.io |
-| 15 | Chromium | Stable 148 以降 | 一致。148.0.7728.2（開発初期）は未取り込み、148.0.7778.96 は取り込み済み。基準は **148.0.7778.0 以上**とし、148 の開発版で番号が小さいものは UNKNOWN | third_party/brotli/README.chromium（タグごと） |
-| 16 | Firefox | 150.0 / ESR 140.10 | 一致（149.0 と ESR 140.9 は未取り込み） | modules/brotli/moz.yaml（タグごと） |
-| 17 | RHEL 系 | RHSA-2026:2042 等は別件 | 一致（CVE-2025-6176）。RHEL の本件の修正勧告は見当たらない | access.redhat.com |
-| 18 | 背景資料 | jmedic.co.jp/pubdoc/… | 404（未公開）。参照しない | — |
+| 1 | Google Brotli | 1.0.10 / 1.1.1 / 1.2.1 | Agrees. Fix commits per line: b418fa81 (v1.2.1), da980636 (v1.1.1), 50a9b70a (v1.0.10); 0ed4268a is the original commit on main | github.com/google/brotli/releases, notes in the Debian tracker |
+| 2 | PyPI Brotli / brotlicffi | 1.2.1 / 1.2.1.0, PYSEC-2026-4322 / 4323 | Agrees (4322 = brotli, 4323 = brotlicffi) | `pypa/advisory-database`: `vulns/brotli/PYSEC-2026-4322.yaml`, `vulns/brotlicffi/PYSEC-2026-4323.yaml` (raw) |
+| 3 | Bun | 1.4.4 | Agrees, but the basis is the **source**, not the release notes: tag `bun-v1.4.4` pins `db24a98a` (v1.2.1) in `scripts/build/deps/brotli.ts`, `bun-v1.4.3` pins `028fb5a2` (v1.2.0) | raw.githubusercontent.com/oven-sh/bun/bun-v1.4.4/scripts/build/deps/brotli.ts |
+| 4 | Node.js fixed releases | 22.23.4 / 24.22.1 / 26.12.1 | Agrees | nodejs.org/en/blog/vulnerability/october-2026-security-releases |
+| 5 | Node.js end-of-life lines | 20 and earlier, 21, 23, 25 get no fix | The advisory names no lines. **Derived** from "end-of-life versions are always affected" plus "no fixed release exists": `status=derived` with the reasoning in the note | same |
+| 6 | `process.versions.brotli` | stays "1.1.0" even when fixed | Agrees. At nodejs/node tag v22.23.4, `deps/brotli/c/common/version.h` says 1.1.0 and `decode.h` has `BROTLI_ERROR_CODE(_ERROR_FORMAT_, BLOCK_SWITCH, -17)`; at v22.23.3 `decode.h` says `/* -17 code is reserved */`. (v24.22.1's version.h says 1.2.0: the value differs per line and cannot be used.) | raw.githubusercontent.com/nodejs/node/v22.23.{3,4}/deps/brotli/… |
+| 7 | Debian bookworm / trixie | +deb12u1 (DLA-4855-1) / +deb13u1 (DSA-6582-1) | Agrees | security-tracker.debian.org/tracker/CVE-2026-111497 |
+| 8 | Debian sid / forky | 1.2.0-4 unfixed | The tracker's "Fixed Version" table has `brotli source (unstable) 1.2.0-4.1` (bug 1151690) (retrieved 2026-10-25T21:40Z), but the archive (sources.debian.org/api/src/brotli/) has only 1.2.0-4 for forky and sid. **Unfixed until it reaches the archive** (`unreleased` in 5.1) | same tracker, sources.debian.org |
+| 9 | Debian nodejs | (not covered) | Vulnerable in all releases in the tracker (unstable: unfixed, unimportant; note "nodejs uses system provided brotli library"). The dependency sits on libnode108 / libnode115, not on nodejs. **Judge by transitive ldd resolution, not by dpkg Depends** | same tracker, packages.debian.org |
+| 10 | Ubuntu | all releases "Needs evaluation", no USN | Agrees (brotli and nodejs "Needs evaluation" for jammy / noble / resolute / 26.10 stonking). noble ships brotli 1.1.0-2build2 (same on the development host) | ubuntu.com/security/CVE-2026-111497, launchpad.net/ubuntu/+source/brotli |
+| 11 | Amazon Linux | no advisory | **Updated**: AL2023 brotli ALAS2023-2026-3334, nodejs24 ALAS2023-2026-3330 (2026-10-24, Fixed) | explore.alas.aws.amazon.com/CVE-2026-111497.html |
+| 12 | Alpine | edge 1.2.1-r0 (3.23/3.24 to confirm) | 3.23 / 3.24 / edge all 1.2.1-r0, listed in secdb | pkgs.alpinelinux.org, secdb.alpinelinux.org |
+| 13 | Envoy | advisory and tags disagree | **No disagreement.** Tags v1.36.12 / 1.37.8 / 1.38.6 / 1.39.3 all pin Brotli `42a2ed43` (129 commits after 0ed4268a, i.e. fixed); v1.38.5 pins 1.2.0. The request's "UNKNOWN if the disagreement remains" does not apply: **FIXED as the advisory says** | GHSA-3wvj-j6qm-62mr, `bazel/repository_locations.bzl` per tag, GitHub compare API |
+| 14 | Istio | 1.31.2 / 1.30.6 / 1.29.9 | Agrees (ISTIO-SECURITY-2026-007, 2026-10-15, earlier than Envoy's advisory) | istio.io |
+| 15 | Chromium | Stable 148 and later | Agrees. 148.0.7728.2 (early development) lacks it, 148.0.7778.96 has it. Threshold **148.0.7778.0**; 148 development builds below it are UNKNOWN | third_party/brotli/README.chromium per tag |
+| 16 | Firefox | 150.0 / ESR 140.10 | Agrees (149.0 and ESR 140.9 lack it) | modules/brotli/moz.yaml per tag |
+| 17 | RHEL family | RHSA-2026:2042 etc. are unrelated | Agrees (CVE-2025-6176). No RHEL advisory for this CVE found | access.redhat.com |
+| 18 | Background paper | jmedic.co.jp/pubdoc/… | 404 (not published). Not used | — |
 
-確認できなかったもの: CVE.org / NVD のレコード本体（JS 必須で取得不可）、packages.ubuntu.com（HTTP 500。
-Ubuntu の python3-brotli と nodejs の依存関係は、ホスト上の実測で分岐する設計にして回避する）、
-HAProxy・Caddy が C 実装のデコーダーを含まないことの一次資料（→ 6 章 C11）。
+Could not be retrieved: the CVE.org / NVD records (JavaScript only); packages.ubuntu.com
+(HTTP 500 — the Ubuntu python3-brotli and nodejs dependencies are therefore measured on the
+host instead); a primary source stating that HAProxy and Caddy contain no C decoder (see C11 in
+section 6).
 
-## 3. このホストでの実測から足したこと
+## 3. Added from measurements on the development host
 
-開発機（Ubuntu 24.04.5）で読み取りだけ行って分かった、依頼文に無い要件。
+Requirements not in the request, found by read-only inspection of the development machine
+(Ubuntu 24.04.5).
 
-1. **mise の Node.js / Python を探索場所に足す**（`~/.local/share/mise/installs/{node,python}/*`）。
-   mise・asdf は `22` → `22.17.1` のような別名のシンボリックリンクを並べるので、**実体のパスで重複を除く**。
-2. **dpkg 管理下の dist-packages を C06 で読まない。** Ubuntu の python3-brotli は
-   `/usr/lib/python3/dist-packages/Brotli-1.1.0.egg-info`（Version: 1.1.0＝上流の版）を置く。
-   これを PyPI の基準 1.2.1 と比べると、ディストリが修正しても VULNERABLE と誤判定する。
-   `dpkg -S` で所有パッケージがあるものは C06 から外し、C01 の判定に任せる。
-3. **公式 tarball の Node.js は `--no-exec` でも版が分かる。** 実行ファイルの隣の
-   `../include/node/node_version.h` に `NODE_{MAJOR,MINOR,PATCH}_VERSION` がある。
-4. 公式 Node.js と python3-brotli の `_brotli*.so` はどちらも libbrotlidec を動的リンクせず、
-   `_ERROR_FORMAT_` で始まる文字列を含む。C09 の推定（6 章）が効く可能性がある。
+1. **Search mise's Node.js / Python** (`~/.local/share/mise/installs/{node,python}/*`). mise and
+   asdf add alias symlinks such as `22` → `22.17.1`, so **deduplicate by real path**.
+2. **C06 must not read dpkg-owned dist-packages.** Ubuntu's python3-brotli installs
+   `/usr/lib/python3/dist-packages/Brotli-1.1.0.egg-info` (Version: 1.1.0, the upstream
+   version). Compared with PyPI's 1.2.1 it would stay VULNERABLE after the distributor's fix.
+   Anything with a `dpkg -S` owner is left out of C06 and judged by C01.
+3. **Official Node.js tarballs reveal their version without running.** `../include/node/node_version.h`
+   next to the executable has `NODE_{MAJOR,MINOR,PATCH}_VERSION`.
+4. Official Node.js and python3-brotli's `_brotli*.so` both carry the decoder statically and
+   contain strings starting with `_ERROR_FORMAT_`: the C09 heuristic (section 6) may work.
 
-## 4. 全体構成
+## 4. Structure
 
 ```
-bin/brotli-cve-check          入口。オプション解析 → 各検出項目 → 出力 → 終了コード
-lib/core.sh                   共通（ログ、timeout 付き実行、find の共通除外、ユーザーのホーム列挙）
-lib/findings.sh               所見の蓄積（配列）と集計
-lib/version.sh                版比較（dpkg / semver / PEP 440 の必要部分）
-lib/data.sh                   advisories.tsv の読み込みと参照
-lib/elf.sh                    ELF 判定、動的リンクの推移的な解決、文字列探索
-lib/check_c01_dpkg.sh … lib/check_c15_exposure.sh   検出項目ごとに 1 ファイル
-lib/output_text.sh, lib/output_json.sh
-lib/i18n.sh                   メッセージカタログ（en / ja。連想配列）
+bin/brotli-cve-check          entry point (development); loads lib/*.sh and data, calls bcc_main
+lib/main.sh                   options → detection items → output → exit status
+lib/core.sh                   shared (execution limits bcc_probe / bcc_sys, find exclusions, home directories)
+lib/index.sh                  index of things found by name (one find; 10.1)
+lib/findings.sh               findings (array) and counts
+lib/version.sh                version comparison (dpkg / semver / the needed part of PEP 440)
+lib/data.sh                   loading advisories.tsv and judging against it
+lib/elf.sh                    ELF detection, transitive dynamic linkage, string heuristic
+lib/check_c01_c03.sh … lib/check_c14_c15.sh   detection items (2-4 per file)
+lib/output.sh                 text and JSON output
+lib/i18n.sh                   message catalog (en / ja, associative arrays)
 data/advisories.tsv
-Makefile                      lint（shellcheck）、test（bats）、dist（1 ファイルに結合。data は heredoc で埋め込み）
+scripts/build-dist.sh         single-file build (data embedded as a here-document)
+Makefile                      lint (shellcheck), test (bats), dist, integration
 ```
+(The file split was settled during implementation as above; the plan had one file per detection
+item and separate text and JSON output files.)
 
-- bash 4.2 以上（連想配列・`declare -g` を使う）。依存は coreutils / findutils / grep / awk / sed。
-  binutils（readelf / strings）が無ければ `grep -a` などで代替し、精度が落ちる旨を SKIPPED／理由に出す。
-- `set -u` と `set -o pipefail` を使う。`set -e` は使わない（検出項目の失敗で全体を止めず、UNKNOWN／SKIPPED に落とすため）。
-- 所見 1 件はフィールドをタブ区切りにした 1 要素として配列に積む:
-  `id status component path version reason next_step evidence confidence`。
-  JSON は自前でエスケープして出力する（jq に依存しない）。
+- Bash 4.2 or later (associative arrays, `declare -g`). Depends on coreutils / findutils / grep /
+  awk / sed. Without binutils (readelf / strings) it falls back to `grep -a` and the like, and says
+  that precision is lower (SKIPPED / reason).
+- `set -u` and `set -o pipefail`; no `set -e` (a failing detection item must not stop the run; it
+  becomes UNKNOWN / SKIPPED).
+- One finding is one array element with tab-separated fields:
+  `id status component path version reason next_step evidence confidence`.
+  JSON is escaped by the script itself (no jq).
 
-## 5. データ（data/advisories.tsv）
+## 5. Data (data/advisories.tsv)
 
-### 5.1 列
+### 5.1 Columns
 
-依頼文の 6 列（部品、系列、修正版、状態、一次資料 URL、取得日）に、**根拠（note）** を 1 列足す
-（`derived` などの判定根拠を書く場所が要るため）。
+The request's six columns (component, line, fixed version, status, primary source URL, retrieval
+date) plus a **note** column, because `derived` and similar statuses need a place for their
+reasoning.
 
-| 列 | 例 |
+| Column | Example |
 |---|---|
 | component | `node` / `bun` / `pypi:brotli` / `deb-src:brotli` / `envoy` / `chromium` … |
-| branch | `22`、`debian:trixie`、`ubuntu:noble`、`*` |
-| fixed | `22.23.4`、`1.1.0-2+deb13u1`、`-`（修正なし） |
+| branch | `22`, `debian:trixie`, `ubuntu:noble`, `*` |
+| fixed | `22.23.4`, `1.1.0-2+deb13u1`, `-` (no fix) |
 | status | `fixed` / `no_fix` / `unreleased` / `derived` / `analysis` |
-| source_url | 一次資料の URL |
+| source_url | primary source URL |
 | retrieved | `2026-10-26` |
-| note | 根拠の短文 |
+| note | short reasoning |
 
-`status` の意味:
-- `fixed` — 一次資料が修正版を示している
-- `no_fix` — 配布元が修正版を出していない（Ubuntu 全版など）→ NO_FIX_AVAILABLE
-- `unreleased` — 修正版の番号は示されているがアーカイブ未着（Debian sid / forky の 1.2.0-4.1）。
-  インストール済みの版が `fixed` 以上なら FIXED、それ未満なら NO_FIX_AVAILABLE
-- `derived` — 一次資料の一般的な記述からの導出（Node.js の EOL 系列）。結果の理由欄に note を出す
-- `analysis` — ベンダーの告知ではなくソースツリーの分析（Chromium / Firefox / Bun）。結果にその旨を明記
+Meaning of `status`:
+- `fixed` — the primary source names the fixed version
+- `no_fix` — the distributor has not released a fix (all Ubuntu releases) → NO_FIX_AVAILABLE
+- `unreleased` — a fixed version is named but has not reached the archive (Debian sid / forky
+  1.2.0-4.1). Installed version at or above `fixed` → FIXED, below → NO_FIX_AVAILABLE
+- `derived` — derived from a general statement of the primary source (Node.js end-of-life lines);
+  the note is shown as the reason
+- `analysis` — from the product's source tree, not a vendor advisory (Chromium / Firefox / Bun);
+  the result says so
 
-### 5.2 データの鮮度
+### 5.2 Freshness
 
-結果に `data_snapshot_date`（最古の retrieved ではなくファイル先頭の宣言日）を出し、
-30 日以上古ければ警告する。`--data FILE` で差し替え可。
+The result shows `data_snapshot_date` (the date declared at the top of the file, not the oldest
+`retrieved`) and warns at 30 days or more. `--data FILE` replaces the data.
 
-## 6. 検出項目ごとの設計（依頼文 3 章からの変更点を中心に）
+## 6. Detection items (mainly what differs from section 3 of the request)
 
-依頼文どおりのところは書かない。変更・具体化したところだけ。
+Only changes and refinements are listed; everything else follows the request.
 
-**C01 OS パッケージ** — `/etc/os-release` の `ID` と `VERSION_CODENAME` で系列を決める。
-`dpkg-query -W -f '${Package}\t${Version}\t${source:Package}\t${source:Version}\n'` で取り、
-**ソースパッケージの版**（`source:Version`）を tracker の修正版と比べる（バイナリ側に `+b2` などが付いても正しく比べるため）。
-未知の系列は UNKNOWN（理由: データに無い系列）。
+**C01 OS packages** — the series comes from `ID` and `VERSION_CODENAME` in `/etc/os-release`
+(derivatives through `UBUNTU_CODENAME` / `DEBIAN_CODENAME`). Read with
+`dpkg-query -W -f '${Package}\t${Version}\t${source:Package}\t${source:Version}\n'` and compare
+the **source package version** (`source:Version`) with the tracker's fixed version, so that
+binNMU suffixes such as `+b2` on binary packages do not matter. Unknown series → UNKNOWN (reason:
+not in the data).
 
-**C02 libbrotli1 に依存するパッケージ（情報）** — `dpkg-query -W -f '${Package}\t${Depends}\n'` から抽出。
-`libnode*` も含める（Debian の nodejs はここを経由する）。
+**C02 packages depending on libbrotli1 (information)** — extracted from
+`dpkg-query -W -f '${Package}\t${Depends}\n'`, including `libnode*` (Debian's nodejs goes through it).
 
-**C04 Node.js** — 探索場所に mise・asdf を追加し、実体パスで重複を除く。
-版の取得: 既定は `node --version`（timeout 付き）。`--no-exec` のときは `../include/node/node_version.h`、
-nvm / mise / asdf のディレクトリ名の順に試し、どれも無ければ UNKNOWN。
-**配布元パッケージの node**（`dpkg -S` で所有者がいるもの）は、libbrotlidec に**推移的に**リンクしているかで分岐する:
-既定は `ldd`（glibc の ldd は実行ファイル自身の PT_INTERP を使わずシステムの ld.so に `--list` させる。
-main は走らない）。`--no-exec` のときは `readelf -d` の NEEDED を `ldconfig -p` と RUNPATH で自前で辿る（精度が落ちる旨を表示）。
-動的なら C01 に委ね、静的なら版で判定する。
+**C04 Node.js** — mise and asdf added to the search, deduplicated by real path. Version: by default
+`node --version` (with a timeout); with `--no-exec`, `../include/node/node_version.h`, then the
+nvm / mise / asdf directory name; otherwise the C09 heuristic, then UNKNOWN. A **distribution
+package's node** (it has a `dpkg -S` owner) is split by whether it links libbrotlidec
+**transitively**: `ldd` by default (glibc's ldd asks the system loader to `--list` dependencies
+instead of using the file's PT_INTERP; main does not run); with `--no-exec`, the NEEDED entries of
+`readelf -d` are followed with `ldconfig -p` and RUNPATH (lower precision, reported). Dynamic →
+covered by C01; static → judged by its strings.
 
-**C06 Python** — mise / pyenv / uv（`~/.local/share/uv/{python,tools}`）を探索場所に追加。
-dpkg 管理下のものは除外（3 章の 2）。PEP 440 は、リリース番号の末尾のゼロを詰めて比較する
-（1.2.1 と 1.2.1.0 は等しい）。プレリリースはリリースより小さい。ローカル版（`+…`）は無視。
+**C06 Python** — mise / pyenv / uv (`~/.local/share/uv/{python,tools}`) added to the search.
+dpkg-owned entries excluded (3.2). PEP 440: trailing zeros of the release are ignored (1.2.1 equals
+1.2.1.0), pre-releases sort before the release, local versions (`+…`) are ignored.
 
-**C09 同梱コピーの汎用探索と修正有無の推定** — 推定の仮説:
-修正版の decode.c は `BrotliDecoderErrorString` の中で `#PREFIX #NAME` から文字列を作るので、
-修正版のバイナリには `_ERROR_FORMAT_BLOCK_SWITCH` が現れる。未修正版では -17 が予約（`/* -17 code is reserved */`）なので現れない。
-依頼文の検証手順 (a)(b)(c) を実装前に行い、結果を `tests/fixtures/c09/` と `docs/limitations.md` に残す:
-- (a) v1.2.0 / v1.2.1 のソース比較（上の点まで確認済み。v1.1.1 / v1.0.10 の `decode.h` も確認する）
-- (b) v1.2.0 / v1.2.1 を自分でビルド（共有・静的 × strip 有無 × -O2 / LTO）して `strings` を比較
-- (c) Node.js 公式バイナリ 22.23.3 / 22.23.4 で比較
-判定: `_ERROR_FORMAT_` 系の文字列が**ある**のに `_ERROR_FORMAT_BLOCK_SWITCH` が無い → LIKELY_VULNERABLE。
-`_ERROR_FORMAT_BLOCK_SWITCH` がある → LIKELY_FIXED。`_ERROR_FORMAT_` 系が 1 つも無い → UNKNOWN（関数ごと削られている）。
-確度は検証結果に応じて書く。検証が崩れたら推定は実装せず VENDORED_COPY だけを出す。
+**C09 bundled copies and the fix heuristic** — hypothesis: the fixed decode.c builds names in
+`BrotliDecoderErrorString` from `#PREFIX #NAME`, so a fixed binary contains
+`_ERROR_FORMAT_BLOCK_SWITCH`; in an unfixed one -17 is reserved (`/* -17 code is reserved */`)
+and the string is absent. Steps (a)(b)(c) of the request are done before implementation and the
+results kept in `tests/fixtures/c09/` and `docs/limitations.md`:
+- (a) compare the v1.2.0 / v1.2.1 sources (done up to the point above; also check `decode.h` of v1.1.1 / v1.0.10)
+- (b) build v1.2.0 / v1.2.1 (shared and static × stripped or not × -O2 / LTO) and compare `strings`
+- (c) compare the official Node.js 22.23.3 / 22.23.4 binaries
+Verdict: other `_ERROR_FORMAT_*` strings present but `_ERROR_FORMAT_BLOCK_SWITCH` absent →
+LIKELY_VULNERABLE; `_ERROR_FORMAT_BLOCK_SWITCH` present → LIKELY_FIXED; no `_ERROR_FORMAT_*`
+strings (fewer than 8) → VENDORED_COPY (the function was removed; 10.5). Confidence follows the
+verification; if the verification fails, the heuristic is not implemented and only VENDORED_COPY
+is reported.
 
-**C10 Envoy** — 2 章 13 のとおり、勧告の修正版で判定（食い違いは無かった）。1.35 以前は `derived`（Envoy の旧版は 1.0.9 / 1.1.0 を同梱）。
+**C10 Envoy** — judged by the advisory's fixed versions (2.13: no disagreement). 1.35 and earlier
+are `derived` (older Envoy bundles Brotli 1.0.9 / 1.1.0).
 
-**C11 圧縮専用の製品** — 一次資料で確認できたのは ngx_brotli（libbrotlienc のみ）と mod_brotli（圧縮フィルタのみ）、
-Traefik（Go 実装の andybalholm/brotli）。HAProxy と Caddy は実装時に上流ソースで確認し、確認できなければ
-NOT_APPLICABLE ではなく「情報」として版だけ出す。さらに配布元パッケージの nginx・Apache は `ldd` で libbrotlidec を引いていないことを実測で確かめる。
+**C11 compression-only products** — primary sources confirmed ngx_brotli (libbrotlienc only),
+mod_brotli (compression filter only) and Traefik (Go implementation, andybalholm/brotli). HAProxy
+and Caddy are to be confirmed in their upstream sources during implementation; if not confirmed,
+they are reported as information with their version, not as NOT_APPLICABLE. Distribution nginx and
+Apache are additionally measured with `ldd` to confirm they do not load libbrotlidec.
+(Implemented as a decision from the files themselves; 10.6.)
 
-**C13 ブラウザ** — Chromium の基準は 148.0.7778.0（2 章 15）。
+**C13 browsers** — Chromium threshold 148.0.7778.0 (2.15).
 
-**C14 / C15** — 依頼文どおり。Alpine ベースのコンテナ（apk）は初版では対象外とし、UNKNOWN（理由つき）。
+**C14 / C15** — as requested. Alpine-based containers (apk) are out of scope in the first version
+and reported with a reason.
 
-## 7. 読み取り専用を守る仕組み
+## 7. Keeping it read-only
 
-- 書き込みは標準出力と `--output` のファイルだけ。一時ファイルは作らない（プロセス置換と変数で済ませる）。
-- 外部コマンドの実行は 1 か所の関数（`run_probe`）を通し、`timeout` と許可リスト（`--version` 系、`dpkg-query`、`ldd` など）で縛る。
-  `--no-exec` のときはこの関数が見つかったプログラムを一切実行しない。
-- `find` は `-xdev`・`-P`（シンボリックリンクを辿らない）を基本にし、`/proc /sys /dev /run` を除外。
-  nfs / cifs / fuse.sshfs などは `--include-remote` が無ければ除外（`/proc/self/mountinfo` で判定）。
-  ELF 探索は既定 512 MiB を上限にする。
-- 環境変数は読まない（自分の `PATH` を除く）。コマンドラインは `--show-cmdline` のときだけ。
-- 他ユーザーのホームは `getent passwd` で列挙し、読めなければ SKIPPED に積む。
+- Writes go to stdout and the `--output` file only. No temporary files (process substitution and
+  variables instead).
+- Found programs run only through one function (`bcc_probe`), bounded by `timeout` and an allow-list
+  of arguments (`--version` and the like); system tools (`dpkg-query`, `ldd`, ...) through
+  `bcc_sys`. With `--no-exec`, `bcc_probe` runs nothing.
+- `find` uses `-xdev` and `-P` (never follows symlinks) and prunes `/proc /sys /dev /run`. NFS,
+  CIFS, fuse.sshfs and similar are pruned unless `--include-remote` (from `/proc/self/mountinfo`).
+  The ELF search has a 512 MiB size limit by default.
+- No environment variables are read (except the scanning user's `PATH`). Command lines only with
+  `--show-cmdline`.
+- Other users' homes are enumerated with `getent passwd`; unreadable ones are listed as skipped.
 
-### 7.1 依頼文の解釈（実装時に確定・2026-10-26）
+### 7.1 Interpretation of the request (settled during implementation, 2026-10-26)
 
-- **`--no-exec` が止めるのは「見つけたプログラム」の実行。** node・bun・curl・envoy・ブラウザの `--version`、
-  見つけた実行ファイルへの `ldd`、コンテナ内での実行を止める。システムの照会コマンド
-  （dpkg-query・dpkg・readelf・ldconfig・ss・snap・flatpak・docker ps）は止めない（依頼文 2 章 4 の
-  「見つけたプログラムの実行」の範囲外と読む）。
-- **外部コマンドはすべて `LC_ALL=C` で動かす。** 開発機の readelf は出力が日本語化されていた（「共有ライブラリ」）。
-  見つけたプログラムは `env -i` で環境変数を空にして動かす（`NODE_OPTIONS` などの影響を受けないため）。
-- **`--output` は既存のファイルを上書きしない**（noclobber）。root で動かしたときに、
-  他人が置いたシンボリックリンク経由で別のファイルを壊さないため。
-- **テスト用の差し替え口**として `BCC_PROC_ROOT`・`BCC_OS_RELEASE`・`BCC_HOME_DIRS`・`BCC_MOUNTINFO`・`BCC_TODAY`
-  だけは環境変数から読む（7 章の「環境変数は読まない」の例外。いずれもツール自身の変数）。
-- **C09 の名前による探索は常に行う。** `libbrotlidec.so*` を dpkg 管理外（/usr/local、/opt、conda など）で
-  ファイル名から探すのは軽いので既定で行い、ファイル名の版で判定する。ELF の中身を読む汎用探索だけを `--deep` にする。
-- **C02 と「C01 に委ねる」判定は所見ではなく情報として出す。** 所見にすると、apt の 1 回の更新で直るものを
-  「更新が必要」として二重に数えるため。JSON では `findings[]` と別に `info[]` に入れる。
+- **`--no-exec` stops running *found* programs**: `--version` of node, bun, curl, envoy and
+  browsers, `ldd` on found executables, and commands inside containers. System query tools
+  (dpkg-query, dpkg, readelf, ldconfig, ss, snap, flatpak, docker ps) still run; they are outside
+  "running the programs it found" in section 2.4 of the request.
+- **Every external command runs with `LC_ALL=C`.** The development host's readelf printed localized
+  output. Found programs run with an emptied environment (`env -i`) so that `NODE_OPTIONS` and the
+  like have no effect.
+- **`--output` never overwrites an existing file** (noclobber), so that a symlink planted by another
+  user cannot make root overwrite something else.
+- **Test hooks**: only `BCC_PROC_ROOT`, `BCC_OS_RELEASE`, `BCC_HOME_DIRS`, `BCC_MOUNTINFO` and
+  `BCC_TODAY` are read from the environment (the exception to "no environment variables"; all are
+  the tool's own).
+- **C09's search by file name always runs.** Looking for `libbrotlidec.so*` outside dpkg
+  (/usr/local, /opt, conda, ...) by name is cheap, so it is on by default and judged by the version
+  in the file name. Only the generic search that reads ELF contents needs `--deep`.
+- **C02 and "covered by C01" are information, not findings.** As findings they would double-count,
+  as "needs update", things that one apt update fixes. JSON keeps them in `info[]`, separate from
+  `findings[]`.
 
-## 8. テスト計画
+## 8. Test plan
 
-- 単体: bats-core。偽の `dpkg-query`・`node`・`bun`・`ldd` を PATH の先頭に置く。偽の dist-info、偽の `/proc`（`BCC_PROC_ROOT`）。
-- C09: 上の (b)(c) の結果を fixture（抽出した文字列の一覧）として固定し、判定関数をテスト。
-- 統合: ubuntu:22.04 / 24.04 / 26.04、debian:12 / 13（タグ実在は確認済み）。未修正・修正版の Node.js、
-  Brotli 1.2.0 / 1.2.1 の仮想環境を入れたイメージで期待どおりの判定になるか。
-- どのテストも細工した Brotli データを使わない。
-- CI: GitHub Actions で shellcheck / bats / 統合テストのマトリクス。
+- Unit: bats-core. Fake `dpkg-query`, `node`, `bun`, `ldd` first on PATH; fake dist-info; fake
+  `/proc` (`BCC_PROC_ROOT`).
+- C09: the results of (b)(c) are fixed as fixtures (lists of extracted strings) and the verdict
+  function is tested against them.
+- Integration: ubuntu:22.04 / 24.04 / 26.04, debian:12 / 13 (tags confirmed to exist) with
+  unfixed and fixed Node.js and Brotli 1.2.0 / 1.2.1 virtual environments; the verdicts must match.
+- No test uses crafted Brotli data.
+- CI: GitHub Actions with shellcheck, bats and the integration matrix.
 
-## 9. 決定事項（2026-10-26 本人回答）
+Results: [verification.md](verification.md).
 
-1. **リポジトリ名は `brotli-check` のまま。** 依頼文の仮名 `brotli-cve-2026-111497-check` と通称 HTTP2Shell / Node2Shell は README のキーワードとしてだけ載せる。実行ファイル名は依頼文どおり `brotli-cve-check`。
-2. **依頼文の HTML は `.gitignore` で除外。** 手元に原本として残し、OSS のリポジトリには載せない。
-3. **開発用の道具:** shellcheck と bats は本人が apt で入れる。統合テストの Docker Desktop は本人が起動する。
-4. **C09 の検証のためのダウンロードは可。** google/brotli のソースと Node.js 公式バイナリ 22.23.3 / 22.23.4 をスクラッチ領域へ。開発時だけで、ツール本体はネットワークを使わない。
-5. advisories.tsv の note 列と `unreleased` 状態は 5.1 のとおり（設計の了承に含む）。
-6. 文書の言語: 未決のまま。この設計メモは日本語。docs/ を英語にそろえるかは公開前に決める。
+## 9. Decisions (requester's answers, 2026-10-26)
 
-## 10. 実装時に加えた判断（2026-10-26）
+1. **The repository keeps the name `brotli-check`.** The request's provisional name
+   `brotli-cve-2026-111497-check` and the nicknames HTTP2Shell / Node2Shell appear only as README
+   keywords. The executable is `brotli-cve-check`, as requested.
+2. **The request HTML is excluded by `.gitignore`.** It stays locally as the original and is not
+   published with the open-source repository.
+3. **Development tools:** the requester installs shellcheck and bats with apt and starts Docker
+   Desktop for the integration tests.
+4. **Downloads for the C09 verification are allowed**: google/brotli sources and the official
+   Node.js 22.23.3 / 22.23.4 binaries, into a scratch area, at development time only; the tool
+   itself never uses the network.
+5. The note column and the `unreleased` status of advisories.tsv as in 5.1 (part of the approval).
+6. **Documentation language (decided the same day):** English is the primary version in docs/, with
+   Japanese versions alongside as `.ja.md` (the naming of the existing `README.ja.md` and
+   `for-clinics.ja.md`), because Japanese users will read it too. These notes exist as `design.md`
+   (English, this file) and `design.ja.md`.
 
-設計の了承後、実装と実機での試験で分かったことによる変更。決めたこと／理由／捨てた案の順。
+## 10. Decisions made during implementation (2026-10-26)
 
-1. **名前で探すものは 1 回の find で索引にする**（`lib/index.sh`）。理由: 検出項目ごとに find すると
-   /home（約 245 万ファイル）を何度もなめ、さらにパスごとの `dpkg-query -S`（1 回約 1 秒）が重なって
-   60 秒かかった。索引化とホーム配下への dpkg 問い合わせの省略で 20 秒台。node / bun / envoy も
-   `--roots` 全体から名前で探すことにし、VS Code Server・CI ランナー・Playwright が抱える Node.js を拾えるようにした。
-   捨てた案: 探索場所の列挙だけで済ませる（実機で見落としが多かった）。
-2. **パッケージ管理のキャッシュ（pip・uv・poetry・npm・yarn）は所見にしない。** ダウンロード物で、
-   インストール済みのものは別に見つかるため。件数だけ情報に出す。
-3. **見つけたプログラムを実行する条件**（自動セキュリティレビューの指摘による）。ファイルと上位の
-   ディレクトリがすべて root（root 以外で動くときは実行者）所有で、他者が書き込めないこと。グループ書き込みは
-   root で動くときは一律に不可、一般ユーザーで動くときは所有者専用グループ（名前が本人と同じ・本人の主グループ・
-   同じ GID の項目が 1 つ・他のメンバーなし）に限る（同レビューの 2 回目の指摘で root 側を厳格に戻した）。パスは正規化済みであることを要求し、検査したパスそのものを実行する（TOCTOU 対策）。
-   `ldd` も同じ条件。理由: root で動かすと、一般ユーザーが置き換えた node を root が `--version` で
-   実行しうる。捨てた案: root のときは一律に `--no-exec`（自分のホームのものも実行できず不便、
-   かつ一般ユーザー実行時の他人のファイルを防げない）。
-4. **版は製品ごとに決めた行の形からだけ読む。** Chrome は版の前にログ行（`[1026/070739.474907:WARNING:…]`）
-   を出し、最初の数字を拾う実装は偽の FIXED を出した。Chromium は 4 部の版でなければ UNKNOWN。
-5. **C09: ファイル名の版と文字列の推定が食い違えば UNKNOWN。** 修正を取り込んだ独自ビルドを、どちらか一方で
-   誤判定しないため。推定は `_ERROR_FORMAT_` 系が 8 個以上あるときだけ（検証した全ビルドは 16 か 17、または 0）。
-6. **C11 は製品名ではなくファイルで判定する。** バイナリとモジュールにデコーダーの印があるか、
-   libbrotlidec を引くかを見る（依頼文の「圧縮専用だから NOT_APPLICABLE」を実測で裏づける）。
-7. **テキスト出力の制御文字は `?` にする**、案内文の中のパスとパッケージ名は `%q` でクォートする
-   （同レビューの指摘）。JSON は RFC 8259 のエスケープ。
-8. **単一ファイル版は `lib/*.sh` とデータの連結**（`scripts/build-dist.sh`）。shellcheck はファイル単位
-   （SC2034・SC2004 を除く）と、まとめた版（全項目）の両方で警告ゼロにする。
+Changes after approval, from implementation and tests on real hosts. Each: decision / reason /
+rejected alternative.
+
+1. **Everything found by name comes from one `find` (an index, `lib/index.sh`).** One find per
+   detection item walked /home (about 2.45 million files) several times, and a `dpkg-query -S` per
+   path (about one second each) made a run take 60 seconds. With the index and no dpkg questions
+   about home directories, it takes about 20 seconds. node / bun / envoy are also searched by name
+   under all of `--roots`, which finds the Node.js bundled by VS Code Server, CI runners and
+   Playwright. Rejected: listing install locations only (missed many copies on a real host).
+2. **Package-manager caches (pip, uv, poetry, npm, yarn) are not findings.** They hold downloads;
+   installed copies are found on their own. Only the count is given as information.
+3. **When a found program may run** (from the automated security review). The file and every
+   directory above it belong to root (or to the invoking user when not root) and are not writable
+   by others. Group-writable: never as root; as an ordinary user only for the owner's user private
+   group (same name as the owner, the owner's primary group, one group entry for the GID, no other
+   members) — tightened back for root after the review's second round. The path must be canonical
+   and exactly the checked path is run (TOCTOU). `ldd` follows the same rule. Reason: running as
+   root, root could otherwise run `--version` of a node that an ordinary user replaced. Rejected:
+   always `--no-exec` as root (cannot run even root's own programs, and does not protect an
+   ordinary user from other users' files).
+4. **Versions are read only from a line of the expected shape per product.** Chrome prints a log
+   line (`[1026/070739.474907:WARNING:…]`) before its version; taking the first number produced a
+   false FIXED. Chromium needs a four-part version, otherwise UNKNOWN.
+5. **C09: if the version in the file name and the strings disagree, UNKNOWN**, so that a patched
+   build is not misjudged by either one alone. The heuristic decides only with at least 8
+   `_ERROR_FORMAT_*` names (every verified build had 16 or 17, or none).
+6. **C11 decides from the files, not the product name**: does a binary or module carry decoder
+   markers, or load libbrotlidec? (Measures the request's "compression only, therefore
+   NOT_APPLICABLE".)
+7. **Control characters in the text report are shown as `?`**, and paths and package names inside
+   suggested commands are quoted with `%q` (same review). JSON uses RFC 8259 escaping.
+8. **The single-file build concatenates `lib/*.sh` and the data** (`scripts/build-dist.sh`).
+   shellcheck must report zero warnings both per file (except SC2034, SC2004) and on the build (all
+   checks).

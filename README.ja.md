@@ -10,6 +10,22 @@ Ubuntu・Debian のホスト 1 台の中から、**CVE-2026-111497**（Google Br
 English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/for-clinics.ja.md](docs/for-clinics.ja.md)
 （docs/ の文書は英語版の隣に日本語版 `*.ja.md` があります）
 
+## ひと目でわかる図解
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="docs/zukai/01_check-method_ja.pdf"><img src="docs/zukai/01_check-method_ja.png" alt="図解 01 何を、どのようにチェックしたか: 脆弱性の中身、Brotli デコーダーのコピーが潜む場所（OS の層と同梱の層）、brotli-cve-check がそれぞれをどう調べるか"></a></td>
+<td width="50%" valign="top"><a href="docs/zukai/02_results-reading_ja.pdf"><img src="docs/zukai/02_results-reading_ja.png" alt="図解 02 5 つの OS での点検結果と読み方: Ubuntu 22.04・24.04・26.04 の OS のコピーは修正待ち、Debian 12・13 は修正済み、同梱コピーはどの OS でも今すぐ直せる"></a></td>
+</tr>
+<tr>
+<td><b>図解 01 何を、どのようにチェックしたか</b><br>OS の更新が直すのは OS のコピーだけ。同梱コピーは版と文字列で一つずつ洗い出す。<br><a href="docs/zukai/01_check-method_ja.pdf">PDF</a> · <a href="docs/zukai/01_check-method_ja.html">HTML</a></td>
+<td><b>図解 02 5 つの OS での点検結果と読み方</b><br>Ubuntu で待つしかないのは OS のコピーだけ。同梱コピーはどの OS でも今すぐ直せる（2026-10-26 時点）。<br><a href="docs/zukai/02_results-reading_ja.pdf">PDF</a> · <a href="docs/zukai/02_results-reading_ja.html">HTML</a></td>
+</tr>
+</table>
+
+英語版: [Fig. 01](docs/zukai/01_check-method_en.pdf)、[Fig. 02](docs/zukai/02_results-reading_en.pdf)。
+検証結果の全体: [docs/verification.ja.md](docs/verification.ja.md)。
+
 ## このツールがすること・しないこと
 
 **すること**

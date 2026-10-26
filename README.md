@@ -10,6 +10,22 @@ Keywords: CVE-2026-111497, GHSA-9v8h-qqgm-4m35, Brotli decoder, "HTTP2Shell", "N
 日本語: [README.ja.md](README.ja.md) / 医療機関・中小企業の方へ: [docs/for-clinics.ja.md](docs/for-clinics.ja.md)
 (Every document in docs/ has a Japanese version next to it as `*.ja.md`.)
 
+## At a glance
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="docs/zukai/01_check-method_en.pdf"><img src="docs/zukai/01_check-method_en.png" alt="Fig. 01 What we checked, and how: the vulnerability, where copies of the Brotli decoder hide on a host (OS layer and bundled layer), and how brotli-cve-check checks each of them"></a></td>
+<td width="50%" valign="top"><a href="docs/zukai/02_results-reading_en.pdf"><img src="docs/zukai/02_results-reading_en.png" alt="Fig. 02 Results on 5 OSes and how to read them: Ubuntu 22.04/24.04/26.04 OS copies have no fix yet, Debian 12/13 are fixed, bundled copies can be fixed today on any OS"></a></td>
+</tr>
+<tr>
+<td><b>Fig. 01 What we checked, and how</b><br>Updating the OS fixes only the OS's copy; bundled copies are found and told apart by version and by strings.<br><a href="docs/zukai/01_check-method_en.pdf">PDF</a> · <a href="docs/zukai/01_check-method_en.html">HTML</a></td>
+<td><b>Fig. 02 Results on 5 OSes, and how to read them</b><br>On Ubuntu only the OS's own copy has to wait; bundled copies can be fixed today on any OS (as of 2026-10-26).<br><a href="docs/zukai/02_results-reading_en.pdf">PDF</a> · <a href="docs/zukai/02_results-reading_en.html">HTML</a></td>
+</tr>
+</table>
+
+Japanese versions: [Fig. 01](docs/zukai/01_check-method_ja.pdf), [Fig. 02](docs/zukai/02_results-reading_ja.pdf).
+Full results: [docs/verification.md](docs/verification.md).
+
 ## What it does, and what it does not
 
 It **does**:

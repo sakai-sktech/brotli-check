@@ -4,6 +4,10 @@ English: [verification.md](verification.md)
 
 最初の公開の前に何を、どう確かめ、どうなったか。実施日: **2026-10-26**。既知データ: 2026-10-26 時点。
 
+A4 一枚の図解: [図解 01 何を、どのようにチェックしたか](zukai/01_check-method_ja.pdf)・
+[図解 02 5 つの OS での点検結果と読み方](zukai/02_results-reading_ja.pdf)
+（英語版: [Fig. 01](zukai/01_check-method_en.pdf)、[Fig. 02](zukai/02_results-reading_en.pdf)）。
+
 ## この結果の読み方（2026-10-26 時点）
 
 下の統合テストでは、各イメージに未修正のものと修正済みのものを意図的に入れているので、どの実行も

@@ -5,6 +5,10 @@
 What was checked before the first release, how, and what came out. Date: **2026-10-26**.
 Advisory data: snapshot 2026-10-26.
 
+One-page figures (A4): [Fig. 01 What we checked, and how](zukai/01_check-method_en.pdf) ·
+[Fig. 02 Results on 5 OSes, and how to read them](zukai/02_results-reading_en.pdf)
+(Japanese: [図解 01](zukai/01_check-method_ja.pdf), [図解 02](zukai/02_results-reading_ja.pdf)).
+
 ## How to read these results (as of 2026-10-26)
 
 The integration tests below put known-unfixed and known-fixed copies into each image on purpose,

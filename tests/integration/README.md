@@ -32,4 +32,5 @@ ONLY=debian:13 SKIP_BASH42=1 bash tests/integration/run.sh
 ENGINE=podman bash tests/integration/run.sh
 ```
 
-Reports are kept in `tests/tmp/integration/` (ignored by git).
+Reports are kept in `tests/tmp/integration/` (ignored by git). The latest recorded results:
+[docs/verification.md](../../docs/verification.md).

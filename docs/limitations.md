@@ -1,5 +1,7 @@
 # Limitations
 
+日本語: [limitations.ja.md](limitations.ja.md)
+
 What the tool can miss or cannot decide, and why. "Nothing found" never means "safe".
 
 ## Copies the tool can miss

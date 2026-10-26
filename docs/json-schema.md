@@ -1,5 +1,7 @@
 # JSON output (`--json`)
 
+日本語: [json-schema.ja.md](json-schema.ja.md)
+
 One JSON object on one line, UTF-8. Fields are added in a backward-compatible way; a
 removed or renamed field changes the major part of `tool_version`.
 

@@ -8,6 +8,7 @@ Keywords: CVE-2026-111497, GHSA-9v8h-qqgm-4m35, Brotli decoder, "HTTP2Shell", "N
 (Despite the nickname, this is not an HTTP/2 flaw.)
 
 日本語: [README.ja.md](README.ja.md) / 医療機関・中小企業の方へ: [docs/for-clinics.ja.md](docs/for-clinics.ja.md)
+(Every document in docs/ has a Japanese version next to it as `*.ja.md`.)
 
 ## What it does, and what it does not
 
@@ -132,7 +133,8 @@ make dist          # dist/brotli-cve-check (single file) and dist/SHA256SUMS
 make integration   # Ubuntu 22.04/24.04/26.04 and Debian 12/13 containers (needs docker)
 ```
 
-Sample output: [docs/sample-output.md](docs/sample-output.md). Design notes: [docs/design.md](docs/design.md) (Japanese). Contributing:
+Verification results: [docs/verification.md](docs/verification.md). Sample output:
+[docs/sample-output.md](docs/sample-output.md). Design notes: [docs/design.md](docs/design.md). Contributing:
 [CONTRIBUTING.md](CONTRIBUTING.md). Security issues in this tool: [SECURITY.md](SECURITY.md).
 
 ## Disclaimer

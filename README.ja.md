@@ -8,6 +8,7 @@ Ubuntu・Debian のホスト 1 台の中から、**CVE-2026-111497**（Google Br
 （通称に HTTP/2 とありますが、HTTP/2 の欠陥ではありません）。
 
 English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/for-clinics.ja.md](docs/for-clinics.ja.md)
+（docs/ の文書は英語版の隣に日本語版 `*.ja.md` があります）
 
 ## このツールがすること・しないこと
 
@@ -46,7 +47,7 @@ sudo bash brotli-cve-check --lang ja       # root で（他ユーザーのプロ
 よく使うオプション:
 
 ```sh
-bash brotli-cve-check --json --output report.json   # 機械向け（docs/json-schema.md）
+bash brotli-cve-check --json --output report.json   # 機械向け（docs/json-schema.ja.md）
 bash brotli-cve-check --no-exec                     # 見つけたプログラムを一切実行しない
 sudo bash brotli-cve-check --deep --containers      # 時間はかかるが広く探す
 bash brotli-cve-check --help
@@ -102,7 +103,7 @@ bash brotli-cve-check --help
 
 ## 限界
 
-[docs/limitations.md](docs/limitations.md) を参照してください。要点: アーカイブの中や、動いていない
+[docs/limitations.ja.md](docs/limitations.ja.md) を参照してください。要点: アーカイブの中や、動いていない
 イメージの中のコピーは見落としうる／root でないと他ユーザーのプロセスとホームは見えない／既知データは
 ある時点のスナップショット。
 
@@ -125,7 +126,8 @@ make dist          # dist/brotli-cve-check（1 ファイル版）と dist/SHA256
 make integration   # Ubuntu 22.04/24.04/26.04、Debian 12/13 のコンテナ（docker が必要）
 ```
 
-出力例: [docs/sample-output.md](docs/sample-output.md)。設計メモ: [docs/design.md](docs/design.md)。貢献の手引き: [CONTRIBUTING.md](CONTRIBUTING.md)。
+検証結果: [docs/verification.ja.md](docs/verification.ja.md)。出力例: [docs/sample-output.md](docs/sample-output.md)。
+設計メモ: [docs/design.ja.md](docs/design.ja.md)。貢献の手引き: [CONTRIBUTING.md](CONTRIBUTING.md)。
 このツール自体のセキュリティ問題: [SECURITY.md](SECURITY.md)。
 
 ## 免責

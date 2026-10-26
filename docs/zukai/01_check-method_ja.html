@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>01_check-method_ja — 何を、どのようにチェックしたか</title>
+<style>
+/* a4-zukai 単一ファイルテンプレート — A4縦・上部図解+下部解説
+   外部参照禁止(自己完結)。配色は検証済み(SKILL.md参照)。文字は常にインク色 */
+@page { size: A4; margin: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --blue: #1e5fa8; --red: #c23b2b; --green: #0d8a66;
+  --ink: #1c2733; --ink-sub: #465663;
+  --bg-blue: #e9f0f8; --bg-red: #faeeec; --bg-green: #e8f4f0;
+  --line: #c8d2dc;
+}
+html, body { width: 210mm; height: 297mm; }
+body {
+  font-family: "BIZ UDPGothic", "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", sans-serif;
+  color: var(--ink);
+  padding: 11mm 12mm 8mm 12mm;
+  display: flex; flex-direction: column;
+}
+/* ヘッダ: 番号バッジ + タイトル + 短い副題(長いと折り返す。約12字まで) */
+.head { display: flex; align-items: baseline; gap: 4mm; border-bottom: 1mm solid var(--blue); padding-bottom: 2.5mm; }
+.head .no {
+  background: var(--blue); color: #fff; font-weight: 800;
+  font-size: 12pt; padding: 1.2mm 3mm; border-radius: 1.5mm; letter-spacing: 0.05em;
+}
+.head h1 { font-size: 19pt; font-weight: 800; letter-spacing: 0.02em; }
+.head .sub { font-size: 10pt; color: var(--ink-sub); font-weight: 600; }
+/* 図解エリア(SVGが縦横比を保って収まる) */
+.fig { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; padding: 3mm 0 2mm; min-height: 0; }
+.fig svg { width: 100%; height: 100%; }
+/* 解説エリア: 「この1枚の読み方」1〜3点 */
+.notes { border-top: 0.4mm solid var(--line); padding-top: 2.5mm; }
+.notes h2 { font-size: 10.5pt; font-weight: 800; color: var(--blue); margin-bottom: 1.5mm; }
+.notes ol { list-style: none; counter-reset: n; }
+.notes ol li {
+  counter-increment: n; position: relative; padding-left: 7.5mm;
+  font-size: 9.8pt; line-height: 1.55; margin-bottom: 1.6mm;
+}
+.notes ol li::before {
+  content: counter(n); position: absolute; left: 0; top: 0.4mm;
+  width: 5mm; height: 5mm; border-radius: 50%;
+  background: var(--blue); color: #fff; font-weight: 700; font-size: 8.5pt;
+  display: flex; align-items: center; justify-content: center;
+}
+.notes b { font-weight: 800; }
+.notes .accent { color: var(--red); font-weight: 800; }
+/* キーメッセージ帯(1文だけ=診断) */
+.keymsg {
+  margin-top: 2mm; background: var(--bg-blue); border-left: 2mm solid var(--blue);
+  padding: 2mm 4mm; font-size: 12pt; font-weight: 800; letter-spacing: 0.02em;
+}
+/* 処方箋帯(キーメッセージ直後・読者の次の一手を行動の言葉で。診断と処方は別要素として分ける) */
+.rx {
+  margin-top: 1.5mm; background: var(--bg-green); border-left: 2mm solid var(--green);
+  padding: 1.8mm 4mm; font-size: 10pt; line-height: 1.5;
+}
+.rx b { font-weight: 800; color: var(--green); margin-right: 2mm; }
+/* フッタ: 左=文脈(何の資料か) 右=作成者・出典 */
+.foot {
+  margin-top: 2.5mm; padding-top: 1.5mm; border-top: 0.3mm solid var(--line);
+  display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--ink-sub);
+}
+/* 追加: コード片(コマンド・識別子)は等幅で */
+code { font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace; font-size: 0.92em; background: rgba(28,39,51,0.06); padding: 0 0.6mm; border-radius: 0.6mm; }
+code { white-space: nowrap; }
+.head { white-space: nowrap; }
+.keymsg { line-height: 1.4; }
+.nw { white-space: nowrap; }
+.foot span { white-space: nowrap; }
+
+.notes ol li { font-size: 10.4pt; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <span class="no">図解 01</span>
+  <h1>何を、どのようにチェックしたか</h1>
+  <span class="sub">CVE-2026-111497</span>
+</div>
+
+<div class="fig">
+<svg viewBox="0 0 1120 800" xmlns="http://www.w3.org/2000/svg" font-family="BIZ UDPGothic, Noto Sans CJK JP, sans-serif">
+<defs><marker id="ah-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#465663"/></marker><marker id="ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0d8a66"/></marker></defs>
+<rect x="10" y="6" width="1100" height="88" rx="10" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
+<text x="28" y="42" font-size="22" font-weight="800" text-anchor="start" fill="#1c2733">CVE-2026-111497：Brotli のデコーダー（展開側）の範囲外書き込み</text>
+<text x="28" y="76" font-size="16" font-weight="400" text-anchor="start" fill="#1c2733">細工した Brotli データを展開するとリングバッファの外に書き込む（CVSS 4.0：9.2・遠隔コード実行の可能性）</text>
+<line x1="842" y1="20" x2="842" y2="80" stroke="#c8d2dc" stroke-width="2"/>
+<text x="860" y="42" font-size="17" font-weight="700" text-anchor="start" fill="#1c2733">影響　Brotli 1.0.3〜1.2.0</text>
+<text x="860" y="76" font-size="17" font-weight="700" text-anchor="start" fill="#1c2733">修正　1.0.10・1.1.1・1.2.1</text>
+<text x="122" y="128" font-size="19" font-weight="800" text-anchor="middle" fill="#1c2733">どこから届くか</text>
+<text x="510" y="128" font-size="19" font-weight="800" text-anchor="middle" fill="#1c2733">どこにコピーが潜むか</text>
+<text x="950" y="128" font-size="19" font-weight="800" text-anchor="middle" fill="#1c2733">brotli-cve-check の調べ方</text>
+<rect x="10" y="146" width="224" height="334" rx="10" fill="#fff" stroke="#465663" stroke-width="2"/>
+<text x="24" y="176" font-size="18" font-weight="800" text-anchor="start" fill="#1c2733"><tspan x="24" dy="0">信頼できない Brotli</tspan><tspan x="24" dy="24">データを展開するとき</tspan></text>
+<circle cx="31" cy="237" r="4" fill="#465663"/>
+<text x="42" y="242" font-size="16" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="42" dy="0">HTTP の br 応答を</tspan><tspan x="42" dy="22">自動で展開する</tspan><tspan x="42" dy="22">クライアント</tspan></text>
+<circle cx="31" cy="327" r="4" fill="#465663"/>
+<text x="42" y="332" font-size="16" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="42" dy="0">br の受信本文を</tspan><tspan x="42" dy="22">展開するサーバー</tspan></text>
+<line x1="24" y1="404" x2="220" y2="404" stroke="#c8d2dc" stroke-width="1.5"/>
+<text x="24" y="428" font-size="15" font-weight="400" text-anchor="start" fill="#465663"><tspan x="24" dy="0">通称「HTTP2Shell」だが</tspan><tspan x="24" dy="20">HTTP/2 の欠陥ではない</tspan></text>
+<rect x="10" y="498" width="224" height="204" rx="10" fill="#f1f3f5" stroke="#8a97a3" stroke-width="2" stroke-dasharray="6 5"/>
+<text x="24" y="528" font-size="17" font-weight="800" text-anchor="start" fill="#465663">対象外：圧縮側</text>
+<text x="24" y="556" font-size="15" font-weight="400" text-anchor="start" fill="#465663"><tspan x="24" dy="0">エンコーダー（圧縮）は</tspan><tspan x="24" dy="21">関係しない。</tspan><tspan x="24" dy="21">ngx_brotli と mod_brotli</tspan><tspan x="24" dy="21">は圧縮専用</tspan></text>
+<path d="M234,300 H250 V598" fill="none" stroke="#465663" stroke-width="3"/>
+<line x1="250" y1="300" x2="277" y2="300" stroke="#465663" stroke-width="3" marker-end="url(#ah-ink)"/>
+<line x1="250" y1="598" x2="277" y2="598" stroke="#465663" stroke-width="3" marker-end="url(#ah-ink)"/>
+<rect x="265" y="142" width="490" height="566" rx="12" fill="#fff" stroke="#1c2733" stroke-width="2.5"/>
+<rect x="280" y="156" width="460" height="296" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
+<text x="296" y="186" font-size="18" font-weight="800" text-anchor="start" fill="#1c2733">同梱の層：製品が自前で抱えるコピー</text>
+<rect x="296" y="204" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="233" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Node.js（公式版など）</text>
+<rect x="520" y="204" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="233" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Bun</text>
+<rect x="296" y="262" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="291" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">PyPI Brotli・brotlicffi</text>
+<rect x="520" y="262" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="291" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">conda の libbrotlidec</text>
+<rect x="296" y="320" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="349" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Envoy・Istio</text>
+<rect x="520" y="320" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="349" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Chromium・Firefox</text>
+<rect x="296" y="378" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="407" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Electron アプリ</text>
+<rect x="520" y="378" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="407" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Pillow の wheel</text>
+<rect x="280" y="496" width="460" height="198" rx="8" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
+<text x="296" y="526" font-size="18" font-weight="800" text-anchor="start" fill="#1c2733">OS の層（配布元）</text>
+<rect x="540" y="506" width="188" height="30" rx="15" fill="#0d8a66"/>
+<text x="634" y="527" font-size="16" font-weight="700" text-anchor="middle" fill="#fff">OS の更新で直る</text>
+<rect x="296" y="548" width="196" height="134" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<text x="308" y="574" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">libbrotli1</text>
+<text x="308" y="600" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="308" dy="0">共有ライブラリ。</tspan><tspan x="308" dy="22">curl・libsoup・</tspan><tspan x="308" dy="22">freetype などが使う</tspan></text>
+<rect x="528" y="548" width="196" height="134" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<text x="540" y="574" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">python3-brotli</text>
+<text x="540" y="600" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="540" dy="0">静的にコンパイル済み。</tspan><tspan x="540" dy="22">libbrotli1 とは</tspan><tspan x="540" dy="22">別に判定が要る</tspan></text>
+<line x1="510" y1="790" x2="510" y2="500" stroke="#0d8a66" stroke-width="8" marker-end="url(#ah-green)"/>
+<line x1="484" y1="489" x2="536" y2="489" stroke="#0d8a66" stroke-width="5"/>
+<text x="496" y="772" font-size="16" font-weight="700" text-anchor="end" fill="#1c2733">apt で OS のパッケージを更新</text>
+<rect x="395.0" y="455" width="230" height="31" rx="15.5" fill="#c23b2b"/>
+<text x="510" y="477" font-size="17" font-weight="700" text-anchor="middle" fill="#fff">OS の更新では直らない</text>
+<rect x="790" y="156" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="156" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="181" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">名前で探す</text>
+<text x="808" y="204" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">1 回のファイル探索で node・bun・</tspan><tspan x="808" dy="20">envoy の実行ファイル、Python の</tspan><tspan x="808" dy="20">パッケージ情報、libbrotlidec を集める</tspan></text>
+<rect x="790" y="258" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="258" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="283" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">製品本体の版で判定する</text>
+<text x="808" y="306" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">修正版 Node.js 22.23.4 でも内蔵</tspan><tspan x="808" dy="20">Brotli の版表示は 1.1.0 のまま</tspan><tspan x="808" dy="20">→ 部品の版でなく本体の版で判定</tspan></text>
+<rect x="790" y="360" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="360" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="385" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">版が不明なら文字列で推定</text>
+<text x="808" y="408" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">修正で加わったエラー -17 の名前</tspan><tspan x="808" dy="20"><tspan font-family="Noto Sans Mono, DejaVu Sans Mono, monospace">_ERROR_FORMAT_BLOCK_SWITCH</tspan></tspan><tspan x="808" dy="20">が有れば修正版、無ければ未修正</tspan></text>
+<path d="M790,204 H772 V408 H790 M772,306 H740" fill="none" stroke="#465663" stroke-width="2"/>
+<rect x="790" y="549" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="549" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="574" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">ソースパッケージの版を比べる</text>
+<text x="808" y="597" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">Debian・Ubuntu は版番号を変えずに</tspan><tspan x="808" dy="20">直すため、ソースパッケージの版</tspan><tspan x="808" dy="20">（例 <tspan font-family="Noto Sans Mono, DejaVu Sans Mono, monospace">1.1.0-2+deb13u1</tspan>）で比べる</tspan></text>
+<line x1="740" y1="595" x2="790" y2="595" stroke="#465663" stroke-width="2"/>
+<path d="M516,748 H790" fill="none" stroke="#0d8a66" stroke-width="2" stroke-dasharray="6 5"/>
+<rect x="790" y="700" width="320" height="96" rx="8" fill="#fff" stroke="#0d8a66" stroke-width="1.5"/>
+<rect x="790" y="700" width="7" height="96" rx="3" fill="#0d8a66"/>
+<text x="808" y="725" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">更新のあと：再起動が要るか</text>
+<text x="808" y="748" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">削除済みの古い libbrotlidec や、</tspan><tspan x="808" dy="20">置き換え前の node で動き続ける</tspan><tspan x="808" dy="20">プロセスを「再起動が必要」と出す</tspan></text>
+</svg>
+</div>
+
+<div class="notes">
+  <h2>この1枚の読み方</h2>
+  <ol>
+    <li><b>弱点は展開側（デコーダー）にあり、信頼できない Brotli データを展開するときに届く。</b>HTTP の <code>Content-Encoding: br</code> の応答を自動展開するクライアントや、br の受信本文を展開するサーバーが経路になる。上流は 2026-10-21 に 1.0.10・1.1.1・1.2.1 で修正した（<span class="nw">GHSA-9v8h-qqgm-4m35</span>）。</li>
+    <li><b>同梱コピーは製品ごとの更新が要る</b>（<span class="accent">OS の更新では直らない</span>）。修正版の例: Node.js 22.23.4・24.22.1・26.12.1、Bun 1.4.4、PyPI の Brotli 1.2.1。文字列による推定は Brotli 1.2.0／1.2.1 の自前ビルド、Node.js 公式バイナリ、PyPI の wheel で確かめ、エラー名の表が削られたビルドは判定せず <code>VENDORED_COPY</code>（要確認）と出す。2026-10-26 時点で Ubuntu の OS パッケージは修正版が未提供（Debian 12・13 は修正済み）。</li>
+    <li><b>読み取り専用で、「安全」とは表示しない。</b>書き込むのは標準出力と <code>--output</code> だけで、ネットワークも攻撃データも使わない。見つけたプログラムは <code>--version</code> を尋ねるときだけ、環境変数を空・制限時間つき・他人が置き換えられない場所のものに限って実行する。urllib3・requests・httpx・aiohttp が同じ環境にあれば、応答を自動展開する手がかりとして示す（脆弱性そのものではない）。走査しなかった範囲を必ず並べ、侵入の有無は調べない。</li>
+  </ol>
+  <div class="keymsg">OS の更新が直すのは OS のコピーだけで、同梱コピーは版と文字列で一つずつ洗い出す。</div>
+  <div class="rx"><b>処方箋</b>SHA256 を確かめてから <code>sudo bash brotli-cve-check --lang ja</code> を読み取り専用で走らせ、「更新が必要なもの」「再起動が必要なもの」に挙がったものから更新・再起動する。</div>
+</div>
+
+<div class="foot">
+  <span>図解 01｜2026-10-26 作成</span>
+  <span>出典: GHSA-9v8h-qqgm-4m35・PYSEC-2026-4322・brotli-cve-check v0.1.0 の docs</span>
+</div>
+
+</body>
+</html>

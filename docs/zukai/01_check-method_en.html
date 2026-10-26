@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>01_check-method_en — What we checked, and how</title>
+<style>
+/* a4-zukai 単一ファイルテンプレート — A4縦・上部図解+下部解説
+   外部参照禁止(自己完結)。配色は検証済み(SKILL.md参照)。文字は常にインク色 */
+@page { size: A4; margin: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --blue: #1e5fa8; --red: #c23b2b; --green: #0d8a66;
+  --ink: #1c2733; --ink-sub: #465663;
+  --bg-blue: #e9f0f8; --bg-red: #faeeec; --bg-green: #e8f4f0;
+  --line: #c8d2dc;
+}
+html, body { width: 210mm; height: 297mm; }
+body {
+  font-family: "BIZ UDPGothic", "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", sans-serif;
+  color: var(--ink);
+  padding: 11mm 12mm 8mm 12mm;
+  display: flex; flex-direction: column;
+}
+/* ヘッダ: 番号バッジ + タイトル + 短い副題(長いと折り返す。約12字まで) */
+.head { display: flex; align-items: baseline; gap: 4mm; border-bottom: 1mm solid var(--blue); padding-bottom: 2.5mm; }
+.head .no {
+  background: var(--blue); color: #fff; font-weight: 800;
+  font-size: 12pt; padding: 1.2mm 3mm; border-radius: 1.5mm; letter-spacing: 0.05em;
+}
+.head h1 { font-size: 19pt; font-weight: 800; letter-spacing: 0.02em; }
+.head .sub { font-size: 10pt; color: var(--ink-sub); font-weight: 600; }
+/* 図解エリア(SVGが縦横比を保って収まる) */
+.fig { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; padding: 3mm 0 2mm; min-height: 0; }
+.fig svg { width: 100%; height: 100%; }
+/* 解説エリア: 「この1枚の読み方」1〜3点 */
+.notes { border-top: 0.4mm solid var(--line); padding-top: 2.5mm; }
+.notes h2 { font-size: 10.5pt; font-weight: 800; color: var(--blue); margin-bottom: 1.5mm; }
+.notes ol { list-style: none; counter-reset: n; }
+.notes ol li {
+  counter-increment: n; position: relative; padding-left: 7.5mm;
+  font-size: 9.8pt; line-height: 1.55; margin-bottom: 1.6mm;
+}
+.notes ol li::before {
+  content: counter(n); position: absolute; left: 0; top: 0.4mm;
+  width: 5mm; height: 5mm; border-radius: 50%;
+  background: var(--blue); color: #fff; font-weight: 700; font-size: 8.5pt;
+  display: flex; align-items: center; justify-content: center;
+}
+.notes b { font-weight: 800; }
+.notes .accent { color: var(--red); font-weight: 800; }
+/* キーメッセージ帯(1文だけ=診断) */
+.keymsg {
+  margin-top: 2mm; background: var(--bg-blue); border-left: 2mm solid var(--blue);
+  padding: 2mm 4mm; font-size: 12pt; font-weight: 800; letter-spacing: 0.02em;
+}
+/* 処方箋帯(キーメッセージ直後・読者の次の一手を行動の言葉で。診断と処方は別要素として分ける) */
+.rx {
+  margin-top: 1.5mm; background: var(--bg-green); border-left: 2mm solid var(--green);
+  padding: 1.8mm 4mm; font-size: 10pt; line-height: 1.5;
+}
+.rx b { font-weight: 800; color: var(--green); margin-right: 2mm; }
+/* フッタ: 左=文脈(何の資料か) 右=作成者・出典 */
+.foot {
+  margin-top: 2.5mm; padding-top: 1.5mm; border-top: 0.3mm solid var(--line);
+  display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--ink-sub);
+}
+/* 追加: コード片(コマンド・識別子)は等幅で */
+code { font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace; font-size: 0.92em; background: rgba(28,39,51,0.06); padding: 0 0.6mm; border-radius: 0.6mm; }
+code { white-space: nowrap; }
+.head { white-space: nowrap; }
+.keymsg { line-height: 1.4; }
+.nw { white-space: nowrap; }
+.foot span { white-space: nowrap; }
+
+body { font-family: "Noto Sans", "BIZ UDPGothic", "Noto Sans CJK JP", sans-serif; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <span class="no">Fig. 01</span>
+  <h1>What we checked, and how</h1>
+  <span class="sub">CVE-2026-111497</span>
+</div>
+
+<div class="fig">
+<svg viewBox="0 0 1120 800" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans, BIZ UDPGothic, sans-serif">
+<defs><marker id="ah-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#465663"/></marker><marker id="ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0d8a66"/></marker></defs>
+<rect x="10" y="6" width="1100" height="88" rx="10" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
+<text x="28" y="42" font-size="22" font-weight="800" text-anchor="start" fill="#1c2733">CVE-2026-111497: out-of-bounds write in the Brotli decoder</text>
+<text x="28" y="76" font-size="16" font-weight="400" text-anchor="start" fill="#1c2733">Crafted Brotli data can make it write past its ring buffer (CVSS 4.0: 9.2, possible remote code execution)</text>
+<line x1="842" y1="20" x2="842" y2="80" stroke="#c8d2dc" stroke-width="2"/>
+<text x="860" y="42" font-size="17" font-weight="700" text-anchor="start" fill="#1c2733">Affected: Brotli 1.0.3–1.2.0</text>
+<text x="860" y="76" font-size="17" font-weight="700" text-anchor="start" fill="#1c2733">Fixed: 1.0.10, 1.1.1, 1.2.1</text>
+<text x="122" y="128" font-size="19" font-weight="800" text-anchor="middle" fill="#1c2733">Where it arrives</text>
+<text x="510" y="128" font-size="19" font-weight="800" text-anchor="middle" fill="#1c2733">Where the copies hide</text>
+<text x="950" y="128" font-size="19" font-weight="800" text-anchor="middle" fill="#1c2733">How brotli-cve-check checks</text>
+<rect x="10" y="146" width="224" height="334" rx="10" fill="#fff" stroke="#465663" stroke-width="2"/>
+<text x="24" y="176" font-size="18" font-weight="800" text-anchor="start" fill="#1c2733"><tspan x="24" dy="0">When untrusted</tspan><tspan x="24" dy="24">Brotli data is</tspan><tspan x="24" dy="24">decompressed</tspan></text>
+<circle cx="31" cy="259" r="4" fill="#465663"/>
+<text x="42" y="264" font-size="16" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="42" dy="0">HTTP clients that</tspan><tspan x="42" dy="22">auto-decompress br</tspan><tspan x="42" dy="22">responses</tspan></text>
+<circle cx="31" cy="337" r="4" fill="#465663"/>
+<text x="42" y="342" font-size="16" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="42" dy="0">servers that</tspan><tspan x="42" dy="22">decompress br</tspan><tspan x="42" dy="22">request bodies</tspan></text>
+<line x1="24" y1="412" x2="220" y2="412" stroke="#c8d2dc" stroke-width="1.5"/>
+<text x="24" y="436" font-size="15" font-weight="400" text-anchor="start" fill="#465663"><tspan x="24" dy="0">Nicknamed “HTTP2Shell”,</tspan><tspan x="24" dy="20">but not an HTTP/2 flaw</tspan></text>
+<rect x="10" y="498" width="224" height="204" rx="10" fill="#f1f3f5" stroke="#8a97a3" stroke-width="2" stroke-dasharray="6 5"/>
+<text x="24" y="528" font-size="17" font-weight="800" text-anchor="start" fill="#465663">Out of scope: encoder</text>
+<text x="24" y="556" font-size="15" font-weight="400" text-anchor="start" fill="#465663"><tspan x="24" dy="0">The compression side</tspan><tspan x="24" dy="21">is not affected.</tspan><tspan x="24" dy="21">ngx_brotli and mod_brotli</tspan><tspan x="24" dy="21">only compress</tspan></text>
+<path d="M234,300 H250 V598" fill="none" stroke="#465663" stroke-width="3"/>
+<line x1="250" y1="300" x2="277" y2="300" stroke="#465663" stroke-width="3" marker-end="url(#ah-ink)"/>
+<line x1="250" y1="598" x2="277" y2="598" stroke="#465663" stroke-width="3" marker-end="url(#ah-ink)"/>
+<rect x="265" y="142" width="490" height="566" rx="12" fill="#fff" stroke="#1c2733" stroke-width="2.5"/>
+<rect x="280" y="156" width="460" height="296" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
+<text x="296" y="186" font-size="18" font-weight="800" text-anchor="start" fill="#1c2733">Bundled layer: copies inside products</text>
+<rect x="296" y="204" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="233" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Node.js (official, etc.)</text>
+<rect x="520" y="204" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="233" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Bun</text>
+<rect x="296" y="262" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="291" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">PyPI Brotli, brotlicffi</text>
+<rect x="520" y="262" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="291" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">conda libbrotlidec</text>
+<rect x="296" y="320" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="349" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Envoy, Istio</text>
+<rect x="520" y="320" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="349" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Chromium, Firefox</text>
+<rect x="296" y="378" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="403" y="407" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Electron apps</text>
+<rect x="520" y="378" width="214" height="46" rx="23" fill="#fff" stroke="#c23b2b" stroke-width="1.5"/>
+<text x="627" y="407" font-size="16" font-weight="700" text-anchor="middle" fill="#1c2733">Pillow wheels</text>
+<rect x="280" y="496" width="460" height="198" rx="8" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
+<text x="296" y="526" font-size="18" font-weight="800" text-anchor="start" fill="#1c2733">OS layer (distro)</text>
+<rect x="540" y="506" width="188" height="30" rx="15" fill="#0d8a66"/>
+<text x="634" y="527" font-size="16" font-weight="700" text-anchor="middle" fill="#fff">Fixed by OS update</text>
+<rect x="296" y="548" width="196" height="134" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<text x="308" y="574" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">libbrotli1</text>
+<text x="308" y="600" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="308" dy="0">shared library used</tspan><tspan x="308" dy="22">by curl, libsoup,</tspan><tspan x="308" dy="22">freetype and others</tspan></text>
+<rect x="528" y="548" width="196" height="134" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<text x="540" y="574" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">python3-brotli</text>
+<text x="540" y="600" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="540" dy="0">statically compiled;</tspan><tspan x="540" dy="22">judged separately</tspan><tspan x="540" dy="22">from libbrotli1</tspan></text>
+<line x1="510" y1="790" x2="510" y2="500" stroke="#0d8a66" stroke-width="8" marker-end="url(#ah-green)"/>
+<line x1="484" y1="489" x2="536" y2="489" stroke="#0d8a66" stroke-width="5"/>
+<text x="496" y="772" font-size="16" font-weight="700" text-anchor="end" fill="#1c2733">Update OS packages (apt)</text>
+<rect x="395.0" y="455" width="230" height="31" rx="15.5" fill="#c23b2b"/>
+<text x="510" y="477" font-size="17" font-weight="700" text-anchor="middle" fill="#fff">Not fixed by OS update</text>
+<rect x="790" y="156" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="156" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="181" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">Search by name</text>
+<text x="808" y="204" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">one file scan collects node, bun and</tspan><tspan x="808" dy="20">envoy binaries, Python metadata</tspan><tspan x="808" dy="20">and libbrotlidec files</tspan></text>
+<rect x="790" y="258" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="258" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="283" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">Judge by the product's version</text>
+<text x="808" y="306" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">fixed Node.js 22.23.4 still reports its</tspan><tspan x="808" dy="20">built-in Brotli as 1.1.0, so judge by</tspan><tspan x="808" dy="20">the product's version, not the part's</tspan></text>
+<rect x="790" y="360" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="360" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="385" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">Unknown version: check strings</text>
+<text x="808" y="408" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">the fix added error -17, whose name</tspan><tspan x="808" dy="20"><tspan font-family="Noto Sans Mono, DejaVu Sans Mono, monospace">_ERROR_FORMAT_BLOCK_SWITCH</tspan></tspan><tspan x="808" dy="20">is present only in fixed builds</tspan></text>
+<path d="M790,204 H772 V408 H790 M772,306 H740" fill="none" stroke="#465663" stroke-width="2"/>
+<rect x="790" y="549" width="320" height="96" rx="8" fill="#fff" stroke="#1e5fa8" stroke-width="1.5"/>
+<rect x="790" y="549" width="7" height="96" rx="3" fill="#1e5fa8"/>
+<text x="808" y="574" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">Compare source-package versions</text>
+<text x="808" y="597" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">Debian and Ubuntu patch without</tspan><tspan x="808" dy="20">changing the version number, so</tspan><tspan x="808" dy="20">compare e.g. <tspan font-family="Noto Sans Mono, DejaVu Sans Mono, monospace">1.1.0-2+deb13u1</tspan></tspan></text>
+<line x1="740" y1="595" x2="790" y2="595" stroke="#465663" stroke-width="2"/>
+<path d="M516,748 H790" fill="none" stroke="#0d8a66" stroke-width="2" stroke-dasharray="6 5"/>
+<rect x="790" y="700" width="320" height="96" rx="8" fill="#fff" stroke="#0d8a66" stroke-width="1.5"/>
+<rect x="790" y="700" width="7" height="96" rx="3" fill="#0d8a66"/>
+<text x="808" y="725" font-size="17" font-weight="800" text-anchor="start" fill="#1c2733">After updating: restart needed?</text>
+<text x="808" y="748" font-size="15" font-weight="400" text-anchor="start" fill="#1c2733"><tspan x="808" dy="0">processes still using a deleted old</tspan><tspan x="808" dy="20">libbrotlidec or a replaced node</tspan><tspan x="808" dy="20">are reported as “needs restart”</tspan></text>
+</svg>
+</div>
+
+<div class="notes">
+  <h2>How to read this page</h2>
+  <ol>
+    <li><b>The flaw is on the decompression side (the decoder) and is reached whenever untrusted Brotli data is decompressed.</b> Paths include clients that auto-decompress HTTP <code>Content-Encoding: br</code> responses and servers that decompress br request bodies. Upstream fixed it in 1.0.10, 1.1.1 and 1.2.1 on 2026-10-21 (<span class="nw">GHSA-9v8h-qqgm-4m35</span>).</li>
+    <li><b>Bundled copies need each product's own update</b> (<span class="accent">updating the OS does not fix them</span>). Fixed versions include Node.js 22.23.4 / 24.22.1 / 26.12.1, Bun 1.4.4 and PyPI Brotli 1.2.1. The string check was verified on self-built Brotli 1.2.0 / 1.2.1, official Node.js binaries and PyPI wheels; builds whose error-name table was stripped are not judged but reported as <code>VENDORED_COPY</code> (needs review). As of 2026-10-26, Ubuntu has no fixed OS packages yet (Debian 12 and 13 do).</li>
+    <li><b>Read-only, and it never says “safe”.</b> It writes only to standard output and <code>--output</code>, and uses neither the network nor attack data. Programs it finds are run only to ask <code>--version</code>, with an empty environment, a time limit, and only from places no one else can replace. If urllib3, requests, httpx or aiohttp sit next to Brotli, it shows them as a hint that responses are auto-decompressed (not a vulnerability in itself). It always lists what it did not scan, and it does not check for intrusion.</li>
+  </ol>
+  <div class="keymsg">Updating the OS fixes only the OS's copy, so bundled copies must be found and told apart one by one, by version and by strings.</div>
+  <div class="rx"><b>Next step</b>Verify the SHA256, run <code>sudo bash brotli-cve-check</code> (read-only), then update or restart whatever it lists under “Needs update” and “Needs restart” first.</div>
+</div>
+
+<div class="foot">
+  <span>Fig. 01 | made 2026-10-26</span>
+  <span>Sources: GHSA-9v8h-qqgm-4m35, PYSEC-2026-4322, brotli-cve-check v0.1.0 docs</span>
+</div>
+
+</body>
+</html>

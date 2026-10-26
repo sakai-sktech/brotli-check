@@ -26,7 +26,6 @@ load_libs() {
   BCC_DEB_SERIES=""
   BCC_ENVOY_CONFIG=""
   bcc_init_findings
-  declare -gA BCC_JUDGED=()
   bcc_load_data test <"$REPO_ROOT/data/advisories.tsv"
 }
 

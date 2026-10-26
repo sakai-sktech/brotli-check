@@ -321,7 +321,7 @@ bcc_proc_evidence() {
   local dir=$1 ev cmd
   ev=$(bcc_msg e_started "$(bcc_proc_start_time "$dir")")
   if ((BCC_SHOW_CMDLINE)); then
-    cmd=$(tr '\0' ' ' <"$dir/cmdline" 2>/dev/null) && ev+="; $(bcc_msg e_cmdline "${cmd% }")"
+    cmd=$(tr '\0' ' ' 2>/dev/null <"$dir/cmdline") && ev+="; $(bcc_msg e_cmdline "${cmd% }")"
   fi
   printf '%s' "$ev"
 }

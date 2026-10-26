@@ -3,6 +3,8 @@
 
 load test_helper
 
+bats_require_minimum_version 1.5.0
+
 BIN="$REPO_ROOT/bin/brotli-cve-check"
 
 setup() {
@@ -49,14 +51,19 @@ setup() {
 }
 
 @test "--output writes the same report as stdout" {
-  run "$BIN" "${ARGS[@]}" --json --output "$T/out.json"
+  run --separate-stderr "$BIN" "${ARGS[@]}" --json --output "$T/out.json"
   [ -s "$T/out.json" ]
   [ "$output" = "$(cat "$T/out.json")" ]
 }
 
+@test "a scan prints nothing on stderr (no stray tool errors on the terminal)" {
+  run --separate-stderr "$BIN" "${ARGS[@]}" --json
+  [ -z "$stderr" ] || { printf 'stderr was:\n%s\n' "$stderr"; return 1; }
+}
+
 @test "JSON output parses and carries the documented fields" {
   command -v python3 >/dev/null || skip "python3 not available to parse JSON"
-  run "$BIN" "${ARGS[@]}" --json
+  run --separate-stderr "$BIN" "${ARGS[@]}" --json
   printf '%s' "$output" >"$T/out.json"
   python3 -I - "$T/out.json" <<'EOF'
 import json, sys

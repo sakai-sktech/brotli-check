@@ -150,8 +150,6 @@ bcc_note_disabled() {
 }
 
 bcc_run_checks() {
-  declare -gA BCC_JUDGED=()
-  declare -gA BCC_UNSAFE_EXEC=()
   bcc_build_index
   bcc_check_c01
   bcc_check_c02

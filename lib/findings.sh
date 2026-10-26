@@ -14,6 +14,8 @@ bcc_init_findings() {
   declare -gA BCC_SKIP_KEYS=()
   declare -gA BCC_DPKG_CACHE=()
   declare -gA BCC_PRIVGRP_CACHE=()
+  declare -gA BCC_JUDGED=()
+  declare -gA BCC_UNSAFE_EXEC=()
 }
 
 # Split a tab-separated record into the global array BCC_F, keeping empty fields

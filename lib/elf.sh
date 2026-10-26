@@ -111,7 +111,9 @@ bcc_links_brotlidec() {
 # that start with _ERROR_FORMAT_ count (Node.js also carries
 # "BROTLI_DECODER_ERROR_FORMAT_*" names in its own table).
 bcc_brotli_error_names() {
-  LC_ALL=C tr -c '[:print:]' '\n' <"$1" 2>/dev/null | LC_ALL=C grep -E '^_ERROR_FORMAT_[A-Z0-9_]+$' | sort -u
+  # 2>/dev/null first: redirections apply left to right, and an unreadable file must not
+  # print "Permission denied" on the terminal.
+  LC_ALL=C tr -c '[:print:]' '\n' 2>/dev/null <"$1" | LC_ALL=C grep -E '^_ERROR_FORMAT_[A-Z0-9_]+$' | sort -u
 }
 
 # Does FILE look like it contains a Brotli decoder? (symbol names or decoder error names)

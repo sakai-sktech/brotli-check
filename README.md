@@ -68,6 +68,7 @@ Useful options:
 ```sh
 bash brotli-cve-check --lang ja                     # Japanese output
 bash brotli-cve-check --json --output report.json   # machine-readable (docs/json-schema.md)
+sudo bash brotli-cve-check > report.txt             # as root, save the report via your own shell
 bash brotli-cve-check --no-exec                     # never run any program it finds
 sudo bash brotli-cve-check --deep --containers      # slower, wider
 bash brotli-cve-check --help

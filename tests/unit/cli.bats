@@ -65,6 +65,13 @@ setup() {
   [ ! -e "$T/open/out.txt" ]
 }
 
+@test "--output through a symlinked directory writes into the resolved directory" {
+  mkdir -p "$T/real"
+  ln -s "$T/real" "$T/link"
+  run "$BIN" "${ARGS[@]}" --output "$T/link/r.txt"
+  [ -s "$T/real/r.txt" ]
+}
+
 @test "--output leaves exactly one new file (no temporary file behind)" {
   mkdir -p "$T/o"
   run "$BIN" "${ARGS[@]}" --output "$T/o/report.txt"

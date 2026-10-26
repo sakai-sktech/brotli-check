@@ -208,7 +208,9 @@ and reported with a reason.
 - **`--output` never overwrites or opens an existing file.** The report goes to a temporary file
   created exclusively in the same directory, which is then hard-linked to the requested name
   (link(2) fails on any existing name and never follows symlinks). Directories that other users
-  can modify without the sticky bit are refused. (First implemented with bash's noclobber; the
+  can modify without the sticky bit are refused, and every directory up to `/` must be owned by root
+  (or by the user, when not root); a sticky directory must also be owned by root or the user. The
+  resolved directory is the one written to. (First implemented with bash's noclobber; the
   Codex review showed that noclobber still opens existing FIFOs and devices, e.g. a symlink to a
   disk planted after the option check.)
 - **Test hooks**: only `BCC_PROC_ROOT`, `BCC_OS_RELEASE`, `BCC_HOME_DIRS`, `BCC_MOUNTINFO` and

@@ -76,6 +76,15 @@ subject to the same rule; otherwise linkage is followed with `readelf` and `ldco
 which can miss unusual `RUNPATH` setups. `--inspect-containers` runs a fixed read-only script
 inside running containers.
 
+## Writing the report (`--output`)
+
+`--output` creates a new file and never overwrites or opens an existing one. Every directory
+from the target up to `/` must be owned by root (or by you, when you are not root), and not
+writable by other users except through the sticky bit of a root-owned directory such as `/tmp`.
+As root, that rules out users' home directories: a user who owns the directory could otherwise
+redirect a root-written file elsewhere. To keep a root scan in your home, redirect stdout:
+`sudo bash brotli-cve-check > report.txt`.
+
 ## What the result is not
 
 - Not an intrusion check. Updating does not remove traces of a compromise that happened

@@ -96,34 +96,54 @@ bcc_parse_args() {
     if [[ -e $BCC_OUTPUT || -L $BCC_OUTPUT ]]; then
       bcc_die "$(bcc_msg err_output_exists "$BCC_OUTPUT")"
     fi
-    bcc_output_dir_ok "$(dirname -- "$BCC_OUTPUT")" || bcc_die "$(bcc_msg err_output_dir "$BCC_OUTPUT")"
+    BCC_OUTPUT_DIR=$(bcc_output_dir_ok "$(dirname -- "$BCC_OUTPUT")") || bcc_die "$(bcc_msg err_output_dir "$BCC_OUTPUT")"
+    BCC_OUTPUT_NAME=${BCC_OUTPUT##*/}
+    [[ -n $BCC_OUTPUT_NAME && $BCC_OUTPUT_NAME != . && $BCC_OUTPUT_NAME != .. ]] || bcc_die "$(bcc_msg err_output_dir "$BCC_OUTPUT")"
   fi
 }
 
-# May the --output file be created in DIR? Not when another user could swap our temporary
-# file there: a directory writable by others needs the sticky bit (like /tmp); a
-# group-writable one needs the sticky bit or, when not root, the owner's private group.
+# May the --output file be created in DIR? Every directory from DIR up to / must be beyond
+# the reach of other users, or a rename/symlink swap could make us create the file
+# elsewhere (as root, e.g. a file under /etc/profile.d/ that a shell later runs):
+#   - owner: root, or (when not running as root) the current user;
+#   - writable by others: only with the sticky bit and an owner as above (like /tmp);
+#   - writable by group: only with the sticky bit, or (not root) the owner's private group.
+# Prints the resolved directory; all later steps use it, so the checked path is the used one.
+# As root, a user's home therefore does not qualify: redirect stdout instead.
 bcc_output_dir_ok() {
-  local dir=$1 uid gid mode
-  read -r uid gid mode < <(stat -L -c '%u %g %a' -- "$dir" 2>/dev/null) || return 1
-  [[ $mode =~ ^[0-7]+$ ]] || return 1
-  (((8#$mode & 8#1000) != 0)) && return 0
-  (((8#$mode & 8#002) == 0)) || return 1
-  if (((8#$mode & 8#020) != 0)); then
-    ((EUID != 0)) || return 1
-    bcc_group_is_private "$uid" "$gid" || return 1
-  fi
-  return 0
+  local real p uid gid mode
+  real=$(bcc_realpath "$1") || return 1
+  [[ -n $real && -d $real ]] || return 1
+  p=$real
+  while :; do
+    read -r uid gid mode < <(stat -c '%u %g %a' -- "$p" 2>/dev/null) || return 1
+    [[ $uid =~ ^[0-9]+$ && $gid =~ ^[0-9]+$ && $mode =~ ^[0-7]+$ ]] || return 1
+    if ((EUID == 0)); then
+      ((uid == 0)) || return 1
+    else
+      ((uid == 0 || uid == EUID)) || return 1
+    fi
+    if (((8#$mode & 8#1000) == 0)); then
+      (((8#$mode & 8#002) == 0)) || return 1
+      if (((8#$mode & 8#020) != 0)); then
+        ((EUID != 0)) || return 1
+        bcc_group_is_private "$uid" "$gid" || return 1
+      fi
+    fi
+    [[ $p == / ]] && break
+    p=$(dirname -- "$p")
+  done
+  printf '%s\n' "$real"
 }
 
-# Write the report to a new file. A temporary file is created exclusively (mktemp) in the
-# same directory and hard-linked to the final name: link(2) fails on any existing name and
-# never follows a symlink, so a FIFO, device or symlink planted after the option check is
-# never opened (bash's noclobber still opens existing non-regular files).
+# Write the report to a new file DIR/NAME (DIR from bcc_output_dir_ok). A temporary file is
+# created exclusively (mktemp) in DIR and hard-linked to the final name: link(2) fails on any
+# existing name and never follows a symlink, so a FIFO, device or symlink planted after the
+# option check is never opened (bash's noclobber would still open existing non-regular files).
 bcc_write_output() {
-  local out=$1 report=$2 tmp
-  tmp=$(mktemp -- "$(dirname -- "$out")/.brotli-cve-check.XXXXXX" 2>/dev/null) || return 1
-  if printf '%s\n' "$report" 2>/dev/null >>"$tmp" && ln -- "$tmp" "$out" 2>/dev/null; then
+  local dir=$1 name=$2 report=$3 tmp
+  tmp=$(mktemp -- "$dir/.brotli-cve-check.XXXXXX" 2>/dev/null) || return 1
+  if printf '%s\n' "$report" 2>/dev/null >>"$tmp" && ln -- "$tmp" "$dir/$name" 2>/dev/null; then
     rm -f -- "$tmp"
     return 0
   fi
@@ -234,7 +254,7 @@ bcc_main() {
   fi
   printf '%s\n' "$report"
   if [[ -n $BCC_OUTPUT ]]; then
-    bcc_write_output "$BCC_OUTPUT" "$report" || bcc_die "$(bcc_msg err_output_write "$BCC_OUTPUT")"
+    bcc_write_output "$BCC_OUTPUT_DIR" "$BCC_OUTPUT_NAME" "$report" || bcc_die "$(bcc_msg err_output_write "$BCC_OUTPUT")"
   fi
   exit "$BCC_EXIT"
 }

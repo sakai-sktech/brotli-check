@@ -64,6 +64,7 @@ sudo bash brotli-cve-check --lang ja       # root で（他ユーザーのプロ
 
 ```sh
 bash brotli-cve-check --json --output report.json   # 機械向け（docs/json-schema.ja.md）
+sudo bash brotli-cve-check > report.txt             # root の結果は自分のシェルでファイルに保存する
 bash brotli-cve-check --no-exec                     # 見つけたプログラムを一切実行しない
 sudo bash brotli-cve-check --deep --containers      # 時間はかかるが広く探す
 bash brotli-cve-check --help

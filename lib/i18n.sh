@@ -38,7 +38,8 @@ Behaviour
   --data FILE             use another advisory data file
 Output
   --json                  JSON output (docs/json-schema.md)
-  --output FILE           also write the result to FILE (never overwrites)
+  --output FILE           also write the result to a new FILE (never overwrites; as root, only in
+                          root-owned directories: otherwise redirect stdout)
   --lang ja|en            language (default en)
   --version, --help
 
@@ -68,7 +69,8 @@ BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダ�
   --data FILE             既知データのファイルを差し替える
 出力
   --json                  JSON で出力（docs/json-schema.md）
-  --output FILE           結果をファイルにも書く（既存のファイルは上書きしない）
+  --output FILE           結果を新しいファイルにも書く（上書きしない。root では root 所有の
+                          ディレクトリにだけ書く。それ以外は標準出力をリダイレクトする）
   --lang ja|en            言語（既定 en）
   --version, --help
 
@@ -368,8 +370,8 @@ BCC_MSG_EN[err_relative]='paths must be absolute: %s'
 BCC_MSG_JA[err_relative]='パスは絶対パスで指定してください: %s'
 BCC_MSG_EN[err_output_exists]='refusing to overwrite an existing file: %s'
 BCC_MSG_JA[err_output_exists]='既存のファイルは上書きしません: %s'
-BCC_MSG_EN[err_output_dir]='refusing to write %s: its directory can be modified by other users'
-BCC_MSG_JA[err_output_dir]='%s には書きません: そのディレクトリは他のユーザーが変更できます'
+BCC_MSG_EN[err_output_dir]='refusing to write %s: a directory on its path is owned or writable by another user (as root, use a directory owned by root, or redirect stdout: brotli-cve-check > FILE)'
+BCC_MSG_JA[err_output_dir]='%s には書きません: パスの途中に、他のユーザーが所有するか書き込めるディレクトリがあります（root で動かすときは root 所有のディレクトリを使うか、標準出力をリダイレクトしてください: brotli-cve-check > FILE）'
 BCC_MSG_EN[err_output_write]='could not write %s'
 BCC_MSG_JA[err_output_write]='%s に書き込めませんでした'
 BCC_MSG_EN[err_data_unreadable]='cannot read the data file: %s'

@@ -121,7 +121,7 @@ fake_proc() {
   fake_proc
   chmod 000 "$P/200/maps"
   bcc_check_c03
-  [[ ${BCC_SKIPPED[*]} == *"1 processes could not be read"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"processes that could not be read: 1"* ]]
 }
 
 # --- C04 / C05 -------------------------------------------------------------------

@@ -125,7 +125,7 @@ make dist          # dist/brotli-cve-check（1 ファイル版）と dist/SHA256
 make integration   # Ubuntu 22.04/24.04/26.04、Debian 12/13 のコンテナ（docker が必要）
 ```
 
-設計メモ: [docs/design.md](docs/design.md)。貢献の手引き: [CONTRIBUTING.md](CONTRIBUTING.md)。
+出力例: [docs/sample-output.md](docs/sample-output.md)。設計メモ: [docs/design.md](docs/design.md)。貢献の手引き: [CONTRIBUTING.md](CONTRIBUTING.md)。
 このツール自体のセキュリティ問題: [SECURITY.md](SECURITY.md)。
 
 ## 免責

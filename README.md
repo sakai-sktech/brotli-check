@@ -132,7 +132,7 @@ make dist          # dist/brotli-cve-check (single file) and dist/SHA256SUMS
 make integration   # Ubuntu 22.04/24.04/26.04 and Debian 12/13 containers (needs docker)
 ```
 
-Design notes: [docs/design.md](docs/design.md) (Japanese). Contributing:
+Sample output: [docs/sample-output.md](docs/sample-output.md). Design notes: [docs/design.md](docs/design.md) (Japanese). Contributing:
 [CONTRIBUTING.md](CONTRIBUTING.md). Security issues in this tool: [SECURITY.md](SECURITY.md).
 
 ## Disclaimer

@@ -29,20 +29,21 @@ bcc_elf_runpath() {
     done
 }
 
-# Cache of "soname<TAB>path" from ldconfig -p (system query, not a found program).
-bcc_ldcache() {
-  if [[ -z ${BCC_LDCACHE_LOADED:-} ]]; then
-    BCC_LDCACHE=""
-    local ldc
-    for ldc in ldconfig /sbin/ldconfig /usr/sbin/ldconfig; do
-      if bcc_have "$ldc"; then
-        BCC_LDCACHE=$(bcc_sys "$ldc" -p | sed -n 's/^[[:space:]]*\([^ ]*\) (\([^)]*\)) => \(.*\)$/\1\t\2\t\3/p')
-        break
-      fi
-    done
-    BCC_LDCACHE_LOADED=1
-  fi
-  printf '%s\n' "$BCC_LDCACHE"
+# Cache of "soname<TAB>arch<TAB>path" from ldconfig -p (system query, not a found program),
+# loaded once in the main shell (bcc_run_checks) so that subshells inherit it. Never piped
+# into a reader that may stop early: on hosts with many libraries the cache exceeds the
+# pipe buffer and the writer would print "write error: Broken pipe" (seen on CI).
+bcc_ldcache_load() {
+  [[ -z ${BCC_LDCACHE_LOADED:-} ]] || return 0
+  BCC_LDCACHE=""
+  local ldc
+  for ldc in ldconfig /sbin/ldconfig /usr/sbin/ldconfig; do
+    if bcc_have "$ldc"; then
+      BCC_LDCACHE=$(bcc_sys "$ldc" -p | sed -n 's/^[[:space:]]*\([^ ]*\) (\([^)]*\)) => \(.*\)$/\1\t\2\t\3/p' || true)
+      break
+    fi
+  done
+  BCC_LDCACHE_LOADED=1
 }
 
 # Resolve a soname the way ld.so would, approximately: RUNPATH, ld cache, default dirs.
@@ -53,8 +54,9 @@ bcc_elf_resolve() {
   for d in "$@"; do
     [[ -e $d/$name ]] && { printf '%s\n' "$d/$name"; return 0; }
   done
-  hit=$(bcc_ldcache | awk -F'\t' -v n="$name" '$1 == n && $2 ~ /x86-64|64bit|AArch64|aarch64/ { print $3; exit }')
-  [[ -z $hit ]] && hit=$(bcc_ldcache | awk -F'\t' -v n="$name" '$1 == n { print $3; exit }')
+  bcc_ldcache_load
+  hit=$(awk -F'\t' -v n="$name" '$1 == n && $2 ~ /x86-64|64bit|AArch64|aarch64/ { print $3; exit }' <<<"$BCC_LDCACHE")
+  [[ -z $hit ]] && hit=$(awk -F'\t' -v n="$name" '$1 == n { print $3; exit }' <<<"$BCC_LDCACHE")
   [[ -n $hit ]] && { printf '%s\n' "$hit"; return 0; }
   for d in /lib64 /usr/lib64 /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu /lib /usr/lib; do
     [[ -e $d/$name ]] && { printf '%s\n' "$d/$name"; return 0; }

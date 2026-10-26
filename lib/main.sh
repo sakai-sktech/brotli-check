@@ -204,6 +204,7 @@ bcc_note_disabled() {
 }
 
 bcc_run_checks() {
+  bcc_have readelf && bcc_ldcache_load
   bcc_build_index
   bcc_check_c01
   bcc_check_c02

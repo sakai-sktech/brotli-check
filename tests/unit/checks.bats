@@ -339,11 +339,15 @@ make_dist_info() { # site name version
   mkdir -p "$T/home/u/.cache/uv/archive-v0/x/playwright/driver"
   make_fake_elf "$T/home/u/.cache/uv/archive-v0/x/playwright/driver/node"
   make_dist_info "$T/home/u/.cache/uv/archive-v0/y" brotli 1.2.0
+  # The index also covers system Python and /usr/lib, which may hold caches of their own (a CI
+  # runner image did): count what the test tree adds, not the host's total.
+  BCC_ROOTS=()
+  bcc_build_index
+  base=$BCC_IDX_CACHED
   BCC_ROOTS=("$T/home")
   bcc_build_index
-  # The index also covers system Python and /usr/lib; only the test tree matters here.
   [[ " ${BCC_IDX_NODE[*]:-} ${BCC_IDX_PY[*]:-} " != *"$T"* ]]
-  [ "$BCC_IDX_CACHED" -eq 2 ]
+  [ $((BCC_IDX_CACHED - base)) -eq 2 ]
 }
 
 @test "C07: inbound and outbound decoding packages are exposure hints" {

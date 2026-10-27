@@ -45,6 +45,26 @@ Brotli デコーダーのコピーを**読み取り専用で**洗い出す。
 Ubuntu の python3-brotli と nodejs の依存関係は、ホスト上の実測で分岐する設計にして回避する）、
 HAProxy・Caddy が C 実装のデコーダーを含まないことの一次資料（→ 6 章 C11）。
 
+### 2.1 公開前の再確認（2026-10-27）
+
+2026-10-27 に公開されたジェイ・メディックの技術解説（10/26 は 18 行目のとおり 404）と既知データを突き合わせたところ、
+解説にある Ubuntu の告知がデータに無かった。そこで全行の一次資料を確かめ直し、スナップショットを 2026-10-27 にした。誤った判定はすでに
+このリポジトリに出ていた: 10/27 に Ubuntu 24.04 の統合テストのイメージで取った `docs/sample-output.md` は、`libbrotli1` の
+`1.1.0-2ubuntu0.1`（作り直したイメージが `noble-security` から取り込んだ修正版）を `NO_FIX_AVAILABLE`「配布元が修正版をまだ出して
+いません」と出している。レビューも統合テストも気づかなかった。`no_fix` の行では入っている版によらず `NO_FIX_AVAILABLE` になるので、
+期待した判定のとおりだったため。変わったもの:
+
+| 行 | 以前（2026-10-26） | いま（2026-10-27）→ データ | 出典 |
+|---|---|---|---|
+| 10 Ubuntu | 「Needs evaluation」、USN なし → `no_fix` | USN-8956-1（2026-10-26）で**修正**: jammy 1.0.9-2ubuntu0.1、noble 1.1.0-2ubuntu0.1、resolute 1.2.0-3ubuntu0.1、stonking 1.2.0-4ubuntu0.1（brotli・libbrotli1・python3-brotli）→ `fixed`。10/25 に ubuntu-security-proposed PPA にあった候補と同じ版。これらのリリースの Ubuntu の nodejs は「Not affected」（システムのライブラリを使い、それは C01 が判定する） | ubuntu.com/security/notices/USN-8956-1、ubuntu.com/security/CVE-2026-111497 |
+| 8 Debian sid / forky | 1.2.0-4.1 はアーカイブ未着 → `unreleased` | sid はアーカイブに 1.2.0-4.1 → `fixed`。forky はまだ 1.2.0-4 → `unreleased` のまま | security-tracker.debian.org、sources.debian.org/api/src/brotli/ |
+| 3 Bun | ソースの分析 → `analysis` | Bun の告知 GHSA-663w-cv8g-jj2p（2026-10-23 公開。影響 1.0.21 以上 1.4.4 未満。`bun build --compile` の実行ファイルは作り直すまで影響が残る）→ `fixed`。10/26 はリリースノートを読んでいて見落とした。ソースの分析とも一致。1.0.21 より前は範囲外だが、データが系列単位なので 1.4.4 より前のほかの版と同じに出る | github.com/oven-sh/bun/security/advisories/GHSA-663w-cv8g-jj2p |
+| 18 背景資料 | 404 | 公開（速報版、2026-10-27）。README からリンク。この更新の後の既知データと版は一致 | jmedic.co.jp/pubdoc/http2shell_report_20261027.html |
+
+確かめ直して変わらなかったもの: Google Brotli のタグ（v1.0.10／v1.1.1／v1.2.1、2026-10-21 公開）、GHSA-9v8h-qqgm-4m35、
+PYSEC-2026-4322／4323、Node.js の告知と EOL 系列の一覧、Debian bookworm／trixie、Envoy GHSA-3wvj-j6qm-62mr、
+ISTIO-SECURITY-2026-007、Chromium の `README.chromium`（cfa184a9）、Firefox の `moz.yaml`（4792c8e4）。
+
 ## 3. このホストでの実測から足したこと
 
 開発機（Ubuntu 24.04.5）で読み取りだけ行って分かった、依頼文に無い要件。
@@ -106,11 +126,11 @@ Makefile                      lint（shellcheck）、test（bats）、dist、int
 
 `status` の意味:
 - `fixed` — 一次資料が修正版を示している
-- `no_fix` — 配布元が修正版を出していない（Ubuntu 全版など）→ NO_FIX_AVAILABLE
-- `unreleased` — 修正版の番号は示されているがアーカイブ未着（Debian sid / forky の 1.2.0-4.1）。
+- `no_fix` — 配布元が修正版を出していない（2026-10-26 までの Ubuntu 全版。2026-10-27 時点では該当なし）→ NO_FIX_AVAILABLE
+- `unreleased` — 修正版の番号は示されているがアーカイブ未着（Debian forky の 1.2.0-4.1。sid は 2026-10-27 まで）。
   インストール済みの版が `fixed` 以上なら FIXED、それ未満なら NO_FIX_AVAILABLE
 - `derived` — 一次資料の一般的な記述からの導出（Node.js の EOL 系列）。結果の理由欄に note を出す
-- `analysis` — ベンダーの告知ではなくソースツリーの分析（Chromium / Firefox / Bun）。結果にその旨を明記
+- `analysis` — ベンダーの告知ではなくソースツリーの分析（Chromium / Firefox。Bun は 2026-10-27 まで）。結果にその旨を明記
 
 ### 5.2 データの鮮度
 
@@ -398,3 +418,11 @@ NOT_APPLICABLE ではなく「情報」として版だけ出す。さらに配�
     パスをチェックへ「パス<TAB>readelf」で渡し、最初のタブで分けている。解決した名前が改行で終わる候補は `$(...)` で改行を失う。
     ELF の中の値（RPATH・NEEDED・PT_INTERP）に改行があると readelf の行の出力で切れる。どれも名前を作り込む必要があり、
     どの場合も、実行されるのは一覧に示したプログラムのまま。
+14. **10 章 11〜13 の変異テスト（2026-10-27、テスト記録 13 章）。** 修正を 1 つずつ写しの中で戻し、単体テストを全件走らせた。
+    変異 91 個（4・5 回目のもののうち今も当てはまるものを含む）のうち 69 個で落ちた。落ちなかった 21 個は、同意の形（選んだ
+    プログラムの動かし方、計画に挙げないもの、実行しなかったものの記載）と、事実・依存の辿り（root や実行者以外の所有者、
+    ローダー、ライブラリそのもの、相対の探索先、`/etc/ld.so.preload`、RUNPATH が RPATH を隠すこと、深さの上限、受け継ぐ
+    ディレクトリの `:`、RPATH の `[`）にあった。テストを 10 件足し（root か手作りの ELF でしか作れない場合は偽の `stat`・`readelf`
+    で）、測り直した 22 個はすべて落ちた。コードの変更は 2 つ: テストで `/etc/ld.so.preload` を `BCC_LD_PRELOAD_FILE` で
+    差し替えられるようにした（`/proc` を `BCC_PROC_ROOT` で差し替えるのと同じ）。計画の中で終了状態を見ない
+    `bcc_dpkg_owner` を `|| true` と書いた（動作は同じ。bats の `set -e` の下でも動く）。

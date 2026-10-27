@@ -67,6 +67,8 @@ English: [limitations.md](limitations.md)
 
 - 配布元のパッケージは配布元の修正版と比べます。既知データの日付より後に出た修正は分かりません
   （`NO_FIX_AVAILABLE` が古くなっていることがある）。データの日付を見てください。
+- 既知データは系列単位です。1.0.21 より前の Bun は告知（GHSA-663w-cv8g-jj2p: 1.0.21〜1.4.3）の範囲外ですが、
+  1.4.4 より前のほかの版と同じに出ます。
 - Debian の `nodejs` はシステムの libbrotli を使います（`libbrotli1` で判定）。静的にリンクした配布元の
   ビルドは、版に修正の取り込みが表れないことがあるため、文字列で判定します。
 - Chromium と Firefox の基準はソースツリー（third_party/brotli、modules/brotli）からのもので、ベンダーの

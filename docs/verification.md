@@ -2,33 +2,33 @@
 
 日本語: [verification.ja.md](verification.ja.md)
 
-What was checked before the first release, how, and what came out. Date: **2026-10-26**.
-Advisory data: snapshot 2026-10-26.
+What was checked before the first release, how, and what came out. First checks: **2026-10-26**;
+updated **2026-10-27** (advisory data snapshot 2026-10-27, docs/design.md 2.1).
 
 One-page figures (A4): [Fig. 01 What we checked, and how](zukai/01_check-method_en.pdf) ·
 [Fig. 02 Results on 5 OSes, and how to read them](zukai/02_results-reading_en.pdf)
 (Japanese: [図解 01](zukai/01_check-method_ja.pdf), [図解 02](zukai/02_results-reading_ja.pdf)).
 
-## How to read these results (as of 2026-10-26)
+## How to read these results (as of 2026-10-27)
 
 The integration tests below put known-unfixed and known-fixed copies into each image on purpose,
 so every run ends with exit status 1. What they show:
 
 - **The tool judges correctly.** Every expected verdict matched, as root and as an ordinary user,
   with `--no-exec` and with `--yes`.
-- **Ubuntu: the operating system's Brotli is not fixed yet in any release.** `libbrotli1` and
-  `python3-brotli` are `NO_FIX_AVAILABLE` on 22.04, 24.04 and 26.04 (and 26.10). Their versions
-  (1.0.9, 1.1.0, 1.2.0) are all inside the affected range 1.0.3–1.2.0, and Ubuntu had not
-  published a fix: the CVE page says "Needs evaluation" and there is no USN.
-  - Candidate updates (`1.0.9-2ubuntu0.1`, `1.1.0-2ubuntu0.1`, `1.2.0-3ubuntu0.1`,
-    `1.2.0-4ubuntu0.1`) appeared in the `ubuntu-security-proposed` PPA on 2026-10-25. That PPA is
-    for testing and is not used by normal systems; a fix reaches them through the `-security` pocket
-    once a USN is published. Until then there is nothing to install from Ubuntu, and the tool's
-    advice is to wait and to update bundled copies first.
-- **Debian: fixed.** Debian 12 (`1.0.9-2+deb12u1`) and 13 (`1.1.0-2+deb13u1`) are `FIXED`.
-- **Bundled copies can be fixed today on every distribution.** Node.js 22.23.4 and PyPI
-  Brotli 1.2.1 are `FIXED` and their predecessors `VULNERABLE` regardless of the OS. These copies
-  are not touched by OS updates, which is why the tool looks for them.
+- **The operating system's Brotli is fixed on every distribution tested.** Ubuntu fixed 22.04,
+  24.04, 26.04 and 26.10 on 2026-10-26 (USN-8956-1: `1.0.9-2ubuntu0.1`, `1.1.0-2ubuntu0.1`,
+  `1.2.0-3ubuntu0.1`, `1.2.0-4ubuntu0.1`); Debian fixed 12 (`1.0.9-2+deb12u1`) and 13
+  (`1.1.0-2+deb13u1`). Images built now get these versions, and `libbrotli1` and `python3-brotli`
+  are `FIXED` in all five. A host that has not been updated since has them `VULNERABLE`: update
+  with apt and restart what uses them (the tool lists those processes as `RESTART_REQUIRED`).
+  - Until the data of 2026-10-27, the tool reported Ubuntu's packages as `NO_FIX_AVAILABLE`: on
+    2026-10-26 the CVE page said "Needs evaluation" and there was no USN, and the data was not
+    updated when the USN came out later that day. The sample output captured on 2026-10-27 showed
+    the fixed version reported that way (docs/design.md 2.1).
+- **Bundled copies are not fixed by OS updates.** Node.js 22.23.4 and PyPI Brotli 1.2.1 are
+  `FIXED` and their predecessors `VULNERABLE` regardless of the OS. These copies have to be updated
+  product by product, which is why the tool looks for them.
 
 ## Static checks and unit tests
 
@@ -40,6 +40,7 @@ so every run ends with exit status 1. What they show:
 | the same after round 5 | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 134 / 134 passed |
 | the same after the consent model and round 6 (2026-10-27) | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 153 / 153 passed |
 | the same after fixing the automatic security review's findings (2026-10-27, design 10.13) | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 161 / 161 passed; the 8 new tests fail on the code before the fix |
+| mutation tests of 2026-10-27 (test record, chapter 13), and the data of 2026-10-27 | Bats 1.10.0 | 91 fixes reverted one at a time: 69 caught; 10 tests added for the 21 gaps; then all 22 re-run caught. 172 / 172 passed |
 
 ## Integration tests (`tests/integration/`)
 
@@ -53,11 +54,11 @@ user with `--no-exec`. The fixed script of `--inspect-containers` (C14) is also 
 image's own `/bin/sh` (dash) with both Node.js copies on `PATH`; it must report both, the packages,
 and its `END` line.
 
-| Image (as reported) | Python | `libbrotli1` / `python3-brotli` | Node.js 22.23.3 / 22.23.4 | PyPI Brotli 1.2.0 / 1.2.1 | urllib3 next to 1.2.0 | all scans (4) / C14 probe |
+| Image (as reported) | Python | `libbrotli1` / `python3-brotli` (images built 2026-10-27, data of 2026-10-27; with the data of 2026-10-26 the Ubuntu rows were `NO_FIX_AVAILABLE`) | Node.js 22.23.3 / 22.23.4 | PyPI Brotli 1.2.0 / 1.2.1 | urllib3 next to 1.2.0 | all scans (4) / C14 probe |
 |---|---|---|---|---|---|---|
-| Ubuntu 22.04.5 LTS | 3.10 | 1.0.9-2build6: `NO_FIX_AVAILABLE` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
-| Ubuntu 24.04.5 LTS | 3.12 | 1.1.0-2build2: `NO_FIX_AVAILABLE` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
-| Ubuntu 26.04.1 LTS | 3.14 | 1.2.0-3build1: `NO_FIX_AVAILABLE` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
+| Ubuntu 22.04.5 LTS | 3.10 | 1.0.9-2ubuntu0.1: `FIXED` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
+| Ubuntu 24.04.5 LTS | 3.12 | 1.1.0-2ubuntu0.1: `FIXED` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
+| Ubuntu 26.04.1 LTS | 3.14 | 1.2.0-3ubuntu0.1: `FIXED` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
 | Debian 12 (bookworm) | 3.11 | 1.0.9-2+deb12u1: `FIXED` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
 | Debian 13 (trixie) | 3.13 | 1.1.0-2+deb13u1: `FIXED` | `VULNERABLE` / `FIXED` | `VULNERABLE` / `FIXED` | `EXPOSURE` | ok / ok |
 

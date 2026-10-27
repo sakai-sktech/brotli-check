@@ -17,9 +17,9 @@ cp "$root/tests/integration/Dockerfile" "$root/tests/integration/fetch-node.sh" 
 
 # BASE | expected C01 verdict for libbrotli1 | expected for python3-brotli
 matrix=(
-  "ubuntu:22.04|NO_FIX_AVAILABLE|NO_FIX_AVAILABLE"
-  "ubuntu:24.04|NO_FIX_AVAILABLE|NO_FIX_AVAILABLE"
-  "ubuntu:26.04|NO_FIX_AVAILABLE|NO_FIX_AVAILABLE"
+  "ubuntu:22.04|FIXED|FIXED"
+  "ubuntu:24.04|FIXED|FIXED"
+  "ubuntu:26.04|FIXED|FIXED"
   "debian:12|FIXED|FIXED"
   "debian:13|FIXED|FIXED"
 )

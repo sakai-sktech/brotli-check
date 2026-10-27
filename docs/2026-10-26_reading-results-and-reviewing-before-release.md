@@ -22,6 +22,11 @@ tags:
 
 # 結果をどう読ませるか、リリース前のレビューにどれだけ待つか
 
+> **2026-10-27 追記（訂正）:** 本書の「Ubuntu の OS の Brotli は修正待ち（`NO_FIX_AVAILABLE`、CVE ページは Needs evaluation、USN なし）」は
+> 2026-10-26 の取得時点のもの。Ubuntu は同日 USN-8956-1 で 22.04・24.04・26.04・26.10 を修正し、既知データは 2026-10-27 に全行を
+> 一次資料で確かめ直して更新した。正: `docs/design.md`（`design.ja.md`）2.1。経緯: `docs/2026-10-27_path-bytes-mutation-tests-and-data-refresh.md`。
+> 本書の「結果の読ませ方」の考え方はそのまま有効。
+
 ## Purpose & Context
 
 - 実装（同日の impl 記録）は依頼文に沿って進んだが、本人の短い問いがいくつか入るたびに、

@@ -7,6 +7,10 @@ Ubuntu・Debian のホスト 1 台の中から、**CVE-2026-111497**（Google Br
 キーワード: CVE-2026-111497、GHSA-9v8h-qqgm-4m35、Brotli デコーダー、「HTTP2Shell」「Node2Shell」
 （通称に HTTP/2 とありますが、HTTP/2 の欠陥ではありません）。
 
+脆弱性の中身、攻撃者のデータがデコーダーに届く経路、自分に関係するかの判断のしかたは、株式会社ジェイ・メディックの
+技術解説 [HTTP2Shell／Node2Shell — Brotli の脆弱性で何を確認するか](https://www.jmedic.co.jp/pubdoc/http2shell_report_20261027.html) を参照してください。このツールは、
+その次の一歩として、ホスト 1 台の中を棚卸しします。
+
 English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/for-clinics.ja.md](docs/for-clinics.ja.md)
 （docs/ の文書は英語版の隣に日本語版 `*.ja.md` があります）
 
@@ -15,11 +19,11 @@ English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/fo
 <table>
 <tr>
 <td width="50%" valign="top"><a href="docs/zukai/01_check-method_ja.pdf"><img src="docs/zukai/01_check-method_ja.png" alt="図解 01 何を、どのようにチェックしたか: 脆弱性の中身、Brotli デコーダーのコピーが潜む場所（OS の層と同梱の層）、brotli-cve-check がそれぞれをどう調べるか"></a></td>
-<td width="50%" valign="top"><a href="docs/zukai/02_results-reading_ja.pdf"><img src="docs/zukai/02_results-reading_ja.png" alt="図解 02 5 つの OS での点検結果と読み方: Ubuntu 22.04・24.04・26.04 の OS のコピーは修正待ち、Debian 12・13 は修正済み、同梱コピーはどの OS でも今すぐ直せる"></a></td>
+<td width="50%" valign="top"><a href="docs/zukai/02_results-reading_ja.pdf"><img src="docs/zukai/02_results-reading_ja.png" alt="図解 02 5 つの OS での点検結果と読み方: Ubuntu 22.04・24.04・26.04 と Debian 12・13 の OS のコピーは修正済み（apt で更新して再起動）、Node.js や PyPI の Brotli などの同梱コピーは製品ごとに更新が要る"></a></td>
 </tr>
 <tr>
 <td><b>図解 01 何を、どのようにチェックしたか</b><br>OS の更新が直すのは OS のコピーだけ。同梱コピーは版と文字列で一つずつ洗い出す。<br><a href="docs/zukai/01_check-method_ja.pdf">PDF</a> · <a href="docs/zukai/01_check-method_ja.html">HTML</a></td>
-<td><b>図解 02 5 つの OS での点検結果と読み方</b><br>Ubuntu で待つしかないのは OS のコピーだけ。同梱コピーはどの OS でも今すぐ直せる（2026-10-26 時点）。<br><a href="docs/zukai/02_results-reading_ja.pdf">PDF</a> · <a href="docs/zukai/02_results-reading_ja.html">HTML</a></td>
+<td><b>図解 02 5 つの OS での点検結果と読み方</b><br>OS のコピーはどの OS も apt で直る。同梱コピーは製品ごとに更新するまで残る（2026-10-27 時点）。<br><a href="docs/zukai/02_results-reading_ja.pdf">PDF</a> · <a href="docs/zukai/02_results-reading_ja.html">HTML</a></td>
 </tr>
 </table>
 
@@ -37,8 +41,14 @@ English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/fo
 - 更新後も古いコードで動き続けているプロセス（再起動が必要なもの）を探す
 - 露出のヒントを出す（Brotli を自動で展開する HTTP クライアント、待ち受けポート）
 
+デコーダーのコピーの**棚卸し**をする道具で、露出の判定はしません。
+
 **しないこと**
 
+- 見つけたデコーダーに、攻撃者が用意したデータが届くかどうかは判定しません。データは、圧縮されたリクエスト
+  として届くことも、ホストが外へ取りに行って自動で展開する応答（`fetch()`、URL のプレビュー、Web の収集、
+  AI エージェント）として届くことも、展開 API を直接呼ぶ処理を通ることもあります。どれが自分のサービスに
+  当てはまるかは、使う人が判断してください
 - 侵入の有無は調べません。修正版に更新しても、更新前の侵入の痕跡は消えません
 - 他のホストの走査、ネットワークへのアクセス、インストール・更新・再起動・変更は一切しません
 - 攻撃データを作らず、取得せず、同梱もしません
@@ -159,8 +169,9 @@ bash brotli-cve-check --help
 
 既知の版はすべて [data/advisories.tsv](data/advisories.tsv) にあり、各行に一次資料の URL と取得日が
 付いています。結果には既知データの日付が出て、30 日以上古ければ警告します。新しいデータは `--data FILE`
-で差し替えられます。スナップショット: **2026-10-26**（この時点で Ubuntu・Red Hat などは修正版を
-出していません）。
+で差し替えられます。スナップショット: **2026-10-27**（この日にすべての行の一次資料を確かめ直した）。Ubuntu は
+2026-10-26 に 22.04・24.04・26.04・26.10 を修正しました（[USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)）。
+Debian は 12・13 と unstable が修正済みで、testing（forky）は修正の移行を待っていました。
 
 注意: Red Hat の RHSA-2026:2042／2227／2389 は別件（CVE-2025-6176）です。`pip`・`certifi` の更新は
 本件と無関係です（CPython 本体は Brotli を含みません）。

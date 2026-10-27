@@ -2,30 +2,29 @@
 
 English: [verification.md](verification.md)
 
-最初の公開の前に何を、どう確かめ、どうなったか。実施日: **2026-10-26**。既知データ: 2026-10-26 時点。
+最初の公開の前に何を、どう確かめ、どうなったか。最初の確認: **2026-10-26**、更新: **2026-10-27**（既知データ 2026-10-27 時点。
+設計メモ 2.1）。
 
 A4 一枚の図解: [図解 01 何を、どのようにチェックしたか](zukai/01_check-method_ja.pdf)・
 [図解 02 5 つの OS での点検結果と読み方](zukai/02_results-reading_ja.pdf)
 （英語版: [Fig. 01](zukai/01_check-method_en.pdf)、[Fig. 02](zukai/02_results-reading_en.pdf)）。
 
-## この結果の読み方（2026-10-26 時点）
+## この結果の読み方（2026-10-27 時点）
 
 下の統合テストでは、各イメージに未修正のものと修正済みのものを意図的に入れているので、どの実行も
 終了コード 1 になります。分かることは次のとおりです。
 
 - **ツールの判定は正しい。** 期待した判定はすべて一致しました（root と一般ユーザーのそれぞれで、`--no-exec` でも `--yes` でも）。
-- **Ubuntu: OS の Brotli は、どのリリースでもまだ修正されていません。** 22.04・24.04・26.04（と 26.10）の
-  `libbrotli1` と `python3-brotli` は `NO_FIX_AVAILABLE` です。入っている版（1.0.9・1.1.0・1.2.0）はどれも
-  影響範囲 1.0.3〜1.2.0 の中にあり、Ubuntu は修正版を出していません（CVE のページは「Needs evaluation」、
-  USN なし）。
-  - 修正候補（`1.0.9-2ubuntu0.1`・`1.1.0-2ubuntu0.1`・`1.2.0-3ubuntu0.1`・`1.2.0-4ubuntu0.1`）は
-    2026-10-25 に `ubuntu-security-proposed` の PPA に出ています。ただしこれは試験用で、普通のシステムは
-    使いません。一般のシステムに届くのは、USN が出て `-security` に載ってからです。それまでは Ubuntu から
-    入れられるものは無く、ツールの案内も「待つ。待つ間は同梱コピーのある製品を優先して更新する」です。
-- **Debian: 修正済み。** Debian 12（`1.0.9-2+deb12u1`）と 13（`1.1.0-2+deb13u1`）は `FIXED` です。
-- **同梱コピーは、どのディストリビューションでも今すぐ直せます。** Node.js 22.23.4 と PyPI の Brotli 1.2.1
-  は OS に関係なく `FIXED`、その前の版は `VULNERABLE` です。これらは OS の更新では直らないので、ツールが
-  探しに行きます。
+- **OS の Brotli は、試したすべてのディストリビューションで修正済みです。** Ubuntu は 2026-10-26 に 22.04・24.04・26.04・
+  26.10 を修正しました（USN-8956-1: `1.0.9-2ubuntu0.1`・`1.1.0-2ubuntu0.1`・`1.2.0-3ubuntu0.1`・`1.2.0-4ubuntu0.1`）。Debian は
+  12（`1.0.9-2+deb12u1`）と 13（`1.1.0-2+deb13u1`）を修正済みです。いま作ったイメージにはこれらの版が入り、5 つとも
+  `libbrotli1` と `python3-brotli` は `FIXED` です。その後に更新していないホストでは `VULNERABLE` になります。apt で更新し、
+  それを使うものを再起動してください（ツールはそのプロセスを `RESTART_REQUIRED` で挙げます）。
+  - 2026-10-27 の既知データより前は、Ubuntu のパッケージを `NO_FIX_AVAILABLE` と出していました。2026-10-26 の時点では
+    CVE のページが「Needs evaluation」で USN が無く、同じ日の後で USN が出たときにデータを更新していなかったためです。
+    2026-10-27 に取った出力例は、修正版をそう出していました（設計メモ 2.1）。
+- **同梱コピーは OS の更新では直りません。** Node.js 22.23.4 と PyPI の Brotli 1.2.1 は OS に関係なく `FIXED`、その前の版は
+  `VULNERABLE` です。製品ごとに更新が要るので、ツールが探しに行きます。
 
 ## 静的検査と単体テスト
 
@@ -37,6 +36,7 @@ A4 一枚の図解: [図解 01 何を、どのようにチェックしたか](zu
 | 5 回目の修正後の同じもの | ShellCheck 0.9.0、Bats 1.10.0 | 警告ゼロ、134 / 134 成功 |
 | 同意して実行する形と 6 回目の修正の後（2026-10-27） | ShellCheck 0.9.0、Bats 1.10.0 | 警告ゼロ、153 / 153 成功 |
 | 自動セキュリティレビューの指摘を直した後（2026-10-27、設計メモ 10 章 13） | ShellCheck 0.9.0、Bats 1.10.0 | 警告ゼロ、161 / 161 成功。新しい 8 件は直す前のコードで落ちる |
+| 2026-10-27 の変異テスト（テスト記録 13 章）と既知データの更新の後 | Bats 1.10.0 | 修正 91 個を 1 つずつ戻して 69 個で落ちた。落ちなかった 21 個の穴にテスト 10 件を足し、測り直した 22 個はすべて落ちた。172 / 172 成功 |
 
 ## 統合テスト（`tests/integration/`）
 
@@ -49,11 +49,11 @@ Brotli 1.2.0 と urllib3、`/srv/venv-new` に Brotli 1.2.1。2026-10-27 から�
 （C14）がコンテナの中で動かす固定のスクリプトを、各イメージ自身の `/bin/sh`（dash）で、2 つの Node.js を
 `PATH` に置いて走らせ、両方の Node.js・パッケージ・最後の `END` 行が出ることを確かめます。
 
-| イメージ（ツールの表示） | Python | `libbrotli1`／`python3-brotli` | Node.js 22.23.3／22.23.4 | PyPI Brotli 1.2.0／1.2.1 | 1.2.0 の隣の urllib3 | すべての走査（4 回）／C14 のスクリプト |
+| イメージ（ツールの表示） | Python | `libbrotli1`／`python3-brotli`（2026-10-27 に作ったイメージ、2026-10-27 の既知データ。2026-10-26 のデータでは Ubuntu の行は `NO_FIX_AVAILABLE`） | Node.js 22.23.3／22.23.4 | PyPI Brotli 1.2.0／1.2.1 | 1.2.0 の隣の urllib3 | すべての走査（4 回）／C14 のスクリプト |
 |---|---|---|---|---|---|---|
-| Ubuntu 22.04.5 LTS | 3.10 | 1.0.9-2build6: `NO_FIX_AVAILABLE` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
-| Ubuntu 24.04.5 LTS | 3.12 | 1.1.0-2build2: `NO_FIX_AVAILABLE` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
-| Ubuntu 26.04.1 LTS | 3.14 | 1.2.0-3build1: `NO_FIX_AVAILABLE` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
+| Ubuntu 22.04.5 LTS | 3.10 | 1.0.9-2ubuntu0.1: `FIXED` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
+| Ubuntu 24.04.5 LTS | 3.12 | 1.1.0-2ubuntu0.1: `FIXED` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
+| Ubuntu 26.04.1 LTS | 3.14 | 1.2.0-3ubuntu0.1: `FIXED` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
 | Debian 12（bookworm） | 3.11 | 1.0.9-2+deb12u1: `FIXED` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
 | Debian 13（trixie） | 3.13 | 1.1.0-2+deb13u1: `FIXED` | `VULNERABLE`／`FIXED` | `VULNERABLE`／`FIXED` | `EXPOSURE` | 合格／合格 |
 

@@ -24,14 +24,15 @@ EOF
 
 # --- C01 -----------------------------------------------------------------------
 
-@test "C01: Ubuntu noble packages are NO_FIX_AVAILABLE; python3-brotli gets its own finding" {
+@test "C01: Ubuntu noble packages are judged against USN-8956-1; python3-brotli gets its own finding" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
   fake_dpkg_query
-  export FAKE_DPKG_LINES='ii \tlibbrotli1:amd64\t1.1.0-2build2\tbrotli\t1.1.0-2build2\nii \tpython3-brotli\t1.1.0-2build2\tbrotli\t1.1.0-2build2\n'
+  export FAKE_DPKG_LINES='ii \tlibbrotli1:amd64\t1.1.0-2ubuntu0.1\tbrotli\t1.1.0-2ubuntu0.1\nii \tpython3-brotli\t1.1.0-2build2\tbrotli\t1.1.0-2build2\n'
   BCC_DEB_SERIES=ubuntu:noble
   bcc_check_c01
   run findings_brief
-  [[ $output == *"NO_FIX_AVAILABLE|C01|libbrotli1|"* ]]
-  [[ $output == *"NO_FIX_AVAILABLE|C01|python3-brotli|"* ]]
+  [[ $output == *"FIXED|C01|libbrotli1|"* ]]
+  [[ $output == *"VULNERABLE|C01|python3-brotli|"* ]]
 }
 
 @test "C01: Debian trixie judges the source version (binNMU suffix on the binary is ignored)" {

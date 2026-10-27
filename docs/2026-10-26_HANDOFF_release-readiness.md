@@ -13,6 +13,10 @@ tags: [handoff, reading-guide, release, codex-review]
 # brotli-cve-check 引き継ぎ（リリース前）
 
 > **後継あり（2026-10-27）:** `docs/2026-10-27_HANDOFF_after-codex-round6-consent-model.md` から始めること。本書は 2026-10-26 時点の写像として凍結。
+>
+> **2026-10-27 追記（訂正）:** 本書の「Ubuntu の OS の Brotli は修正待ち（`NO_FIX_AVAILABLE`、CVE ページは Needs evaluation、USN なし）」は
+> 2026-10-26 の取得時点のもの。Ubuntu は同日 USN-8956-1 で 22.04・24.04・26.04・26.10 を修正し、既知データは 2026-10-27 に全行を
+> 一次資料で確かめ直して更新した。正: `docs/design.md`（`design.ja.md`）2.1。経緯: `docs/2026-10-27_path-bytes-mutation-tests-and-data-refresh.md`。
 
 > **次セッションはまずこれを読め。** これ＋「最初に読む 3 点」で文脈が立ち上がる。
 

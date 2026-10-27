@@ -1,8 +1,8 @@
 # Sample output
 
-Captured on 2026-10-27 from the integration image for Ubuntu 24.04 (`tests/integration/`),
-scanned as root with `--roots /opt,/srv --yes` (no terminal in the container, so the consent
-to run the listed programs is given in advance). The image holds Node.js 22.23.3 and 22.23.4
+Captured on 2026-10-27, with the advisory data of the same date, from the integration image for
+Ubuntu 24.04 (`tests/integration/`), scanned as root with `--roots /opt,/srv --yes` (no terminal in
+the container, so the consent to run the listed programs is given in advance). The image holds Node.js 22.23.3 and 22.23.4
 from nodejs.org and PyPI Brotli 1.2.0 (with urllib3) and 1.2.1 in two virtual environments.
 Exit status: 1.
 
@@ -10,12 +10,17 @@ The first section lists the programs the tool ran to read their versions, their 
 facts shown before asking: here the Node.js tarballs keep their packager's owners (non-root
 uids, which in this image happen to be the users ubuntu and tester), and the report says so. At a terminal, without `--yes`, the same list is shown first and you choose.
 
+The image was built on 2026-10-27, after Ubuntu's fix (USN-8956-1, 2026-10-26), so its
+`libbrotli1` and `python3-brotli` are the fixed `1.1.0-2ubuntu0.1`. An earlier capture of this page,
+made with the data of 2026-10-26, reported that same version as `NO_FIX_AVAILABLE` ("the
+distributor has not released a fix yet"): the data predated the fix (docs/design.md 2.1).
+
 ## English (default)
 
 ```
 brotli-cve-check 0.1.0 - read-only local check for CVE-2026-111497 (Brotli decoder)
 Host: Ubuntu 24.04.5 LTS [ubuntu:noble], kernel 6.10.14-linuxkit, running as root
-Data: snapshot 2026-10-26 (1 days old), embedded
+Data: snapshot 2026-10-27 (0 days old), embedded
 Search roots: /opt,/srv | options: --yes
 
 == Programs run to read their versions ==
@@ -29,8 +34,8 @@ Search roots: /opt,/srv | options: --yes
     - /opt/node-v22.23.4-linux-x64/bin/node belongs to tester
 
 == C01 OS packages (Debian/Ubuntu) ==
-[NO_FIX_AVAILABLE] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | The distributor has not released a fix yet. | Wait for the distributor's fix; meanwhile, update products that bundle their own copy first.
-[NO_FIX_AVAILABLE] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | The distributor has not released a fix yet. | Wait for the distributor's fix; meanwhile, update products that bundle their own copy first.
+[FIXED] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | At or above the fixed version 1.1.0-2ubuntu0.1. | No update needed. If it was updated recently, restart the services that use it (C03).
+[FIXED] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | At or above the fixed version 1.1.0-2ubuntu0.1. | No update needed. If it was updated recently, restart the services that use it (C03).
 
 == C04 Node.js ==
 [VULNERABLE] C04 | node | /opt/node-v22.23.3-linux-x64/bin/node | 22.23.3 | Below the fixed version 22.23.4. | Update to 22.23.4 or later.
@@ -57,7 +62,7 @@ Search roots: /opt,/srv | options: --yes
 == Summary ==
 Needs update: 2
 Needs restart: 0
-Needs human review: 2
+Needs human review: 0
 Not scanned: C09 --deep, C07 --projects, C14 --containers, C15 --exposure
 This tool does not check for intrusion. Updating to a fixed version does not remove traces of an intrusion that happened before the update.
 ```
@@ -67,7 +72,7 @@ This tool does not check for intrusion. Updating to a fixed version does not rem
 ```
 brotli-cve-check 0.1.0 - CVE-2026-111497（Brotli デコーダー）の読み取り専用ローカル点検
 ホスト: Ubuntu 24.04.5 LTS [ubuntu:noble]、カーネル 6.10.14-linuxkit、root で実行
-既知データ: 2026-10-26 時点（1 日前）、embedded
+既知データ: 2026-10-27 時点（0 日前）、embedded
 探索した場所: /opt,/srv | オプション: --yes
 
 == 版を読むために実行したプログラム ==
@@ -81,8 +86,8 @@ brotli-cve-check 0.1.0 - CVE-2026-111497（Brotli デコーダー）の読み取
     - /opt/node-v22.23.4-linux-x64/bin/node は tester の所有
 
 == C01 OS パッケージ（Debian/Ubuntu） ==
-[NO_FIX_AVAILABLE] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 配布元が修正版をまだ出していません。 | 配布元の修正を待つ。待つ間は、同梱コピーのある製品を優先して更新する。
-[NO_FIX_AVAILABLE] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 配布元が修正版をまだ出していません。 | 配布元の修正を待つ。待つ間は、同梱コピーのある製品を優先して更新する。
+[FIXED] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 修正版 1.1.0-2ubuntu0.1 以上です。 | 更新は不要。最近更新したなら、使っているサービスを再起動する（C03）。
+[FIXED] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 修正版 1.1.0-2ubuntu0.1 以上です。 | 更新は不要。最近更新したなら、使っているサービスを再起動する（C03）。
 
 == C04 Node.js ==
 [VULNERABLE] C04 | node | /opt/node-v22.23.3-linux-x64/bin/node | 22.23.3 | 修正版 22.23.4 より古い版です。 | 22.23.4 以上に更新する。
@@ -109,7 +114,7 @@ brotli-cve-check 0.1.0 - CVE-2026-111497（Brotli デコーダー）の読み取
 == 要約 ==
 更新が必要なもの: 2 件
 再起動が必要なもの: 0 件
-人の確認が必要なもの: 2 件
+人の確認が必要なもの: 0 件
 走査しなかった範囲: C09 --deep, C07 --projects, C14 --containers, C15 --exposure
 このツールは侵入の有無を調べません。修正版に更新しても、更新前の侵入の痕跡は消えません。
 ```

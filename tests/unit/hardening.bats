@@ -862,3 +862,203 @@ EOS
   bcc_exec_facts "$T/prog"
   has_fact "$d/glibc-hwcaps/x86-64-v3 can be written by anyone"
 }
+
+# --- Mutation tests of 2026-10-27: gaps they showed (docs/2026-10-26_test-record_codex-round4-5.html 13) ---
+
+@test "mutation 10/27: a chosen program runs with an empty environment, stdin closed, its output capped" {
+  mkdir -p "$T/bin"
+  cat >"$T/bin/probe" <<'EOS'
+#!/bin/sh
+echo "env=${NODE_OPTIONS:-none}"
+if read -r line; then echo "stdin=$line"; else echo "stdin=closed"; fi
+head -c 100000 /dev/zero | tr '\0' x
+EOS
+  chmod +x "$T/bin/probe"
+  bcc_plan_add "$T/bin/probe" --version test
+  BCC_YES=1
+  bcc_exec_consent
+  NODE_OPTIONS=--require=/tmp/evil.js bcc_exec_run <<<"typed by the user"
+  out=${BCC_PROBE_OUT["$T/bin/probe"$'\t'--version]}
+  [[ $out == "env=none"$'\n'"stdin=closed"$'\n'x* ]]
+  [ "${#out}" -le 65536 ]
+}
+
+@test "mutation 10/27: the plan leaves out what its verdict does not need, and asks for the rest" {
+  # Candidates and their linkage stand in for the host; what is asked follows design 10.11.
+  bcc_c04_candidates() { BCC_C04_CANDS=("$T/pkg/node-linked" "$T/pkg/node-static" "$T/own/node"); }
+  bcc_c05_candidates() { BCC_C05_CANDS=(); }
+  bcc_c08_candidates() { BCC_C08_CANDS=("$T/curl-linked" "$T/curl-static"); }
+  bcc_c10_candidates() { BCC_C10_CANDS=(); }
+  bcc_c13_candidates() { BCC_C13_CANDS=("$T/pkg/firefox" "$T/own/firefox"); BCC_C13_KINDS=(firefox firefox); }
+  bcc_dpkg_owner() {
+    case $1 in "$T/pkg/"*) BCC_DPKG_CACHE[$1]=pkg; printf 'pkg\n' ;; *) BCC_DPKG_CACHE[$1]=""; return 1 ;; esac
+  }
+  bcc_link_prefetch() { case $1 in *-linked) BCC_LINK_RC[$1]=0 ;; *) BCC_LINK_RC[$1]=1 ;; esac; }
+  bcc_exec_facts() { BCC_FACTS=(fact); }
+  bcc_build_exec_plan
+  plan=$(printf '%s\n' "${BCC_PLAN[@]}" | cut -f1 | sort | paste -sd' ' -)
+  [ "$plan" = "$T/curl-static $T/own/firefox $T/own/node $T/pkg/node-static" ]
+}
+
+@test "mutation 10/27: programs listed but not run are listed as not scanned, with the reason" {
+  make_fake_elf "$T/a/bun"
+  bcc_plan_add "$T/a/bun" --version "C05 bun"
+  BCC_NO_EXEC=1
+  bcc_note_exec
+  [[ ${BCC_SKIPPED[*]} == *"--no-exec"$'\t'"found programs were not run"* ]]
+  BCC_SKIPPED=()
+  declare -gA BCC_SKIP_KEYS=()
+  BCC_NO_EXEC=0
+  bcc_note_exec
+  [[ ${BCC_SKIPPED[*]} == *"exec"$'\t'"1 programs listed to read their versions were not chosen"* ]]
+  # What ran is not listed.
+  BCC_SKIPPED=()
+  declare -gA BCC_SKIP_KEYS=()
+  BCC_PROBE_RC["$T/a/bun"$'\t'--version]=0
+  bcc_note_exec
+  [ "${#BCC_SKIPPED[@]}" -eq 0 ]
+}
+
+# A stat that reports another owner (uid 4242, gid 4243, mode 775) for the paths listed in
+# FAKE_STAT_OTHERS, as only root could make such files; the real stat for anything else.
+fake_stat_others() {
+  cat >"$FAKEBIN/stat" <<'EOS'
+#!/bin/bash
+args=("$@") fmt="" path=""
+while (($#)); do case $1 in -c) fmt=$2; shift 2 ;; --) path=$2; break ;; *) shift ;; esac; done
+for p in $FAKE_STAT_OTHERS; do
+  if [[ $path == "$p" ]]; then
+    case $fmt in '%u %g %a') echo "4242 4243 775" ;; '%u') echo 4242 ;; *) exec /usr/bin/stat "${args[@]}" ;; esac
+    exit 0
+  fi
+done
+exec /usr/bin/stat "${args[@]}"
+EOS
+  chmod +x "$FAKEBIN/stat"
+}
+
+@test "mutation 10/27: another owner, a group that can write, the owner of a link, a missing name are facts" {
+  fake_stat_others
+  mkdir -p "$T/theirs" "$T/real"
+  ln -s "$T/real" "$T/link"
+  export FAKE_STAT_OTHERS="$T/theirs $T/link"
+  BCC_FACTS=()
+  bcc_path_facts "$T/theirs/prog"
+  has_fact "$T/theirs belongs to uid 4242"
+  has_fact "$T/theirs can be written by group gid 4243"
+  has_fact "$T/theirs/prog does not exist (whoever can write in the directory above could create it)"
+  BCC_FACTS=()
+  bcc_path_facts "$T/link/x"
+  has_fact "$T/link belongs to uid 4242"
+}
+
+@test "mutation 10/27: the loader, each library loaded, relative entries and readelf failures are facts" {
+  command -v cc >/dev/null || skip "no C compiler"
+  command -v readelf >/dev/null || skip "readelf not available"
+  mkdir -p "$T/open" "$T/lib" "$T/bin"
+  chmod 777 "$T/open"
+  printf 'int q(void){return 0;}\n' >"$T/q.c"
+  printf 'int q(void);\nint main(void){return q();}\n' >"$T/m.c"
+  cc -shared -fPIC -o "$T/lib/libq.so" "$T/q.c"
+  chmod 666 "$T/lib/libq.so"
+  # The library file itself can be changed by anyone (its directory cannot); the loader is
+  # named in a directory anyone can write; one search entry is relative.
+  cc -o "$T/bin/prog" "$T/m.c" -L"$T/lib" -lq -Wl,-rpath,"$T/lib:lib" -Wl,--dynamic-linker="$T/open/ld.so"
+  make_fake_elf "$T/bin/fake"
+  bcc_ldcache_load
+  bcc_exec_facts "$T/bin/prog"
+  has_fact "$T/lib/libq.so can be written by anyone"
+  has_fact "$T/open/ld.so does not exist (whoever can write in the directory above could create it)"
+  has_fact "$T/bin/prog: lib has a relative library search entry (looked up from the working directory; the tool runs programs from /)"
+  bcc_exec_facts "$T/bin/fake"
+  has_fact "readelf could not read $T/bin/fake; what it loads was not examined"
+}
+
+@test "mutation 10/27: /etc/ld.so.preload and what it names are examined" {
+  mkdir -p "$T/etc" "$T/open"
+  chmod 777 "$T/open"
+  printf '%s\n' "$T/open/libhook.so" >"$T/etc/ld.so.preload"
+  chmod 666 "$T/etc/ld.so.preload"
+  make_fake_elf "$T/prog"
+  BCC_LD_PRELOAD_FILE="$T/etc/ld.so.preload"
+  bcc_exec_facts "$T/prog"
+  has_fact "$T/etc/ld.so.preload can be written by anyone"
+  has_fact "$T/open/libhook.so does not exist (whoever can write in the directory above could create it)"
+}
+
+# A readelf that pretends: "-d FILE" prints FILE.dyn (the dynamic section, written by dyn
+# below), "-l" prints nothing. For search paths a compiler will not produce (RPATH and RUNPATH
+# on one object).
+fake_readelf() {
+  cat >"$FAKEBIN/readelf" <<'EOS'
+#!/bin/bash
+f=${!#}
+case $1 in -d) [[ -f $f.dyn ]] && cat -- "$f.dyn" || exit 1 ;; *) exit 0 ;; esac
+EOS
+  chmod +x "$FAKEBIN/readelf"
+}
+
+# dyn FILE [NEEDED=x] [RPATH=x] [RUNPATH=x] ...: create FILE and its pretended dynamic section.
+dyn() {
+  local f=$1 kv
+  shift
+  mkdir -p "$(dirname "$f")"
+  : >"$f"
+  : >"$f.dyn"
+  for kv in "$@"; do
+    case $kv in
+      NEEDED=*) printf ' 0x0000000000000001 (NEEDED)             Shared library: [%s]\n' "${kv#*=}" ;;
+      RPATH=*) printf ' 0x000000000000000f (RPATH)              Library rpath: [%s]\n' "${kv#*=}" ;;
+      RUNPATH=*) printf ' 0x000000000000001d (RUNPATH)            Library runpath: [%s]\n' "${kv#*=}" ;;
+    esac >>"$f.dyn"
+  done
+}
+
+@test "mutation 10/27: a RUNPATH hides the same object's RPATH and the RPATH it would inherit" {
+  fake_readelf
+  # prog has both; glibc ignores its RPATH, so libA's need (libB) is not looked up in r1.
+  dyn "$T/bin/prog" NEEDED=libA.so RPATH="$T/r1" RUNPATH="$T/r2"
+  dyn "$T/r2/libA.so" NEEDED=libB.so
+  dyn "$T/r1/libB.so"
+  bcc_dep_walk_prefetch "$T/bin/prog"
+  recs=$(walk_records "$T/bin/prog")
+  grep -qxF "N"$'\t'"libA.so"$'\t'"$T/r2/libA.so" <<<"$recs"
+  grep -qxF "N"$'\t'"libB.so"$'\t' <<<"$recs"
+  [[ $recs != *"$T/r1"* ]]
+  # A library with a RUNPATH does not use the RPATH of the program that loads it.
+  dyn "$T/bin/prog2" NEEDED=libC.so RPATH="$T/r3"
+  dyn "$T/r3/libC.so" NEEDED=libD.so RUNPATH="$T/r4"
+  dyn "$T/r3/libD.so"
+  bcc_dep_walk_prefetch "$T/bin/prog2"
+  grep -qxF "N"$'\t'"libD.so"$'\t' <<<"$(walk_records "$T/bin/prog2")"
+}
+
+@test "mutation 10/27: a chain of libraries deeper than the walk follows is said so" {
+  fake_readelf
+  local i
+  dyn "$T/bin/prog" NEEDED=lib0.so RPATH="$T/lib"
+  for i in 0 1 2 3 4 5 6 7 8 9; do dyn "$T/lib/lib$i.so" NEEDED="lib$((i + 1)).so"; done
+  bcc_exec_facts "$T/bin/prog"
+  has_fact "the libraries were followed only 8 levels deep"
+}
+
+@test "mutation 10/27: a search path inherited through \$ORIGIN keeps a \":\" in a directory name" {
+  fake_readelf
+  # prog sits under "x:y"; its RPATH $ORIGIN/../lib is that directory, which libA inherits.
+  # shellcheck disable=SC2016  # $ORIGIN is for the (pretended) loader
+  dyn "$T/x:y/bin/prog" NEEDED=libA.so RPATH='$ORIGIN/../lib'
+  dyn "$T/x:y/lib/libA.so" NEEDED=libB.so
+  dyn "$T/x:y/lib/libB.so"
+  bcc_dep_walk_prefetch "$T/x:y/bin/prog"
+  grep -qxF "N"$'\t'"libB.so"$'\t'"$T/x:y/bin/../lib/libB.so" <<<"$(walk_records "$T/x:y/bin/prog")"
+}
+
+@test "mutation 10/27: RPATH and NEEDED values with [ or ] are read whole" {
+  fake_readelf
+  dyn "$T/bin/prog" NEEDED='lib[1].so' RPATH="$T/app [1]/lib"
+  dyn "$T/app [1]/lib/lib[1].so"
+  bcc_dep_walk_prefetch "$T/bin/prog"
+  recs=$(walk_records "$T/bin/prog")
+  grep -qxF "D"$'\t'"$T/app [1]/lib"$'\t' <<<"$recs"
+  grep -qxF "N"$'\t'"lib[1].so"$'\t'"$T/app [1]/lib/lib[1].so" <<<"$recs"
+}

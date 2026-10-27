@@ -14,6 +14,8 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
 
 # brotli-cve-check 引き継ぎ（Codex 6 回目と同意モデルの後）
 
+> **後継あり（2026-10-27）:** `docs/2026-10-27_HANDOFF_data-refresh-before-codex7-and-release.md` から始めること。本書は 2026-10-27 夕方時点の写像として凍結（§3-9 は訂正済み）。
+
 > **次セッションはまずこれを読め。** これ＋「最初に読む 3 点」で文脈が立ち上がる。
 > 前の引き継ぎ `docs/2026-10-26_HANDOFF_release-readiness.md` は凍結（後継＝本書）。
 
@@ -83,7 +85,8 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
 7. **`--yes`**: 一覧を見ずに全部実行する同意。root なら他人のプログラムが root で動きうる。README の「`--yes` を使う前に」に平易に書いた
    （本人判断: コードで除外せず、説明で足りる）。
 8. **版番号を信じない**（前回から有効）: ソースパッケージの版、`process.versions.brotli` は使わない、プレリリースは正式版扱いしない。
-9. Ubuntu の OS の Brotli は全リリース修正待ち、Debian 12/13 は修正済み（既知データ 2026-10-26）。
+9. ~~Ubuntu の OS の Brotli は全リリース修正待ち~~ **訂正（2026-10-27）: Ubuntu は USN-8956-1（2026-10-26）で 22.04/24.04/26.04/26.10 を修正済み。**
+   Debian 12/13・sid は修正済み、forky は移行待ち。既知データは 2026-10-27 に全行を一次資料で確かめ直した（設計メモ 2.1）。
 10. **撤回**: 「root では既定で実行しない（`--allow-exec`）」は 10/26 に本人が選び、10/27 に本人の思想で置き換えた。`--allow-exec` は存在しない。
 
 ## 4. 運用・インフラ状態
@@ -126,6 +129,7 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
 1. **[実装に降ろす] 今日の修正の変異テスト**（同意の判定、事実の収集、継承 RPATH、完了の判定、6 回目の各修正、候補の名前照合）。
    `tests/tmp/mutrec.*/muts.py` を土台に、10/27 の修正（10 章 13 の修正も含む）の変異を足す。結果はテスト記録の HTML に
    13 章として追記（12 章は §5-0 の修正のテスト。**実測で書く**）。
+   **→ 済（2026-10-27、テスト記録 13 章・設計メモ 10 章 14）。** 91 個中 69 個で落ち、穴 21 個にテスト 10 件を足して測り直した 22 個はすべて落ちた。
 2. **[実装に降ろす] Codex 7 回目**（単一ファイル版の全体）。**依頼文に新しい基準を書く**: P1 は「事実として誤った報告（結果・事実の一覧）／
    黙った抜け（走査しなかった範囲に出ない欠落）／同意なしの実行・示さない実行／`--output` 以外への書き込み・ハング」。設計判断として除外:
    同意モデルそのもの（`--yes` の意味は README に明記）、事実の網羅性の限界（dlopen・設定ファイル・`$LIB`・ld.so のキャッシュの選択）、
@@ -133,6 +137,7 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
    確認（FIXED/PARTIAL）も頼む。結果は `.context/codex-review-<日付>-round7.md` に全文、本人に verbatim で提示してから検討。
 3. **[実装に降ろす] push → CI** の 3 ジョブが緑か（session-close で push 済みなら確認だけ）。
 4. **[本人判断] 図解 2 枚**を作り直すか（a4-zukai スキル。今の形: 同意して実行、統合 26 項目）。
+   **→ 本人判断（2026-10-27）: 作り直す・同名で上書き。** Ubuntu の修正（上の §3-9 の訂正）も反映する。
 5. **[本人判断] README の「`--yes` を使う前に」の文体**（本人の要求「言い訳っぽくなく、分かりやすい言葉で丁寧に」に合っているか）。
 6. **[本人判断] 状態名 LIKELY_FIXED を残すこと**（私の判断。本人の明示の同意は未）。
 7. **[実装に降ろす] リリース v0.1.0**: タグ、`dist/brotli-cve-check` と `dist/SHA256SUMS` を添付、CHANGELOG の日付。README の Quick start がこれで

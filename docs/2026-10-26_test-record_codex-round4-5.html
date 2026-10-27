@@ -65,6 +65,7 @@ small.src { color: var(--muted); }
   <h1>テスト記録 — Codex レビュー 4・5 回目の修正（brotli-cve-check 0.1.0 リリース前）</h1>
   <p class="meta">作成 2026-10-26 ／ 対象: コミット <code>eb4205b</code> の上の作業ツリー（未コミット）／ 単一ファイル版 <code>dist/brotli-cve-check</code> sha256 <code>4a3c63c101e19a51…</code></p>
   <p class="meta"><b>2026-10-27 追記あり（11 章）:</b> 実行を「事実を示して同意を得る」形に作り直し、Codex 6 回目を直した後のテスト。1〜10 章は 2026-10-26 時点のまま。</p>
+  <p class="meta"><b>2026-10-27 追記（12・13 章、訂正）:</b> 12 章は自動レビューの指摘の修正、13 章は変異テスト。<b>訂正:</b> 1〜11 章で Ubuntu の <code>libbrotli1</code>・<code>python3-brotli</code> が <code>NO_FIX_AVAILABLE</code>（修正待ち）とあるのは 2026-10-26 の既知データによる。Ubuntu は同日 USN-8956-1 で修正し、2026-10-27 の既知データでは <code>FIXED</code>（<code>docs/design.md</code> 2.1）。</p>
   <p class="meta">開発機: Ubuntu 24.04.5 LTS、カーネル 7.0.0-30-generic、bash 5.2.21、ShellCheck 0.9.0、Bats 1.10.0、Docker 28.3.0、dash 0.5.12-6ubuntu5</p>
   <div class="summary">
     <div class="tile"><b>134 / 134</b><span>単体テスト成功（skip 0）。うち新規 41、変更 2</span></div>
@@ -75,7 +76,7 @@ small.src { color: var(--muted); }
   <nav class="toc">
     <a href="#why">この記録の目的</a><a href="#static">静的検査</a><a href="#unit-new">単体（新規・変更）</a>
     <a href="#unit-old">単体（既存）</a><a href="#mutation">変異テスト</a><a href="#integration">統合テスト</a>
-    <a href="#experiments">再現実験</a><a href="#perf">速度</a><a href="#host">実機</a><a href="#codex">Codex</a><a href="#gaps">テストしていないこと</a><a href="#add1027">追記 10/27</a><a href="#add1027b">追記 10/27（自動レビュー）</a>
+    <a href="#experiments">再現実験</a><a href="#perf">速度</a><a href="#host">実機</a><a href="#codex">Codex</a><a href="#gaps">テストしていないこと</a><a href="#add1027">追記 10/27</a><a href="#add1027b">追記 10/27（自動レビュー）</a><a href="#mutation1027">変異テスト 10/27</a>
   </nav>
 </header>
 
@@ -480,6 +481,156 @@ small.src { color: var(--muted); }
 <li><b>変異テスト</b>（今日の修正を 1 つずつ戻してテストが落ちるか）。上の「直す前」は、修正全体を戻したときに落ちることだけを示す。13 章で記録する。<code>tests/tmp/mutrec.*/muts.py</code> の既存の変異のうち、今回書き換えた箇所（<code>bcc_path_facts</code>・依存の辿り・一覧の表示）を指すものは置き換えが要る。</li>
 <li>残した 3 点（<code>docs/design.md</code> 10 章 13 の末尾）は、テストも修正もしていない。</li>
 <li>Codex 7 回目、CI はまだ。</li>
+</ul>
+
+<h2 id="mutation1027">13. 変異テスト（2026-10-27）— 今日の修正を 1 つずつ戻して、テストが落ちるか</h2>
+<p><b>何のためか:</b> 4 章と同じ。テストが全部通っていても、修正を戻したときに落ちなければ、そのテストは欠陥を見ていない。10 章 11（同意の形）・12（6 回目）・13（自動レビュー）の修正を 1 つずつ戻した。4・5 回目の修正も、10 章 11 で周りのコードが大きく変わったので測り直した。</p>
+<p><b>やり方と時点:</b> 作業ツリーの写しを <code>tests/tmp/mutrec27.*/</code> の下（リポジトリの中。<code>/tmp</code> の下だと事実が変わる）に 6 つ作り、並列に走らせた。1 つの変異ごとに単体テストを全件走らせ、落ちたテストを名前で記録した（番号はファイルをまたぐ通し番号なので名前で書く）。変異の定義は <code>tests/tmp/mutrec27.*/muts27.py</code>（git の管理外）。各変異は、元の文字列がちょうど 1 回現れることを確かめてから当てた。</p>
+<p><b>負荷で不安定にならないかの確認（基準）:</b> 変異を当てる前に、変異なしの写し 6 つを同時に走らせた。<b>第 1 回</b>（<code>882a479</code>、161 件）: w1 357 秒・失敗 0、w2 360 秒・失敗 0、w3 360 秒・失敗 0、w4 358 秒・失敗 0、w5 357 秒・失敗 0、w6 358 秒・失敗 0。<b>第 2 回</b>（テスト 10 件と既知データの更新の後、172 件）: w1 351 秒・失敗 1、w2 353 秒・失敗 1、w3 352 秒・失敗 1、w4 355 秒・失敗 1、w5 354 秒・失敗 1、w6 353 秒・失敗 1。6 つとも同じ 1 件、<code>stale data (30 days or more) is warned about</code> が落ちた。原因はテストの日付の決め打ち（既知データの日付を 10/27 にしたので、<code>BCC_TODAY=2026-12-15</code> が 50 日後でなく 49 日後になった）で、ツールの誤りではない。テストを既知データの日付から計算する形に直し、写しを作り直して、その 1 件を 6 つの写しで再実行して成功を確かめてから、第 2 回の変異を走らせた（途中まで走っていた分は捨てた）。</p>
+<p><b>結果:</b> 第 1 回は <b>91 個のうち 69 個</b>でテストが落ちた。落ちなかった 22 個のうち 21 個は本物の穴（テストが見ていない）で、1 個は 4 章と同じ二重の守り。穴の原因を調べてテストを 10 件足し、第 2 回で、落ちなかった 21 個と、足した変異 1 個の計 <b>22 個を測り直し、22 個</b>で落ちた。</p>
+<h3>13.1 まとめ（第 1 回）</h3><div class="wrap"><table><tr><th>まとまり</th><th>変異の数</th><th>テストが落ちた</th><th>落ちなかった</th></tr>
+<tr><td>13.2 同意の形（10 章 11）</td><td>15</td><td>8</td><td><span class="b ok">7</span></td></tr>
+<tr><td>13.3 事実の収集（10 章 11）</td><td>16</td><td>7</td><td><span class="b ok">9</span></td></tr>
+<tr><td>13.4 依存の辿り（10 章 11・12）</td><td>7</td><td>4</td><td><span class="b ok">3</span></td></tr>
+<tr><td>13.5 読み取りの完了の判定（10 章 12）</td><td>2</td><td>2</td><td>0</td></tr>
+<tr><td>13.6 Codex 6 回目のそのほかの修正（10 章 12）</td><td>15</td><td>15</td><td>0</td></tr>
+<tr><td>13.7 自動レビューの指摘と、確かめる中で見つけたもの（10 章 13）</td><td>16</td><td>14</td><td><span class="b ok">2</span></td></tr>
+<tr><td>13.8 4 回目の修正の再測定（4 章の定義のまま）</td><td>10</td><td>10</td><td>0</td></tr>
+<tr><td>13.9 5 回目の修正の再測定（4 章の定義のまま）</td><td>10</td><td>9</td><td><span class="b ok">1</span></td></tr>
+<tr><td><b>計</b></td><td><b>91</b></td><td><b>69</b></td><td><b>22</b></td></tr></table></div>
+<h3>13.2 同意の形（10 章 11）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>--no-exec でも実行の判定に進む</td><td><span class="b ok">15</span></td><td class="name"><details><summary>15 件（開く）</summary>--output through a symlinked directory writes into the resolved directory<br>--output leaves exactly one new file (no temporary file behind)<br>--output writes the same report as stdout<br>a scan prints nothing on stderr (no stray tool errors on the terminal)<br>JSON output parses and carries the documented fields<br>text output ends with the four-line summary and the intrusion disclaimer<br>--lang ja prints Japanese<br>exit 1 when something is VULNERABLE<br>control characters in a path are shown as ? in the text report<br>stale data (30 days or more) is warned about<br>system tools never come from the caller&#x27;s PATH (a planted stat or timeout is not run)<br>a root named with --roots that does not exist is listed as not scanned<br>--data: a FIFO is refused at once (never opened); others&#x27; write access is warned about<br>consent: with programs to run and no terminal, the tool lists them and asks for --yes or --no-exec<br>consent: --no-exec runs nothing, --yes runs everything listed (as root too)</details></td><td>—</td></tr>
+<tr><td>端末が無いと黙って全部実行する</td><td><span class="b ok">5</span></td><td class="name"><details><summary>5 件（開く）</summary>consent: with programs to run and no terminal, the tool lists them and asks for --yes or --no-exec<br>consent: at a terminal the user chooses by number<br>a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>consent: without a terminal and without --yes or --no-exec, the tool lists and stops<br>review 10/27: control characters in a found path never reach the terminal in the consent list</details></td><td>—</td></tr>
+<tr><td>--yes で何も実行しない</td><td><span class="b ok">4</span></td><td class="name">consent: --yes runs the listed programs and the report says what ran (JSON too)<br>a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>consent: --no-exec runs nothing, --yes runs everything listed (as root too)<br>review 10/27: what runs is the program listed, even with a tab in its path</td><td>—</td></tr>
+<tr><td>選ばれていないものも実行する</td><td><span class="b ok">3</span></td><td class="name">C04: a program under a world-writable directory is named so, and is not run without consent<br>consent: with programs to run and no terminal, the tool lists them and asks for --yes or --no-exec<br>consent: at a terminal the user chooses by number</td><td>—</td></tr>
+<tr><td>/ から起動しない（R5 から移動）</td><td><span class="b ok">1</span></td><td class="name">round 5: an empty RUNPATH entry is named; chosen programs run from /</td><td>—</td></tr>
+<tr><td>答えの範囲を確かめない</td><td><span class="b ok">1</span></td><td class="name">consent: --no-exec and --yes together are an error; answers are parsed strictly</td><td>—</td></tr>
+<tr><td>環境変数を空にしない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>実行の仕方（環境・標準入力・出力の上限）を確かめるテストが無かった。実行するテストは版の出力だけを見ていた。 足したテスト T1（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: a chosen program runs with an empty environment, stdin closed, its output capped</td></tr>
+<tr><td>標準入力を閉じない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上。 足したテスト T1（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: a chosen program runs with an empty environment, stdin closed, its output capped</td></tr>
+<tr><td>OS の libbrotlidec を読むパッケージの node も挙げる</td><td><span class="b ng">0</span></td><td class="name">—</td><td>計画に「挙げないもの」を確かめるテストが無かった。CLI テストのホストにはパッケージの node・curl・ブラウザが無い。 足したテスト T2（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: the plan leaves out what its verdict does not need, and asks for the rest</td></tr>
+<tr><td>出力に上限を付けない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上。 足したテスト T1（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: a chosen program runs with an empty environment, stdin closed, its output capped</td></tr>
+<tr><td>libbrotlidec を読む curl も挙げる</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上。 足したテスト T2（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: the plan leaves out what its verdict does not need, and asks for the rest</td></tr>
+<tr><td>パッケージのブラウザも挙げる</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上。 足したテスト T2（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: the plan leaves out what its verdict does not need, and asks for the rest</td></tr>
+<tr><td>実行しなかったものを「走査しなかった範囲」に出さない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>「走査しなかった範囲」への記載を見るテストが無かった。 足したテスト T3（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: programs listed but not run are listed as not scanned, with the reason</td></tr>
+<tr><td>結果に実行の節を出さない</td><td><span class="b ok">5</span></td><td class="name"><details><summary>5 件（開く）</summary>consent: with programs to run and no terminal, the tool lists them and asks for --yes or --no-exec<br>consent: --yes runs the listed programs and the report says what ran (JSON too)<br>consent: at a terminal the user chooses by number<br>a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON</details></td><td>—</td></tr>
+<tr><td>JSON の execution を空にする</td><td><span class="b ok">2</span></td><td class="name">consent: --yes runs the listed programs and the report says what ran (JSON too)<br>review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON</td><td>—</td></tr>
+</table></div>
+<h3>13.3 事実の収集（10 章 11）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>他の所有者を出さない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>一般ユーザーのテストでは、他人の所有するファイルを作れない（root が要る）。 足したテスト T4（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: another owner, a group that can write, the owner of a link, a missing name are facts</td></tr>
+<tr><td>グループが書けることを出さない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上（自分の私的グループは事実にならない設計なので、別のグループが要る）。 足したテスト T4（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: another owner, a group that can write, the owner of a link, a missing name are facts</td></tr>
+<tr><td>誰でも書けることを出さない</td><td><span class="b ok">8</span></td><td class="name"><details><summary>8 件（開く）</summary>C04: a program under a world-writable directory is named so, and is not run without consent<br>facts: a RUNPATH directory others can write is named before asking<br>round 5: a symlink in a directory others can write is named, even as an ancestor<br>round 6: a RUNPATH entry that is a dangling symlink in a writable directory is named<br>review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON<br>review 10/27: libraries searched through $ORIGIN under a path with a newline are examined there<br>review 10/27: a symlink is followed to its exact target; a chain too long to follow is said so<br>review 10/27: a [ or * in a library directory is part of its name, not a pattern</details></td><td>—</td></tr>
+<tr><td>sticky のディレクトリも誰でも書けると言う</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON</td><td>—</td></tr>
+<tr><td>パスの途中のディレクトリを調べない</td><td><span class="b ok">4</span></td><td class="name">C04: a program under a world-writable directory is named so, and is not run without consent<br>round 5: a symlink in a directory others can write is named, even as an ancestor<br>round 6: a RUNPATH entry that is a dangling symlink in a writable directory is named<br>review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON</td><td>—</td></tr>
+<tr><td>symlink 自体の所有者を出さない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上。 足したテスト T4（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: another owner, a group that can write, the owner of a link, a missing name are facts</td></tr>
+<tr><td>存在しないものを出さない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>存在しない名前の事実を見るテストが無かった。 足したテスト T4（13.10）→ 第 2 回 <span class="b ok">3</span> mutation 10/27: another owner, a group that can write, the owner of a link, a missing name are facts<br>mutation 10/27: the loader, each library loaded, relative entries and readelf failures are facts<br>mutation 10/27: /etc/ld.so.preload and what it names are examined</td></tr>
+<tr><td>ローダー（PT_INTERP）を調べない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>事実のテストは探索先のディレクトリ経由でしか確かめていなかった。 足したテスト T5（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: the loader, each library loaded, relative entries and readelf failures are facts</td></tr>
+<tr><td>読み込むライブラリを調べない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上（ライブラリのファイルそのものを誰でも書ける場合が無かった）。 足したテスト T5（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: the loader, each library loaded, relative entries and readelf failures are facts</td></tr>
+<tr><td>探索先のディレクトリを調べない</td><td><span class="b ok">3</span></td><td class="name">facts: a RUNPATH directory others can write is named before asking<br>round 6: a RUNPATH entry that is a dangling symlink in a writable directory is named<br>review 10/27: libraries searched through $ORIGIN under a path with a newline are examined there</td><td>—</td></tr>
+<tr><td>glibc-hwcaps の下を調べない</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a [ or * in a library directory is part of its name, not a pattern</td><td>—</td></tr>
+<tr><td>空の探索先を出さない</td><td><span class="b ok">1</span></td><td class="name">round 5: an empty RUNPATH entry is named; chosen programs run from /</td><td>—</td></tr>
+<tr><td>相対の探索先を出さない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>空の探索先のテストはあったが、相対のものは無かった。 足したテスト T5（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: the loader, each library loaded, relative entries and readelf failures are facts</td></tr>
+<tr><td>readelf が読めなかったことを出さない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>偽の ELF を使うテストは多いが、この事実を確かめていなかった。 足したテスト T5（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: the loader, each library loaded, relative entries and readelf failures are facts</td></tr>
+<tr><td>readelf が無いことを出さない</td><td><span class="b ok">1</span></td><td class="name">facts: without readelf the facts say the libraries were not examined</td><td>—</td></tr>
+<tr><td>/etc/ld.so.preload を調べない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>root でしか作れないファイル。<code>BCC_LD_PRELOAD_FILE</code> で置き換えられるようにした（<code>BCC_PROC_ROOT</code> と同じ形）。 足したテスト T6（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: /etc/ld.so.preload and what it names are examined</td></tr>
+</table></div>
+<h3>13.4 依存の辿り（10 章 11・12）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>継承する DT_RPATH を使わない</td><td><span class="b ok">1</span></td><td class="name">round 6: libraries are looked up through the RPATH inherited from the executable</td><td>—</td></tr>
+<tr><td>DT_RUNPATH があっても DT_RPATH を使う</td><td><span class="b ng">0</span></td><td class="name">—</td><td>コンパイラは 1 つのオブジェクトに RPATH と RUNPATH を両方は付けない。偽の readelf で動的セクションを与える形にした。 足したテスト T7（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: a RUNPATH hides the same object&#x27;s RPATH and the RPATH it would inherit</td></tr>
+<tr><td>DT_RUNPATH を持つものも継承する</td><td><span class="b ng">0</span></td><td class="name">—</td><td>同上。 足したテスト T7（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: a RUNPATH hides the same object&#x27;s RPATH and the RPATH it would inherit</td></tr>
+<tr><td>空の探索先を見ない（R5 から移動）</td><td><span class="b ok">1</span></td><td class="name">round 5: an empty RUNPATH entry is named; chosen programs run from /</td><td>—</td></tr>
+<tr><td>$ORIGIN を展開しない</td><td><span class="b ok">2</span></td><td class="name">review 10/27: libraries searched through $ORIGIN under a path with a newline are examined there<br>review 10/27: library lookups under different search paths are kept apart</td><td>—</td></tr>
+<tr><td>辿りきれないときも「リンクしていない」と言う</td><td><span class="b ok">1</span></td><td class="name">linkage that cannot be followed is undetermined (2), never &#x27;not linked&#x27;</td><td>—</td></tr>
+<tr><td>深さの上限を記録しない</td><td><span class="b ng">0</span></td><td class="name">—</td><td>9 段の依存をコンパイルで作るのは重い。偽の readelf で。 足したテスト T8（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: a chain of libraries deeper than the walk follows is said so</td></tr>
+</table></div>
+<h3>13.5 読み取りの完了の判定（10 章 12）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>各段の終了状態を見ない</td><td><span class="b ok">1</span></td><td class="name">round 6: the end of a read is never taken from the file&#x27;s own bytes</td><td>—</td></tr>
+<tr><td>grep・awk の失敗を見ない</td><td><span class="b ok">1</span></td><td class="name">round 6: the end of a read is never taken from the file&#x27;s own bytes</td><td>—</td></tr>
+</table></div>
+<h3>13.6 Codex 6 回目のそのほかの修正（10 章 12）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>Firefox の application.ini の版を確かめない</td><td><span class="b ok">1</span></td><td class="name">round 6: Firefox&#x27;s application.ini and a flatpak runtime&#x27;s file name are confirmed by strings</td><td>—</td></tr>
+<tr><td>flatpak のランタイムの版を確かめない</td><td><span class="b ok">1</span></td><td class="name">round 6: Firefox&#x27;s application.ini and a flatpak runtime&#x27;s file name are confirmed by strings</td><td>—</td></tr>
+<tr><td>conda の記録の版を確かめない</td><td><span class="b ok">1</span></td><td class="name">round 6: a conda record saying fixed is confirmed against the environment&#x27;s library</td><td>—</td></tr>
+<tr><td>エラー名がまったく無いときは FIXED のまま</td><td><span class="b ok">1</span></td><td class="name">C04: a version from the path that the file&#x27;s strings cannot confirm is UNKNOWN, saying so</td><td>—</td></tr>
+<tr><td>libbrotlidec を読みつつ持つ自前のコピーを見ない</td><td><span class="b ok">1</span></td><td class="name">round 6: a file that loads libbrotlidec and carries its own decoder gets that copy judged</td><td>—</td></tr>
+<tr><td>別名で読み込まれる libbrotlidec を判定しない</td><td><span class="b ok">1</span></td><td class="name">round 6: a libbrotlidec loaded under a name its file does not have is still judged</td><td>—</td></tr>
+<tr><td>別名の候補を落とす（解決後も同じ名前を求める）</td><td><span class="b ok">1</span></td><td class="name">round 6: a candidate found by its name is kept when it is a symlink to another name</td><td>—</td></tr>
+<tr><td>解決後の名前で照合しない（shim も候補にする）</td><td><span class="b ok">1</span></td><td class="name">round 6: a link to a program of another name (a mise or volta shim) is not the runtime</td><td>—</td></tr>
+<tr><td>候補を改行区切りで運ぶ</td><td><span class="b ok">2</span></td><td class="name">a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>round 6: a path with a newline in it stays one path</td><td>—</td></tr>
+<tr><td>コンテナの dist-packages を常に配布元のものとみなす</td><td><span class="b ok">1</span></td><td class="name">round 6: Brotli under a container&#x27;s dist-packages without python3-brotli is judged</td><td>—</td></tr>
+<tr><td>一部しか読めない Envoy の設定を「Brotli 無し」と言う</td><td><span class="b ok">1</span></td><td class="name">round 6: an Envoy configuration read only in part is not reported as free of Brotli</td><td>—</td></tr>
+<tr><td>snap list の失敗を出さない</td><td><span class="b ok">1</span></td><td class="name">round 6: snap list and ss failures are listed as not scanned</td><td>—</td></tr>
+<tr><td>ss の失敗を出さない</td><td><span class="b ok">1</span></td><td class="name">round 6: snap list and ss failures are listed as not scanned</td><td>—</td></tr>
+<tr><td>Electron の snap の current を実体に直さない</td><td><span class="b ok">1</span></td><td class="name">round 6: Electron snaps are found through /snap/NAME/current, which is a symlink</td><td>—</td></tr>
+<tr><td>読み切れなかったライブラリを「走査しなかった範囲」に出さない</td><td><span class="b ok">1</span></td><td class="name">round 6: an incomplete read of a library is listed even when its name says vulnerable</td><td>—</td></tr>
+</table></div>
+<h3>13.7 自動レビューの指摘と、確かめる中で見つけたもの（10 章 13）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>一覧を濾過しない（制御文字が端末へ）</td><td><span class="b ok">2</span></td><td class="name">a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>review 10/27: control characters in a found path never reach the terminal in the consent list</td><td>—</td></tr>
+<tr><td>一覧・実行の節で改行を ? にしない</td><td><span class="b ok">2</span></td><td class="name">a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON</td><td>—</td></tr>
+<tr><td>一覧・実行の節でタブを ? にしない</td><td><span class="b ok">2</span></td><td class="name">a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>review 10/27: what runs is the program listed, even with a tab in its path</td><td>—</td></tr>
+<tr><td>所見の改行を空白にする（前の版）</td><td><span class="b ok">1</span></td><td class="name">a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed</td><td>—</td></tr>
+<tr><td>パスを IFS=/ read で分ける（前の版）</td><td><span class="b ok">2</span></td><td class="name">review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON<br>review 10/27: libraries searched through $ORIGIN under a path with a newline are examined there</td><td>—</td></tr>
+<tr><td>事実を \037 でつないで read で読み戻す（前の版）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON</td><td>—</td></tr>
+<tr><td>実行するものを項目のキーを最初のタブで分けて得る（前の版）</td><td><span class="b ok">2</span></td><td class="name">a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed<br>review 10/27: what runs is the program listed, even with a tab in its path</td><td>—</td></tr>
+<tr><td>依存の辿りの記録を改行で切る（行の記録を模す）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: libraries searched through $ORIGIN under a path with a newline are examined there</td><td>—</td></tr>
+<tr><td>受け継ぐ探索先を : でつなぐ（前の版）</td><td><span class="b ng">0</span></td><td class="name">—</td><td>継承のテストに、<code>:</code> を名前に含むディレクトリ（<code>$ORIGIN</code> 経由）が無かった。 足したテスト T9（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: a search path inherited through $ORIGIN keeps a &quot;:&quot; in a directory name</td></tr>
+<tr><td>探索のキャッシュのキーを : でつなぐ（前の版）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: library lookups under different search paths are kept apart</td><td>—</td></tr>
+<tr><td>symlink の先の末尾の改行を落とす（前の版）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a symlink is followed to its exact target; a chain too long to follow is said so</td><td>—</td></tr>
+<tr><td>40 段で黙って止まる（前の版）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a symlink is followed to its exact target; a chain too long to follow is said so</td><td>—</td></tr>
+<tr><td>事実の glibc-hwcaps を glob で探す（前の版）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a [ or * in a library directory is part of its name, not a pattern</td><td>—</td></tr>
+<tr><td>ライブラリの glibc-hwcaps を glob で探す（前の版）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a [ or * in a library directory is part of its name, not a pattern</td><td>—</td></tr>
+<tr><td>RUNPATH の値を貪欲に読む（前の版）</td><td><span class="b ok">1</span></td><td class="name">review 10/27: a [ or * in a library directory is part of its name, not a pattern</td><td>—</td></tr>
+<tr><td>RPATH の値を貪欲に読む（前の版）</td><td><span class="b ng">0</span></td><td class="name">—</td><td><code>[</code> のテストは RUNPATH だけだった。同じ読み方の NEEDED の変異も足した。 足したテスト T10（13.10）→ 第 2 回 <span class="b ok">1</span> mutation 10/27: RPATH and NEEDED values with [ or ] are read whole</td></tr>
+<tr><td>NEEDED の値を貪欲に読む（前の版）<br><small>第 2 回で足した変異</small></td><td>—</td><td>—</td><td>第 2 回 <span class="b ok">1</span> mutation 10/27: RPATH and NEEDED values with [ or ] are read whole</td></tr>
+</table></div>
+<h3>13.8 4 回目の修正の再測定（4 章の定義のまま）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>ln -T を外す</td><td><span class="b ok">1</span></td><td class="name">--output: a directory planted at the name makes the write fail; nothing lands inside</td><td>—</td></tr>
+<tr><td>プローブを command -v -a に戻す</td><td><span class="b ok">1</span></td><td class="name">C14: the probe finds node with dash (no &#x27;command -v -a&#x27;), once per real file</td><td>—</td></tr>
+<tr><td>プレリリースの規則を外す</td><td><span class="b ok">5</span></td><td class="name"><details><summary>5 件（開く）</summary>pre-release of the fixed version is UNKNOWN; before it VULNERABLE, after it FIXED<br>pre-release: Firefox Nightly and Beta of the fixed version are UNKNOWN<br>pre-release: Bun and Node.js from paths and headers<br>pre-release: a Node.js release candidate in a container is UNKNOWN<br>round 5: a Chromium version with a Debian-style pre-release suffix is not the release</details></td><td>—</td></tr>
+<tr><td>C11 の出どころ分けを外す</td><td><span class="b ok">3</span></td><td class="name">a scan prints nothing on stderr (no stray tool errors on the terminal)<br>C11: no markers in a hand-built server is UNKNOWN; from a package it is NOT_APPLICABLE<br>C11: a Go server without the cgo binding is NOT_APPLICABLE; with it, UNKNOWN</td><td>—</td></tr>
+<tr><td>dpkg の所有者なら何でも C01 に任せる</td><td><span class="b ok">2</span></td><td class="name">dpkg: a libbrotlidec owned by a vendor&#x27;s package is judged, one owned by libbrotli1 is not<br>dpkg: Brotli in a vendor&#x27;s packaged Python is judged by its version, with the package named</td><td>—</td></tr>
+<tr><td>複数コピーの検出を外す</td><td><span class="b ok">1</span></td><td class="name">strings: a fixed copy next to another copy of Brotli is not LIKELY_FIXED</td><td>—</td></tr>
+<tr><td>find のエラーを数えない</td><td><span class="b ok">1</span></td><td class="name">find: directories that could not be read are listed as not scanned</td><td>—</td></tr>
+<tr><td>下のマウントを探索に加えない</td><td><span class="b ok">1</span></td><td class="name">mounts: a local disk below a root is searched, a tmpfs is listed as not scanned</td><td>—</td></tr>
+<tr><td>dpkg-query の失敗を無視する</td><td><span class="b ok">1</span></td><td class="name">C01: a failing dpkg-query is not reported as &#x27;none installed&#x27;</td><td>—</td></tr>
+<tr><td>bcc_main で PATH を固定しない</td><td><span class="b ok">1</span></td><td class="name">system tools never come from the caller&#x27;s PATH (a planted stat or timeout is not run)</td><td>—</td></tr>
+</table></div>
+<h3>13.9 5 回目の修正の再測定（4 章の定義のまま）</h3><div class="wrap"><table><tr><th>戻した修正</th><th>第 1 回</th><th>落ちたテスト（第 1 回の実測）</th><th>落ちなかった理由 → 第 2 回</th></tr>
+<tr><td>読み切れないときも FIXED を残す</td><td><span class="b ok">1</span></td><td class="name">round 5: a file name saying fixed is not FIXED when the file cannot be read to the end</td><td>—</td></tr>
+<tr><td>C11 で読み切れなかったことを無視する</td><td><span class="b ok">1</span></td><td class="name">round 5: C11 does not take a partly read file for one without markers</td><td>—</td></tr>
+<tr><td>conda-meta/ があるだけで任せる</td><td><span class="b ok">1</span></td><td class="name">round 5: an empty conda-meta/ next to a library does not hide it; a reported environment does</td><td>—</td></tr>
+<tr><td>読み込む libbrotlidec を何でも C01 で判定とする</td><td><span class="b ok">2</span></td><td class="name">round 5: a program loading a libbrotlidec that C01 did not judge gets that copy judged<br>round 6: a libbrotlidec loaded under a name its file does not have is still judged</td><td>—</td></tr>
+<tr><td>Chromium の ~ を見ない</td><td><span class="b ok">1</span></td><td class="name">round 5: a Chromium version with a Debian-style pre-release suffix is not the release</td><td>—</td></tr>
+<tr><td>--deep の grep のエラーを捨てる</td><td><span class="b ok">1</span></td><td class="name">round 5: --deep search errors and a failing dpkg-query in a container are listed as not scanned</td><td>—</td></tr>
+<tr><td>コンテナの dpkg-query の終了状態を捨てる</td><td><span class="b ok">1</span></td><td class="name">round 5: --deep search errors and a failing dpkg-query in a container are listed as not scanned</td><td>—</td></tr>
+<tr><td>symlink の探索場所を実体に直さない</td><td><span class="b ok">1</span></td><td class="name">round 5: a search root that is a symlink is walked at its target, and said so</td><td>—</td></tr>
+<tr><td>既知データを上限なしで読む</td><td><span class="b ng">0</span></td><td class="name">—</td><td>4 章と同じ。入口の「通常のファイルか」の検査が先に止める二重の守りで、片方だけ外しても落ちない（設計どおり）。</td></tr>
+<tr><td>既知データの警告を出さない</td><td><span class="b ok">1</span></td><td class="name">--data: a FIFO is refused at once (never opened); others&#x27; write access is warned about</td><td>—</td></tr>
+</table></div>
+<h3>13.10 第 1 回の穴を埋めた単体テスト（10 件）</h3><div class="wrap"><table><tr><th></th><th>テスト</th><th>何のためのテストか</th><th>捉える変異</th></tr>
+<tr><td>T1</td><td class="name">mutation 10/27: a chosen program runs with an empty environment, stdin closed, its output capped</td><td>選ばれたプログラムが、環境変数を空にし（呼び出し側の <code>NODE_OPTIONS</code> が届かない）、標準入力を閉じ（打った文字が届かない）、出力 64 KiB までで動くこと。</td><td>環境変数を空にしない<br>標準入力を閉じない<br>出力に上限を付けない</td></tr>
+<tr><td>T2</td><td class="name">mutation 10/27: the plan leaves out what its verdict does not need, and asks for the rest</td><td>判定がそれに依らないもの（OS の libbrotlidec を読むパッケージの node・curl、パッケージのブラウザ）を挙げず、ほかは挙げること（候補とリンクの結果を差し替えて）。</td><td>OS の libbrotlidec を読むパッケージの node も挙げる<br>libbrotlidec を読む curl も挙げる<br>パッケージのブラウザも挙げる</td></tr>
+<tr><td>T3</td><td class="name">mutation 10/27: programs listed but not run are listed as not scanned, with the reason</td><td>挙げたのに実行しなかったものが、理由（<code>--no-exec</code>／選ばれなかった）とともに「走査しなかった範囲」に出ること。実行したものは出ないこと。</td><td>実行しなかったものを「走査しなかった範囲」に出さない</td></tr>
+<tr><td>T4</td><td class="name">mutation 10/27: another owner, a group that can write, the owner of a link, a missing name are facts</td><td>他の所有者・書けるグループ・symlink の所有者（偽の stat で）と、存在しない名前が事実に出ること。</td><td>他の所有者を出さない<br>グループが書けることを出さない<br>symlink 自体の所有者を出さない<br>存在しないものを出さない</td></tr>
+<tr><td>T5</td><td class="name">mutation 10/27: the loader, each library loaded, relative entries and readelf failures are facts</td><td>誰でも書けるディレクトリに置いたローダー（<code>--dynamic-linker</code>）、誰でも書けるライブラリのファイル、相対の探索先、readelf が読めないことが事実に出ること（実際にコンパイル）。</td><td>ローダー（PT_INTERP）を調べない<br>読み込むライブラリを調べない<br>相対の探索先を出さない<br>readelf が読めなかったことを出さない</td></tr>
+<tr><td>T6</td><td class="name">mutation 10/27: /etc/ld.so.preload and what it names are examined</td><td>ld.so.preload（差し替え）とそこに書かれたライブラリの事実が出ること。</td><td>/etc/ld.so.preload を調べない</td></tr>
+<tr><td>T7</td><td class="name">mutation 10/27: a RUNPATH hides the same object&#x27;s RPATH and the RPATH it would inherit</td><td>RUNPATH を持つものは、自分の RPATH も、読み込み元から受け継ぐ RPATH も使わないこと（glibc の ld.so と同じ。偽の readelf で）。</td><td>DT_RUNPATH があっても DT_RPATH を使う<br>DT_RUNPATH を持つものも継承する</td></tr>
+<tr><td>T8</td><td class="name">mutation 10/27: a chain of libraries deeper than the walk follows is said so</td><td>10 段のライブラリの連鎖で、「8 段までしか辿っていない」が事実に出ること。</td><td>深さの上限を記録しない</td></tr>
+<tr><td>T9</td><td class="name">mutation 10/27: a search path inherited through $ORIGIN keeps a &quot;:&quot; in a directory name</td><td><code>x:y</code> の下の <code>$ORIGIN/../lib</code> を受け継いだライブラリが、その中で依存を見つけること。</td><td>受け継ぐ探索先を : でつなぐ（前の版）</td></tr>
+<tr><td>T10</td><td class="name">mutation 10/27: RPATH and NEEDED values with [ or ] are read whole</td><td><code>[</code> を含む RPATH の値とライブラリの名前を、丸ごと読むこと。</td><td>RPATH の値を貪欲に読む（前の版）<br>NEEDED の値を貪欲に読む（前の版）</td></tr>
+</table></div>
+<p>テストを書くための変更: <code>lib/exec.sh</code> に <code>BCC_LD_PRELOAD_FILE</code>（<code>/etc/ld.so.preload</code> の代わりを指せる。テスト用の差し替え口で、<code>BCC_PROC_ROOT</code> と同じ形）と、<code>bcc_build_exec_plan</code> の <code>bcc_dpkg_owner … || true</code>（終了状態を見ないことを明示。bats の <code>set -e</code> の下でも動く。動作は同じ）。</p>
+<h3>13.11 測らなかった変異（4 章の定義のうち 5 個）</h3><ul>
+<li>実行の検査で依存を見ない — 10 章 11 で削除（規則で実行を止める検査そのものが無い）</li>
+<li>root でも既定で実行する — 10 章 11 で削除（<code>--allow-exec</code> と root の既定停止が無い）</li>
+<li>パスを先に実体に直してから検査する — 10 章 11 で削除（<code>bcc_safe_path</code> が無い）</li>
+<li>RUNPATH の空の項目の検査を外す — 10 章 11 で <code>bcc_dep_dirs</code> に移動。13.4 で定義し直した</li>
+<li>実行を / から起動しない — 10 章 11 で <code>lib/exec.sh</code> に移動。13.2 で定義し直した</li>
+</ul>
+<h3>13.12 測っていないこと</h3>
+<ul>
+<li>変異はどれも 1 か所（多くは 1 行）の置き換え。2 つ以上の修正を同時に外す変異は試していない（二重の守りの片方だけを外すと落ちないものがある。13.9 の「既知データを上限なしで読む」）。</li>
+<li><code>docs/design.md</code> 10 章 13 の末尾に残した 3 点は、テストも修正もしていない。</li>
+<li>第 2 回は、第 1 回で落ちなかったもの（と足した 1 個）だけを測った。第 1 回で落ちた 69 個を、足したテストの後で測り直してはいない（テストを足しても、落ちていたものが落ちなくなることはない）。</li>
 </ul>
 
 <p><small class="src">この記録の元: <code>bats --tap tests/unit/*.bats</code>（記録作成時に取り直し）、<code>make lint</code>、<code>tests/integration/run.sh</code> のログ（4 回目後・5 回目後）、作業中の計測。判断の理由は <code>docs/design.md</code> 10 章 9・10。</small></p>

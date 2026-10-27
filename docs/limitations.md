@@ -74,6 +74,8 @@ fix in a single copy of Brotli; otherwise the result is `UNKNOWN` and says what 
 
 - Distribution packages are compared by the distributor's fixed version; a fix released after
   the data snapshot is not known (`NO_FIX_AVAILABLE` may be outdated). Watch the data date.
+- The data is per release line. Bun before 1.0.21 is outside the range of its advisory
+  (GHSA-663w-cv8g-jj2p: 1.0.21 to 1.4.3) but is reported like the other versions before 1.4.4.
 - Debian's `nodejs` uses the system libbrotli (judged through `libbrotli1`); a statically
   linked distribution build is judged by strings because its version may not show backports.
 - Chromium and Firefox thresholds come from the source trees (third_party/brotli,

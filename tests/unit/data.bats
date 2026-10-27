@@ -12,7 +12,7 @@ write_data() {
 }
 
 @test "the shipped data file loads and has a snapshot date" {
-  [ "$BCC_DATA_SNAPSHOT" = 2026-10-26 ]
+  [ "$BCC_DATA_SNAPSHOT" = 2026-10-27 ]
   [ "${#BCC_DATA_ROWS[@]}" -gt 20 ]
 }
 
@@ -47,16 +47,32 @@ write_data() {
   [ "$BCC_J_STATUS" = FIXED ]
 }
 
-@test "judge: Ubuntu without a fix is NO_FIX_AVAILABLE" {
+@test "judge: Ubuntu is fixed by USN-8956-1 (source version compared)" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  bcc_judge deb-src:brotli ubuntu:noble deb 1.1.0-2build2
+  [ "$BCC_J_STATUS" = VULNERABLE ]
+  bcc_judge deb-src:brotli ubuntu:noble deb 1.1.0-2ubuntu0.1
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_judge deb-src:brotli ubuntu:jammy deb 1.0.9-2ubuntu0.1
+  [ "$BCC_J_STATUS" = FIXED ]
+}
+
+@test "judge: a distributor without a fix gives NO_FIX_AVAILABLE (no_fix row)" {
+  write_data '# snapshot: 2026-10-26' 'deb-src:brotli|ubuntu:noble|-|no_fix|https://x|2026-10-26|'
+  bcc_load_data test-data <"$DATA"
   bcc_judge deb-src:brotli ubuntu:noble deb 1.1.0-2build2
   [ "$BCC_J_STATUS" = NO_FIX_AVAILABLE ]
 }
 
-@test "judge: Debian sid 1.2.0-4.1 is not in the archive yet (unreleased)" {
+@test "judge: Debian sid has 1.2.0-4.1; forky waits for it (unreleased)" {
   command -v dpkg >/dev/null || skip "dpkg not available"
   bcc_judge deb-src:brotli debian:sid deb 1.2.0-4
-  [ "$BCC_J_STATUS" = NO_FIX_AVAILABLE ]
+  [ "$BCC_J_STATUS" = VULNERABLE ]
   bcc_judge deb-src:brotli debian:sid deb 1.2.0-4.1
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_judge deb-src:brotli debian:forky deb 1.2.0-4
+  [ "$BCC_J_STATUS" = NO_FIX_AVAILABLE ]
+  bcc_judge deb-src:brotli debian:forky deb 1.2.0-4.1
   [ "$BCC_J_STATUS" = FIXED ]
 }
 

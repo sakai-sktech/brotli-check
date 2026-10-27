@@ -11,7 +11,7 @@ removed or renamed field changes the major part of `tool_version`.
   "tool_version": "0.1.0",
   "cve": "CVE-2026-111497",
 
-  "data_snapshot_date": "2026-10-26",   // "# snapshot:" line of the advisory data
+  "data_snapshot_date": "2026-10-27",   // "# snapshot:" line of the advisory data
   "data_age_days": 0,                   // days between the snapshot and today
   "data_stale": false,                  // true when data_age_days >= 30
   "data_source": "embedded",            // "embedded" or the path given with --data
@@ -61,7 +61,7 @@ removed or renamed field changes the major part of `tool_version`.
       "version": "22.23.3",             // "" when unknown
       "reason": "Below the fixed version 22.23.4.",
       "next_step": "Update to 22.23.4 or later.",
-      "evidence": "version via exec; data: node 22; https://nodejs.org/... (2026-10-26)",
+      "evidence": "version via exec; data: node 22; https://nodejs.org/... (2026-10-27)",
       "confidence": ""                  // set for LIKELY_* (string heuristic)
     }
   ],

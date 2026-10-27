@@ -47,6 +47,30 @@ Could not be retrieved: the CVE.org / NVD records (JavaScript only); packages.ub
 host instead); a primary source stating that HAProxy and Caddy contain no C decoder (see C11 in
 section 6).
 
+### 2.1 Re-checked before release (2026-10-27)
+
+Comparing the data with J-MEDIC's technical note, published on 2026-10-27 (row 18 was a 404 on
+10-26), showed that the note named an Ubuntu notice the data did not have. Every row's primary
+source was then checked again, and the snapshot moved to 2026-10-27. The wrong verdict was
+already in this repository: `docs/sample-output.md`, captured on 10-27 from the Ubuntu 24.04
+integration image, shows `libbrotli1` `1.1.0-2ubuntu0.1` - the fixed version, which the freshly
+built image had pulled from `noble-security` - reported as `NO_FIX_AVAILABLE`, "the distributor
+has not released a fix yet". Neither the review nor the integration tests caught it: with a
+`no_fix` row every installed version gives `NO_FIX_AVAILABLE`, so the expected verdict held.
+Changes:
+
+| Row | Was (2026-10-26) | Now (2026-10-27) → data | Source |
+|---|---|---|---|
+| 10 Ubuntu | "Needs evaluation", no USN → `no_fix` | **Fixed** by USN-8956-1 (2026-10-26) in jammy 1.0.9-2ubuntu0.1, noble 1.1.0-2ubuntu0.1, resolute 1.2.0-3ubuntu0.1, stonking 1.2.0-4ubuntu0.1 (brotli, libbrotli1, python3-brotli) → `fixed`. These are the versions that were candidates in the ubuntu-security-proposed PPA on 10-25. Ubuntu's nodejs is "Not affected" in those releases (it uses the system library, which C01 judges) | ubuntu.com/security/notices/USN-8956-1, ubuntu.com/security/CVE-2026-111497 |
+| 8 Debian sid / forky | 1.2.0-4.1 not in the archive → `unreleased` | sid has 1.2.0-4.1 in the archive → `fixed`; forky still has 1.2.0-4 → stays `unreleased` | security-tracker.debian.org, sources.debian.org/api/src/brotli/ |
+| 3 Bun | source analysis → `analysis` | Bun's advisory GHSA-663w-cv8g-jj2p (published 2026-10-23; affected >= 1.0.21, < 1.4.4; `bun build --compile` executables stay affected until rebuilt) → `fixed`. It was missed on 10-26, when the release notes were read instead; the source analysis agrees with it. Versions before 1.0.21 are outside its range but, as the data is per series, are reported like the others before 1.4.4 | github.com/oven-sh/bun/security/advisories/GHSA-663w-cv8g-jj2p |
+| 18 Background paper | 404 | Published (quick report, 2026-10-27); linked from the README. Its versions agree with the data after this update | jmedic.co.jp/pubdoc/http2shell_report_20261027.html |
+
+Unchanged on re-check: Google Brotli tags (v1.0.10 / v1.1.1 / v1.2.1, published 2026-10-21),
+GHSA-9v8h-qqgm-4m35, PYSEC-2026-4322 / 4323, the Node.js advisory and its list of end-of-life
+lines, Debian bookworm / trixie, Envoy GHSA-3wvj-j6qm-62mr, ISTIO-SECURITY-2026-007, Chromium's
+`README.chromium` (cfa184a9) and Firefox's `moz.yaml` (4792c8e4).
+
 ## 3. Added from measurements on the development host
 
 Requirements not in the request, found by read-only inspection of the development machine
@@ -113,12 +137,14 @@ reasoning.
 
 Meaning of `status`:
 - `fixed` — the primary source names the fixed version
-- `no_fix` — the distributor has not released a fix (all Ubuntu releases) → NO_FIX_AVAILABLE
-- `unreleased` — a fixed version is named but has not reached the archive (Debian sid / forky
-  1.2.0-4.1). Installed version at or above `fixed` → FIXED, below → NO_FIX_AVAILABLE
+- `no_fix` — the distributor has not released a fix (all Ubuntu releases until 2026-10-26; none
+  as of 2026-10-27) → NO_FIX_AVAILABLE
+- `unreleased` — a fixed version is named but has not reached the archive (Debian forky
+  1.2.0-4.1; sid until 2026-10-27). Installed version at or above `fixed` → FIXED, below → NO_FIX_AVAILABLE
 - `derived` — derived from a general statement of the primary source (Node.js end-of-life lines);
   the note is shown as the reason
-- `analysis` — from the product's source tree, not a vendor advisory (Chromium / Firefox / Bun);
+- `analysis` — from the product's source tree, not a vendor advisory (Chromium / Firefox; Bun
+  until 2026-10-27);
   the result says so
 
 ### 5.2 Freshness
@@ -504,3 +530,14 @@ rejected alternative.
     first tab; a candidate whose resolved name ends in a newline loses it to `$(...)`; a value
     inside the ELF (RPATH, NEEDED, PT_INTERP) holding a newline is cut by readelf's line output.
     Each needs a crafted name; in each, what runs is still the program listed.
+14. **Mutation tests of 10.11-10.13 (2026-10-27; test record, chapter 13).** Each fix was reverted
+    on its own in a copy of the tree and the whole unit suite run. Of 91 mutations (including the
+    rounds 4 and 5 ones still applicable), 69 were caught. The 21 gaps were in the consent model
+    (how a chosen program runs; what the plan leaves out; listing what did not run) and in the facts
+    and the dependency walk (owners other than root or you, the loader, each library, relative
+    entries, `/etc/ld.so.preload`, RUNPATH hiding RPATH, the depth limit, `:` in an inherited
+    directory, `[` in an RPATH). Ten tests were added, using a fake `stat` and a fake `readelf` where
+    only root or a hand-made ELF could produce the case; all 22 mutations re-run were caught. Two
+    code changes came with them: `/etc/ld.so.preload` can be replaced by `BCC_LD_PRELOAD_FILE` in
+    tests (as `BCC_PROC_ROOT` replaces `/proc`), and the plan's ignored `bcc_dpkg_owner` status is
+    written `|| true` (no change in behaviour; it lets the function run under bats' `set -e`).

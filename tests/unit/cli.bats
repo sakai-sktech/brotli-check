@@ -146,7 +146,9 @@ EOF
 }
 
 @test "stale data (30 days or more) is warned about" {
-  BCC_TODAY=2026-12-15 run "$BIN" "${ARGS[@]}"
+  # 50 days after the shipped data's snapshot (not a fixed date: the data gets refreshed).
+  snap=$(sed -n 's/^# snapshot: //p' "$REPO_ROOT/data/advisories.tsv")
+  BCC_TODAY=$(date -u -d "$snap + 50 days" +%F) run "$BIN" "${ARGS[@]}"
   [[ $output == *"WARNING: the advisory data is 50 days old"* ]]
 }
 

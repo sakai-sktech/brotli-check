@@ -49,7 +49,7 @@ body {
 .notes code { font-family: inherit; font-weight: 700; }
 .keymsg {
   margin-top: 2mm; background: var(--bg-blue); border-left: 2mm solid var(--blue);
-  padding: 2mm 4mm; font-size: 11.6pt; font-weight: 800; letter-spacing: 0;
+  padding: 2mm 4mm; font-size: 11.6pt; font-weight: 800; letter-spacing: 0; line-height: 1.4;
 }
 .rx {
   margin-top: 1.5mm; background: var(--bg-green); border-left: 2mm solid var(--green);
@@ -72,7 +72,7 @@ body {
 </div>
 
 <div class="fig">
-<svg viewBox="0 0 1120 770" xmlns="http://www.w3.org/2000/svg" font-family="BIZ UDPGothic, Noto Sans CJK JP, sans-serif">
+<svg viewBox="0 0 1120 800" xmlns="http://www.w3.org/2000/svg" font-family="BIZ UDPGothic, Noto Sans CJK JP, sans-serif">
   <defs>
     <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#0d8a66"/>
@@ -80,177 +80,158 @@ body {
   </defs>
 
   <!-- what was done -->
-  <text x="560" y="28" text-anchor="middle" font-size="17" fill="#1c2733">Docker test, 2026-10-26: 5 images, each scanned as root and as an ordinary user → 10/10 as expected</text>
+  <text x="560" y="28" text-anchor="middle" font-size="20" font-weight="800" fill="#1c2733">Docker integration test, 2026-10-27: all 26 items as expected</text>
+  <text x="560" y="56" text-anchor="middle" font-size="15" fill="#465663">5 images × (root, ordinary user) × (--no-exec, --yes) = 20 scans; the container script in each image’s own /bin/sh = 5; bash 4.2 = 1</text>
 
   <!-- column headers (OS) -->
-  <text x="480" y="76" text-anchor="middle" font-size="22" font-weight="800" fill="#1c2733">Ubuntu (LTS)</text>
-  <path d="M220,86 V92 H740 V86" fill="none" stroke="#1e5fa8" stroke-width="2"/>
-  <text x="930" y="76" text-anchor="middle" font-size="22" font-weight="800" fill="#1c2733">Debian</text>
-  <path d="M760,86 V92 H1100 V86" fill="none" stroke="#1e5fa8" stroke-width="2"/>
+  <text x="480" y="100" text-anchor="middle" font-size="22" font-weight="800" fill="#1c2733">Ubuntu (LTS)</text>
+  <path d="M220,110 V116 H740 V110" fill="none" stroke="#1e5fa8" stroke-width="2"/>
+  <text x="930" y="100" text-anchor="middle" font-size="22" font-weight="800" fill="#1c2733">Debian</text>
+  <path d="M760,110 V116 H1100 V110" fill="none" stroke="#1e5fa8" stroke-width="2"/>
 
   <g font-size="22" font-weight="800" fill="#fff" text-anchor="middle">
-    <rect x="216" y="100" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="300" y="131">22.04</text>
-    <rect x="396" y="100" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="480" y="131">24.04</text>
-    <rect x="576" y="100" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="660" y="131">26.04</text>
-    <rect x="756" y="100" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="840" y="130" font-size="20">12 bookworm</text>
-    <rect x="936" y="100" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="1020" y="130" font-size="20">13 trixie</text>
+    <rect x="216" y="124" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="300" y="155">22.04</text>
+    <rect x="396" y="124" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="480" y="155">24.04</text>
+    <rect x="576" y="124" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="660" y="155">26.04</text>
+    <rect x="756" y="124" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="840" y="154" font-size="20">12 bookworm</text>
+    <rect x="936" y="124" width="168" height="46" rx="6" fill="#1e5fa8"/><text x="1020" y="154" font-size="20">13 trixie</text>
   </g>
 
   <!-- legend -->
-  <rect x="4" y="114" width="18" height="18" rx="3" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
-  <text x="28" y="129" font-size="16" fill="#1c2733">Not fixed</text>
-  <rect x="120" y="114" width="18" height="18" rx="3" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
-  <text x="144" y="129" font-size="16" fill="#1c2733">Fixed</text>
+  <rect x="4" y="138" width="18" height="18" rx="3" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
+  <text x="28" y="153" font-size="16" fill="#1c2733">Not fixed</text>
+  <rect x="120" y="138" width="18" height="18" rx="3" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
+  <text x="144" y="153" font-size="16" fill="#1c2733">Fixed</text>
 
   <!-- ===== row 1: copies the OS ships ===== -->
-  <rect x="0" y="162" width="200" height="274" rx="8" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
+  <rect x="0" y="186" width="200" height="268" rx="8" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
   <g text-anchor="middle" fill="#1c2733">
-    <text x="100" y="208" font-size="23" font-weight="800">Shipped</text>
-    <text x="100" y="238" font-size="23" font-weight="800">by the OS</text>
-    <text x="100" y="280" font-size="16">libbrotli1</text>
-    <text x="100" y="302" font-size="16">python3-brotli</text>
-    <line x1="30" y1="330" x2="170" y2="330" stroke="#c8d2dc" stroke-width="1.5"/>
-    <text x="100" y="364" font-size="17" font-weight="700">Result differs</text>
-    <text x="100" y="388" font-size="17" font-weight="700">by OS</text>
+    <text x="100" y="230" font-size="23" font-weight="800">Shipped</text>
+    <text x="100" y="260" font-size="23" font-weight="800">by the OS</text>
+    <text x="100" y="300" font-size="16">libbrotli1</text>
+    <text x="100" y="322" font-size="16">python3-brotli</text>
+    <line x1="30" y1="348" x2="170" y2="348" stroke="#c8d2dc" stroke-width="1.5"/>
+    <text x="100" y="382" font-size="17" font-weight="700">Fixed by apt</text>
+    <text x="100" y="408" font-size="15" fill="#465663">(a fix exists on all 5)</text>
   </g>
 
-  <!-- Ubuntu cells (not fixed, waiting) -->
-  <g>
-    <rect x="216" y="162" width="168" height="176" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
-    <rect x="396" y="162" width="168" height="176" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
-    <rect x="576" y="162" width="168" height="176" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
-    <g font-size="17" fill="#1c2733" text-anchor="middle">
-      <text x="300" y="194">1.0.9-2build6</text>
-      <text x="480" y="194">1.1.0-2build2</text>
-      <text x="660" y="194">1.2.0-3build1</text>
-    </g>
-    <g fill="#c23b2b">
-      <rect x="224" y="208" width="152" height="30" rx="15"/>
-      <rect x="404" y="208" width="152" height="30" rx="15"/>
-      <rect x="584" y="208" width="152" height="30" rx="15"/>
-    </g>
-    <g font-size="13" font-weight="800" fill="#fff" text-anchor="middle">
-      <text x="300" y="228">NO_FIX_AVAILABLE</text>
-      <text x="480" y="228">NO_FIX_AVAILABLE</text>
-      <text x="660" y="228">NO_FIX_AVAILABLE</text>
-    </g>
-    <g font-size="26" font-weight="800" fill="#1c2733" text-anchor="middle">
-      <text x="300" y="284">No fix yet</text>
-      <text x="480" y="284">No fix yet</text>
-      <text x="660" y="284">No fix yet</text>
-    </g>
-    <g font-size="15" fill="#465663" text-anchor="middle">
-      <text x="300" y="318">none from Ubuntu</text>
-      <text x="480" y="318">none from Ubuntu</text>
-      <text x="660" y="318">none from Ubuntu</text>
-    </g>
+  <!-- five cells (all fixed) -->
+  <g fill="#e8f4f0" stroke="#0d8a66" stroke-width="2">
+    <rect x="216" y="186" width="168" height="176" rx="8"/>
+    <rect x="396" y="186" width="168" height="176" rx="8"/>
+    <rect x="576" y="186" width="168" height="176" rx="8"/>
+    <rect x="756" y="186" width="168" height="176" rx="8"/>
+    <rect x="936" y="186" width="168" height="176" rx="8"/>
+  </g>
+  <g font-size="14" fill="#1c2733" text-anchor="middle">
+    <text x="300" y="218">1.0.9-2ubuntu0.1</text>
+    <text x="480" y="218">1.1.0-2ubuntu0.1</text>
+    <text x="660" y="218">1.2.0-3ubuntu0.1</text>
+    <text x="840" y="218">1.0.9-2+deb12u1</text>
+    <text x="1020" y="218">1.1.0-2+deb13u1</text>
+  </g>
+  <g fill="#0d8a66">
+    <rect x="250" y="232" width="100" height="30" rx="15"/>
+    <rect x="430" y="232" width="100" height="30" rx="15"/>
+    <rect x="610" y="232" width="100" height="30" rx="15"/>
+    <rect x="790" y="232" width="100" height="30" rx="15"/>
+    <rect x="970" y="232" width="100" height="30" rx="15"/>
+  </g>
+  <g font-size="14" font-weight="800" fill="#fff" text-anchor="middle">
+    <text x="300" y="252">FIXED</text>
+    <text x="480" y="252">FIXED</text>
+    <text x="660" y="252">FIXED</text>
+    <text x="840" y="252">FIXED</text>
+    <text x="1020" y="252">FIXED</text>
+  </g>
+  <g font-size="28" font-weight="800" fill="#1c2733" text-anchor="middle">
+    <text x="300" y="308">Fixed</text>
+    <text x="480" y="308">Fixed</text>
+    <text x="660" y="308">Fixed</text>
+    <text x="840" y="308">Fixed</text>
+    <text x="1020" y="308">Fixed</text>
+  </g>
+  <g font-size="15" fill="#465663" text-anchor="middle">
+    <text x="300" y="342">USN-8956-1</text>
+    <text x="480" y="342">USN-8956-1</text>
+    <text x="660" y="342">USN-8956-1</text>
+    <text x="840" y="342">DLA-4855-1</text>
+    <text x="1020" y="342">DSA-6582-1</text>
   </g>
 
-  <!-- Ubuntu: what comes next (not yet available) -->
-  <rect x="216" y="352" width="528" height="84" rx="8" fill="#ffffff" stroke="#465663" stroke-width="2" stroke-dasharray="8 6"/>
-  <g font-size="15" fill="#1c2733">
-    <text x="232" y="377">Candidate fixes are only in a testing PPA,</text>
-    <text x="232" y="399">which normal systems do not use.</text>
-    <text x="232" y="423" font-weight="700">→ After the USN (-security): update with apt, restart</text>
-  </g>
-
-  <!-- Debian cells (fixed) -->
-  <g>
-    <rect x="756" y="162" width="168" height="176" rx="8" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
-    <rect x="936" y="162" width="168" height="176" rx="8" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
-    <g font-size="15" fill="#1c2733" text-anchor="middle">
-      <text x="840" y="194">1.0.9-2+deb12u1</text>
-      <text x="1020" y="194">1.1.0-2+deb13u1</text>
-    </g>
-    <rect x="790" y="208" width="100" height="30" rx="15" fill="#0d8a66"/>
-    <rect x="970" y="208" width="100" height="30" rx="15" fill="#0d8a66"/>
-    <g font-size="14" font-weight="800" fill="#fff" text-anchor="middle">
-      <text x="840" y="228">FIXED</text>
-      <text x="1020" y="228">FIXED</text>
-    </g>
-    <g font-size="28" font-weight="800" fill="#1c2733" text-anchor="middle">
-      <text x="840" y="284">Fixed</text>
-      <text x="1020" y="284">Fixed</text>
-    </g>
-    <g font-size="15" fill="#465663" text-anchor="middle">
-      <text x="840" y="318">DLA-4855-1</text>
-      <text x="1020" y="318">DSA-6582-1</text>
-    </g>
-  </g>
-  <rect x="756" y="352" width="348" height="84" rx="8" fill="#ffffff" stroke="#c8d2dc" stroke-width="2"/>
-  <g font-size="15" fill="#1c2733" text-anchor="middle">
-    <text x="930" y="384">Not yet updated: VULNERABLE</text>
-    <text x="930" y="416" font-weight="700">→ update with apt, then restart</text>
-  </g>
+  <!-- on a host not updated yet -->
+  <rect x="216" y="374" width="230" height="80" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
+  <text x="331" y="403" text-anchor="middle" font-size="17" font-weight="800" fill="#1c2733">Host not updated yet</text>
+  <rect x="266" y="415" width="130" height="28" rx="14" fill="#c23b2b"/>
+  <text x="331" y="434" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">VULNERABLE</text>
+  <line x1="456" y1="422" x2="590" y2="422" stroke="#0d8a66" stroke-width="5" marker-end="url(#ah)"/>
+  <text x="523" y="408" text-anchor="middle" font-size="16" font-weight="800" fill="#1c2733">apt update</text>
+  <rect x="604" y="374" width="500" height="80" rx="8" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
+  <text x="854" y="405" text-anchor="middle" font-size="17" font-weight="800" fill="#1c2733">libbrotli1 and python3-brotli become FIXED</text>
+  <text x="854" y="436" text-anchor="middle" font-size="15" fill="#1c2733">old processes: RESTART_REQUIRED → restart</text>
 
   <!-- ===== row 2: copies bundled in products ===== -->
-  <rect x="0" y="460" width="200" height="300" rx="8" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
+  <rect x="0" y="478" width="200" height="312" rx="8" fill="#e9f0f8" stroke="#1e5fa8" stroke-width="2"/>
   <g text-anchor="middle" fill="#1c2733">
-    <text x="100" y="506" font-size="23" font-weight="800">Bundled</text>
-    <text x="100" y="536" font-size="23" font-weight="800">in products</text>
-    <text x="100" y="578" font-size="16">Node.js</text>
-    <text x="100" y="600" font-size="16">PyPI Brotli, etc.</text>
-    <line x1="30" y1="628" x2="170" y2="628" stroke="#c8d2dc" stroke-width="1.5"/>
-    <text x="100" y="662" font-size="17" font-weight="700">OS updates</text>
-    <text x="100" y="686" font-size="17" font-weight="700">do not fix them</text>
+    <text x="100" y="526" font-size="23" font-weight="800">Bundled</text>
+    <text x="100" y="556" font-size="23" font-weight="800">in products</text>
+    <text x="100" y="598" font-size="16">Node.js</text>
+    <text x="100" y="620" font-size="16">PyPI Brotli, etc.</text>
+    <line x1="30" y1="648" x2="170" y2="648" stroke="#c8d2dc" stroke-width="1.5"/>
+    <text x="100" y="682" font-size="17" font-weight="700">OS updates</text>
+    <text x="100" y="706" font-size="17" font-weight="700">do not fix them</text>
   </g>
 
-  <rect x="216" y="460" width="888" height="300" rx="8" fill="#f6f9fc" stroke="#1e5fa8" stroke-width="2"/>
-  <text x="660" y="496" text-anchor="middle" font-size="20" font-weight="800" fill="#1c2733">Same result on all 5 images (the OS does not matter)</text>
+  <rect x="216" y="478" width="888" height="312" rx="8" fill="#f6f9fc" stroke="#1e5fa8" stroke-width="2"/>
+  <text x="660" y="514" text-anchor="middle" font-size="20" font-weight="800" fill="#1c2733">Same result on all 5 images (the OS does not matter)</text>
 
   <!-- lane 1: Node.js -->
-  <rect x="236" y="516" width="300" height="82" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
-  <text x="386" y="548" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">Node.js 22.23.3</text>
-  <rect x="321" y="560" width="130" height="28" rx="14" fill="#c23b2b"/>
-  <text x="386" y="579" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">VULNERABLE</text>
-
-  <line x1="548" y1="557" x2="770" y2="557" stroke="#0d8a66" stroke-width="5" marker-end="url(#ah)"/>
-  <text x="659" y="543" text-anchor="middle" font-size="18" font-weight="800" fill="#1c2733">Fixable today</text>
-  <text x="659" y="582" text-anchor="middle" font-size="15" fill="#465663">no waiting for the OS</text>
-
-  <rect x="784" y="516" width="300" height="82" rx="8" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
-  <text x="934" y="548" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">Node.js 22.23.4</text>
-  <rect x="884" y="560" width="100" height="28" rx="14" fill="#0d8a66"/>
-  <text x="934" y="579" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">FIXED</text>
+  <rect x="236" y="534" width="300" height="82" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
+  <text x="386" y="566" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">Node.js 22.23.3</text>
+  <rect x="321" y="578" width="130" height="28" rx="14" fill="#c23b2b"/>
+  <text x="386" y="597" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">VULNERABLE</text>
+  <line x1="548" y1="575" x2="770" y2="575" stroke="#0d8a66" stroke-width="5" marker-end="url(#ah)"/>
+  <text x="659" y="561" text-anchor="middle" font-size="18" font-weight="800" fill="#1c2733">Update the product</text>
+  <text x="659" y="600" text-anchor="middle" font-size="15" fill="#465663">to 22.23.4 or later</text>
+  <rect x="784" y="534" width="300" height="82" rx="8" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
+  <text x="934" y="566" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">Node.js 22.23.4</text>
+  <rect x="884" y="578" width="100" height="28" rx="14" fill="#0d8a66"/>
+  <text x="934" y="597" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">FIXED</text>
 
   <!-- lane 2: PyPI Brotli -->
-  <rect x="236" y="614" width="300" height="82" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
-  <text x="386" y="646" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">PyPI Brotli 1.2.0</text>
-  <rect x="321" y="658" width="130" height="28" rx="14" fill="#c23b2b"/>
-  <text x="386" y="677" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">VULNERABLE</text>
+  <rect x="236" y="632" width="300" height="82" rx="8" fill="#faeeec" stroke="#c23b2b" stroke-width="2"/>
+  <text x="386" y="664" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">PyPI Brotli 1.2.0</text>
+  <rect x="321" y="676" width="130" height="28" rx="14" fill="#c23b2b"/>
+  <text x="386" y="695" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">VULNERABLE</text>
+  <line x1="548" y1="673" x2="770" y2="673" stroke="#0d8a66" stroke-width="5" marker-end="url(#ah)"/>
+  <text x="659" y="659" text-anchor="middle" font-size="18" font-weight="800" fill="#1c2733">Update the product</text>
+  <text x="659" y="698" text-anchor="middle" font-size="15" fill="#465663">with pip, to 1.2.1 or later</text>
+  <rect x="784" y="632" width="300" height="82" rx="8" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
+  <text x="934" y="664" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">PyPI Brotli 1.2.1</text>
+  <rect x="884" y="676" width="100" height="28" rx="14" fill="#0d8a66"/>
+  <text x="934" y="695" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">FIXED</text>
 
-  <line x1="548" y1="655" x2="770" y2="655" stroke="#0d8a66" stroke-width="5" marker-end="url(#ah)"/>
-  <text x="659" y="641" text-anchor="middle" font-size="18" font-weight="800" fill="#1c2733">Fixable today</text>
-  <text x="659" y="680" text-anchor="middle" font-size="15" fill="#465663">update with pip</text>
-
-  <rect x="784" y="614" width="300" height="82" rx="8" fill="#e8f4f0" stroke="#0d8a66" stroke-width="2"/>
-  <text x="934" y="646" text-anchor="middle" font-size="21" font-weight="800" fill="#1c2733">PyPI Brotli 1.2.1</text>
-  <rect x="884" y="658" width="100" height="28" rx="14" fill="#0d8a66"/>
-  <text x="934" y="677" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">FIXED</text>
-
-  <text x="660" y="734" text-anchor="middle" font-size="15" fill="#465663">urllib3 next to 1.2.0 gives EXPOSURE: a hint of a path for attacker data, not a vulnerability by itself</text>
+  <text x="660" y="756" text-anchor="middle" font-size="15" fill="#465663">urllib3 next to 1.2.0 gives EXPOSURE: a hint of a path for attacker data, not a vulnerability by itself</text>
 </svg>
 </div>
 
 <div class="notes">
   <h2>How to read this page</h2>
   <ol>
-    <li><b>Rows are where the copy lives; columns are the OS.</b> In the top row (shipped by the OS) the result depends on the OS. Ubuntu 22.04, 24.04 and 26.04 are all
-      <span class="accent">NO_FIX_AVAILABLE (waiting for the distributor)</span>: the installed 1.0.9, 1.1.0 and 1.2.0 are all inside the affected range 1.0.3–1.2.0, Ubuntu's CVE page says “Needs evaluation”, and there is no USN (26.10 is the same).
-      In the bottom row (bundled in products) the OS does not matter: the old version is VULNERABLE, the fixed one FIXED.
-      The test installs unfixed copies on purpose, so every run ends with exit status 1 (the correct result).</li>
+    <li><b>Rows are where the copy lives; columns are the OS.</b> In the top row (shipped by the OS), all five images built on 2026-10-27 report <code>FIXED</code>: Ubuntu fixed 22.04, 24.04, 26.04 and 26.10 on 2026-10-26 (USN-8956-1), and Debian 12 and 13 were already fixed. A host not updated since then has them <span class="accent">VULNERABLE</span>: update with apt and restart what uses them.
+      The bottom row (bundled in products) is the same on every OS. Unfixed copies were placed on purpose, so every run ends with exit status 1 (the correct result).</li>
     <li><b>Read the four-line Summary at the end.</b> “Needs update” = VULNERABLE + LIKELY_VULNERABLE; “Needs restart” = RESTART_REQUIRED;
       “Needs human review” = NO_FIX_AVAILABLE + VENDORED_COPY + UNKNOWN + LIKELY_FIXED; then “Not scanned”.
-      Example: an Ubuntu host with no bundled copies typically shows “Needs update: 0, Needs human review: 2” and exit status 2. Those two are libbrotli1 and python3-brotli, and they mean <b>“waiting for the distributor”</b>.</li>
-    <li><b>Exit status 0 does not mean “safe”.</b> It only means nothing needing action was found in the scanned ranges. The tool does not check for intrusion, and updating does not remove traces of an intrusion that happened before the update.
-      The advisory data is a snapshot as of 2026-10-26; Ubuntu's status will change (scan again when the USN is out).</li>
+      Example: the Ubuntu 24.04 sample output (docs/sample-output.md) shows “Needs update: 2, Needs restart: 0, Needs human review: 0”: the Node.js 22.23.3 and PyPI Brotli 1.2.0 placed on purpose.</li>
+    <li><b>Exit status 0 does not mean “safe”.</b> It only means nothing needing action was found in the scanned ranges. The tool does not judge whether attacker data can reach a decoder it found (EXPOSURE is a hint), and does not check for intrusion.
+      The advisory data is a snapshot as of 2026-10-27 (with the data of 2026-10-26, Ubuntu's packages were reported as NO_FIX_AVAILABLE; docs/design.md 2.1).</li>
   </ol>
-  <div class="keymsg">On Ubuntu, only the OS's own copy has to wait;<br>bundled copies can be fixed today on any OS.</div>
-  <div class="rx"><b>Next step</b>Clear “Needs update” and “Needs restart” in the Summary first; on Ubuntu, once the USN is out, update with apt, restart, and scan again.</div>
+  <div class="keymsg">On every OS, the OS's own copy is fixed by apt;<br>bundled copies stay until each product is updated.</div>
+  <div class="rx"><b>Next step</b>Update with apt and restart what uses it, scan again, then update the bundled copies still under “Needs update”, product by product.</div>
 </div>
 
 <div class="foot">
-  <span>brotli-cve-check verification (CVE-2026-111497) | 2026-10-26 | data: snapshot of that date</span>
+  <span>brotli-cve-check verification (CVE-2026-111497) | 2026-10-27 | data: snapshot of that date</span>
   <span>Source: docs/verification.md etc.</span>
 </div>
 

@@ -12,7 +12,9 @@ First version.
 - String heuristic for bundled copies (`_ERROR_FORMAT_BLOCK_SWITCH`), verified on Brotli
   1.2.0/1.2.1 builds, official Node.js binaries and PyPI wheels.
 - Text (English/Japanese) and JSON output; exit codes 0-3.
-- Advisory data snapshot 2026-10-26.
+- Advisory data snapshot 2026-10-27 (every primary source checked again on that date): Ubuntu
+  is fixed by USN-8956-1 (2026-10-26), Debian unstable has the fix, Bun is judged by its advisory
+  GHSA-663w-cv8g-jj2p (docs/design.md 2.1).
 - Found programs (node, bun, envoy, browsers `--version`; curl `-V`) run only with your consent:
   the tool lists them first, with who besides root or you could change each program or what it
   loads, and asks (all, none, by number); without a terminal, `--yes` or `--no-exec`. The report

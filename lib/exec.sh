@@ -210,9 +210,11 @@ bcc_exec_facts() {
         ;;
     esac
   done
-  if [[ -e /etc/ld.so.preload ]]; then
-    paths+=(/etc/ld.so.preload)
-    read -r -a pre <<<"$(bcc_read_file /etc/ld.so.preload 65536 | tr ':\n' '  ')"
+  # (BCC_LD_PRELOAD_FILE stands in for it in tests, as BCC_PROC_ROOT does for /proc.)
+  local preload=${BCC_LD_PRELOAD_FILE:-/etc/ld.so.preload}
+  if [[ -e $preload ]]; then
+    paths+=("$preload")
+    read -r -a pre <<<"$(bcc_read_file "$preload" 65536 | tr ':\n' '  ')"
     for p in ${pre[@]+"${pre[@]}"}; do paths+=("$p"); done
   fi
   for p in "${paths[@]}"; do
@@ -269,7 +271,7 @@ bcc_build_exec_plan() {
   declare -gA BCC_PLAN_BIN=() BCC_PLAN_ARG=() BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=() BCC_PROBE_OUT=() BCC_PROBE_RC=()
   bcc_c04_candidates
   for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
-    bcc_dpkg_owner "$bin" >/dev/null
+    bcc_dpkg_owner "$bin" >/dev/null || true # (fills BCC_DPKG_CACHE)
     if [[ -n ${BCC_DPKG_CACHE[$bin]:-} ]]; then
       bcc_link_prefetch "$bin"
       rc=${BCC_LINK_RC[$bin]}

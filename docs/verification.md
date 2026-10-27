@@ -39,6 +39,7 @@ so every run ends with exit status 1. What they show:
 | `make lint`, `make test` after the Codex review, round 4 | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 123 / 123 passed |
 | the same after round 5 | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 134 / 134 passed |
 | the same after the consent model and round 6 (2026-10-27) | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 153 / 153 passed |
+| the same after fixing the automatic security review's findings (2026-10-27, design 10.13) | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 161 / 161 passed; the 8 new tests fail on the code before the fix |
 
 ## Integration tests (`tests/integration/`)
 
@@ -66,8 +67,8 @@ Notes:
   `--yes` they are run (the facts in the report name those owners); with `--no-exec` the version
   comes from `include/node/node_version.h`. The verdicts were the same either way.
 - Run after the fixes for the Codex review, round 4, again after round 5 (2026-10-26), and after
-  the consent model and round 6 (2026-10-27, bash 4.2 with `--yes`), with Docker 28.3.0: every row
-  ok, bash 4.2 ok. The previous version of the C14 script, run the same way, printed no Node.js
+  the consent model and round 6 (2026-10-27, bash 4.2 with `--yes`), and after the fixes of design
+  10.13 (2026-10-27), with Docker 28.3.0: every row ok, bash 4.2 ok. The previous version of the C14 script, run the same way, printed no Node.js
   line and no `END` (the defect of finding 10).
 - **bash 4.2** (`bash:4.2`, digest `sha256:75a8dcd5c2a865e69116225dc486e2dbdd2dda1434759fa7f1fc50c72eeadbea`,
   with GNU coreutils, findutils, grep, sed, gawk and binutils added): a PyPI Brotli 1.2.0 record

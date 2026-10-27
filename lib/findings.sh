@@ -21,9 +21,13 @@ bcc_init_findings() {
   declare -gA BCC_C06_SITES=() BCC_C06_CONDA_ENVS=()
   # Execution plan, consent and results (lib/exec.sh); caches for facts and linkage.
   BCC_PLAN=()
-  declare -gA BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=() BCC_PROBE_OUT=() BCC_PROBE_RC=()
+  declare -gA BCC_PLAN_BIN=() BCC_PLAN_ARG=() BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=()
+  declare -gA BCC_PROBE_OUT=() BCC_PROBE_RC=()
   declare -gA BCC_UNAME_CACHE=() BCC_PATHFACTS_CACHE=() BCC_DEPWALK_CACHE=() BCC_DEPWALK_RC=()
   declare -gA BCC_LINK_CACHE=() BCC_LINK_RC=() BCC_DYN_CACHE=() BCC_FIND_CACHE=()
+  # Facts and dependency-walk records are kept in arrays, never joined with a separator (a
+  # path may hold any byte but NUL); the caches above hold ranges "start count" of them.
+  BCC_FACT_POOL=() BCC_WALK_K=() BCC_WALK_A=() BCC_WALK_B=()
 }
 
 # Split a tab-separated record into the global array BCC_F, keeping empty fields
@@ -38,12 +42,14 @@ bcc_split_tab() {
   BCC_F+=("$rest")
 }
 
-# Fields must not carry tabs or newlines.
+# Fields must not carry tabs or newlines. They are shown as "?", as control characters are
+# in the text report and in the list of programs to run: one path reads the same everywhere,
+# and a space would make it look like another path.
 bcc_clean_field() {
   local s=$1
-  s=${s//$'\t'/ }
-  s=${s//$'\n'/ }
-  s=${s//$'\r'/ }
+  s=${s//$'\t'/?}
+  s=${s//$'\n'/?}
+  s=${s//$'\r'/?}
   printf '%s' "$s"
 }
 

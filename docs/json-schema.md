@@ -112,3 +112,7 @@ removed or renamed field changes the major part of `tool_version`.
   `note` part of `evidence` (from the data file) is always English.
 - Process command lines appear in `evidence` only with `--show-cmdline`.
 - Strings are escaped per RFC 8259; control characters appear as `\u00XX`.
+- `execution[].path` and `execution[].facts` hold paths exactly as found (a newline appears as
+  `\n`). In `findings`, `info` and `skipped`, tabs, newlines and carriage returns in a field are
+  shown as `?` (the fields are kept tab-separated inside the tool); the text report shows every
+  control character as `?`.

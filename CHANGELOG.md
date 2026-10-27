@@ -33,3 +33,8 @@ First version.
   targets (and Electron snaps through `/snap/NAME/current`); a `--data` file that others can
   change is reported at the top; a file that loads libbrotlidec but carries its own decoder is
   judged too; paths with newlines stay whole; failures of snap, flatpak and ss are listed.
+- Found paths holding control characters, newlines or tabs (docs/design.md 10.13): the list of
+  programs to run is filtered like the report (control characters, tabs and newlines as `?`;
+  findings too); the facts stay whole and correct; the program that runs is always the one listed
+  (a tab in a path used to make the tool run another file); libraries searched through `$ORIGIN`,
+  directories with `[` in their names and long symlink chains are reported as they are.

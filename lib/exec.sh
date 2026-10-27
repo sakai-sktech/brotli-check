@@ -35,6 +35,29 @@ bcc_glob() {
   return 0
 }
 
+# The glibc-hwcaps subdirectories of DIR (ld.so tries them first), into BCC_GLOB. DIR is
+# taken literally: a "[" or "*" in a found path is part of a name, not a pattern.
+bcc_hwcaps_dirs() {
+  local had=0
+  shopt -q nullglob && had=1
+  shopt -s nullglob
+  BCC_GLOB=("$1"/glibc-hwcaps/*)
+  ((had)) || shopt -u nullglob
+  return 0
+}
+
+# Split PATH at "/" into BCC_PARTS, dropping empty components. A name may hold any byte but
+# "/" and NUL ("IFS=/ read" would stop at a newline).
+bcc_path_parts() {
+  local rest=$1
+  BCC_PARTS=()
+  while [[ $rest == */* ]]; do
+    [[ -z ${rest%%/*} ]] || BCC_PARTS+=("${rest%%/*}")
+    rest=${rest#*/}
+  done
+  [[ -z $rest ]] || BCC_PARTS+=("$rest")
+}
+
 # Name of a user or group id, for the facts (cached; the id itself when unknown).
 bcc_user_name() {
   if [[ -z ${BCC_UNAME_CACHE[u$1]+x} ]]; then
@@ -57,12 +80,14 @@ bcc_group_name() {
 # walked one component at a time from "/", following symlinks where they are, and every
 # directory looked up in and the final file are examined. Appends facts to BCC_FACTS:
 # another owner, a group that can write, or anyone who can write (a sticky directory such
-# as /tmp counts through the owners of what is in it). Cached per path (main shell).
+# as /tmp counts through the owners of what is in it). Cached per path (main shell), as a
+# range of BCC_FACT_POOL: facts name paths, which may hold newlines or any separator.
 bcc_path_facts() {
-  local key=$1 cur=/ c t n=0 uid f
-  local -a comps=() lcomps=() found=()
+  local key=$1 cur=/ c t l n=0 uid s cnt
+  local -a comps=() found=()
   if [[ -z ${BCC_PATHFACTS_CACHE[$key]+x} ]]; then
-    IFS=/ read -r -a comps <<<"${1#/}"
+    bcc_path_parts "${1#/}"
+    comps=(${BCC_PARTS[@]+"${BCC_PARTS[@]}"})
     while :; do
       bcc_node_facts "$cur" dir
       found+=(${BCC_NODE_FACTS[@]+"${BCC_NODE_FACTS[@]}"})
@@ -70,7 +95,7 @@ bcc_path_facts() {
       c=${comps[0]}
       comps=("${comps[@]:1}")
       case $c in
-        '' | .) continue ;;
+        .) continue ;;
         ..)
           cur=${cur%/*}
           [[ -n $cur ]] || cur=/
@@ -85,12 +110,17 @@ bcc_path_facts() {
           bcc_user_name "$uid"
           found+=("$(bcc_msg f_owner "$t" "$BCC_NAME")")
         fi
-        ((++n <= 40)) || break
-        t=$(readlink -- "$t") || break
-        lcomps=()
-        IFS=/ read -r -a lcomps <<<"${t#/}"
+        # The kernel gives up after 40 links (ELOOP); so does this walk, and says so.
+        # (The "x" keeps a target that ends in a newline: $(...) drops trailing ones.)
+        if ((++n > 40)) || ! l=$(readlink -- "$t" && printf x); then
+          found+=("$(bcc_msg f_link_stop "$t")")
+          break
+        fi
+        l=${l%x}
+        t=${l%$'\n'}
+        bcc_path_parts "${t#/}"
         [[ $t == /* ]] && cur=/
-        comps=(${lcomps[@]+"${lcomps[@]}"} ${comps[@]+"${comps[@]}"})
+        comps=(${BCC_PARTS[@]+"${BCC_PARTS[@]}"} ${comps[@]+"${comps[@]}"})
         continue
       fi
       if [[ ! -e $t ]]; then
@@ -106,13 +136,11 @@ bcc_path_facts() {
         break
       fi
     done
-    BCC_PATHFACTS_CACHE[$key]=$(printf '%s\037' ${found[@]+"${found[@]}"})
+    BCC_PATHFACTS_CACHE[$key]="${#BCC_FACT_POOL[@]} ${#found[@]}"
+    BCC_FACT_POOL+=(${found[@]+"${found[@]}"})
   fi
-  local -a cached=()
-  IFS=$'\037' read -r -a cached <<<"${BCC_PATHFACTS_CACHE[$key]}"
-  for f in ${cached[@]+"${cached[@]}"}; do
-    [[ -n $f ]] && BCC_FACTS+=("$f")
-  done
+  read -r s cnt <<<"${BCC_PATHFACTS_CACHE[$key]}"
+  ((cnt == 0)) || BCC_FACTS+=("${BCC_FACT_POOL[@]:s:cnt}")
   return 0
 }
 
@@ -145,17 +173,18 @@ bcc_node_facts() {
 # /etc/ld.so.preload. Fills BCC_FACTS (deduplicated); when nothing was found, one fact says
 # that only root (or you) can change them.
 bcc_exec_facts() {
-  local file=$1 walk rc=0 rec kind a b p sub
+  local file=$1 rc=0 s c i kind a b p sub
   local -a paths=("$file") pre=()
   local -A seen=()
   BCC_FACTS=()
   bcc_dep_walk_prefetch "$file"
-  walk=${BCC_DEPWALK_CACHE[$file]}
   rc=${BCC_DEPWALK_RC[$file]}
   if ((rc == 2)); then
     BCC_FACTS+=("$(bcc_msg f_no_readelf)")
   fi
-  while IFS=$'\t' read -r kind a b; do
+  read -r s c <<<"${BCC_DEPWALK_CACHE[$file]}"
+  for ((i = s; i < s + c; i++)); do
+    kind=${BCC_WALK_K[i]} a=${BCC_WALK_A[i]} b=${BCC_WALK_B[i]}
     case $kind in
       I) paths+=("$a") ;;
       N) [[ -n $b ]] && paths+=("$b") ;;
@@ -166,7 +195,7 @@ bcc_exec_facts() {
           [[ -n $p ]] || p=/
         done
         paths+=("$p")
-        bcc_glob "$a/glibc-hwcaps/*"
+        bcc_hwcaps_dirs "$a"
         for sub in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do paths+=("$sub"); done
         ;;
       X)
@@ -180,7 +209,7 @@ bcc_exec_facts() {
         esac
         ;;
     esac
-  done <<<"$walk"
+  done
   if [[ -e /etc/ld.so.preload ]]; then
     paths+=(/etc/ld.so.preload)
     read -r -a pre <<<"$(bcc_read_file /etc/ld.so.preload 65536 | tr ':\n' '  ')"
@@ -205,16 +234,30 @@ bcc_exec_facts() {
   BCC_FACTS=("${out[@]}")
 }
 
-# Ask to run BIN with ARG for the check PURPOSE (once per BIN and ARG).
+# Ask to run BIN with ARG for the check PURPOSE (once per BIN and ARG). The key only
+# identifies the entry and is never split: a path may hold a tab, so what runs is taken from
+# BCC_PLAN_BIN and BCC_PLAN_ARG. The facts are a range of BCC_FACT_POOL (bcc_plan_facts).
 bcc_plan_add() {
   local bin=$1 arg=$2 purpose=$3 key
   case " $BCC_PROBE_ARGS " in *" $arg "*) ;; *) bcc_die "internal error: probe argument not allowed: $arg" ;; esac
   key=$bin$'\t'$arg
   [[ -z ${BCC_PLAN_PURPOSE[$key]+x} ]] || return 0
   BCC_PLAN+=("$key")
+  BCC_PLAN_BIN[$key]=$bin
+  BCC_PLAN_ARG[$key]=$arg
   BCC_PLAN_PURPOSE[$key]=$purpose
   bcc_exec_facts "$bin"
-  BCC_PLAN_FACTS[$key]=$(printf '%s\037' "${BCC_FACTS[@]}")
+  BCC_PLAN_FACTS[$key]="${#BCC_FACT_POOL[@]} ${#BCC_FACTS[@]}"
+  BCC_FACT_POOL+=("${BCC_FACTS[@]}")
+}
+
+# The facts of the plan entry KEY, into BCC_PF.
+bcc_plan_facts() {
+  local s c
+  BCC_PF=()
+  read -r s c <<<"${BCC_PLAN_FACTS[$1]:-0 0}"
+  ((c == 0)) || BCC_PF=("${BCC_FACT_POOL[@]:s:c}")
+  return 0
 }
 
 # The programs whose version a check would read by running them. Programs whose verdict does
@@ -223,7 +266,7 @@ bcc_plan_add() {
 bcc_build_exec_plan() {
   local bin i rc
   BCC_PLAN=()
-  declare -gA BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=() BCC_PROBE_OUT=() BCC_PROBE_RC=()
+  declare -gA BCC_PLAN_BIN=() BCC_PLAN_ARG=() BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=() BCC_PROBE_OUT=() BCC_PROBE_RC=()
   bcc_c04_candidates
   for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
     bcc_dpkg_owner "$bin" >/dev/null
@@ -257,21 +300,25 @@ bcc_build_exec_plan() {
   return 0
 }
 
-# The plan, numbered, with its facts (on stderr, for the question).
+# The plan, numbered, with its facts (for the question, on stderr). Paths come from the
+# scanned host and this is the screen the user decides on: each value is kept on its line
+# (bcc_line_safe) and control characters are shown as "?" (bcc_text_safe), as in the report.
 bcc_print_plan() {
   local i=0 key f
-  local -a facts=()
-  bcc_msg x_plan_head
-  printf '\n\n'
-  for key in "${BCC_PLAN[@]}"; do
-    i=$((i + 1))
-    printf ' %2d. %s %s  (%s)\n' "$i" "${key%%$'\t'*}" "${key#*$'\t'}" "${BCC_PLAN_PURPOSE[$key]}"
-    IFS=$'\037' read -r -a facts <<<"${BCC_PLAN_FACTS[$key]}"
-    for f in ${facts[@]+"${facts[@]}"}; do
-      [[ -n $f ]] && printf '       - %s\n' "$f"
+  {
+    bcc_msg x_plan_head
+    printf '\n\n'
+    for key in "${BCC_PLAN[@]}"; do
+      i=$((i + 1))
+      printf ' %2d. %s %s  (%s)\n' "$i" "$(bcc_line_safe "${BCC_PLAN_BIN[$key]}")" "${BCC_PLAN_ARG[$key]}" \
+        "${BCC_PLAN_PURPOSE[$key]}"
+      bcc_plan_facts "$key"
+      for f in ${BCC_PF[@]+"${BCC_PF[@]}"}; do
+        printf '       - %s\n' "$(bcc_line_safe "$f")"
+      done
     done
-  done
-  printf '\n'
+    printf '\n'
+  } | bcc_text_safe
 }
 
 # Parse an answer: y/yes (all), n/no/empty (none), or numbers and ranges ("1,3", "2-4 6").
@@ -338,8 +385,8 @@ bcc_exec_run() {
   local key bin arg out rc
   for key in ${BCC_PLAN[@]+"${BCC_PLAN[@]}"}; do
     [[ -n ${BCC_PLAN_OK[$key]:-} ]] || continue
-    bin=${key%%$'\t'*}
-    arg=${key#*$'\t'}
+    bin=${BCC_PLAN_BIN[$key]}
+    arg=${BCC_PLAN_ARG[$key]}
     rc=0
     out=$( (cd / && timeout -k 2 "$BCC_PROBE_TIMEOUT" env -i PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C "$bin" "$arg" </dev/null 2>&1) | head -c 65536) || rc=$?
     BCC_PROBE_OUT[$key]=$out

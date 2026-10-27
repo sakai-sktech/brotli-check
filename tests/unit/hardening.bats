@@ -20,6 +20,22 @@ safe_dir() {
   chmod 755 "$REPO_ROOT/tests/tmp" "$SAFE"
 }
 
+# Is FACT, exactly, among BCC_FACTS? (Facts may hold newlines.)
+has_fact() {
+  local f
+  for f in ${BCC_FACTS[@]+"${BCC_FACTS[@]}"}; do [[ $f == "$1" ]] && return 0; done
+  return 1
+}
+
+# The dependency-walk records of FILE, one "kind<TAB>a<TAB>b" line each (for assertions).
+walk_records() {
+  local s c i
+  read -r s c <<<"${BCC_DEPWALK_CACHE[$1]}"
+  for ((i = s; i < s + c; i++)); do
+    printf '%s\t%s\t%s\n' "${BCC_WALK_K[i]}" "${BCC_WALK_A[i]}" "${BCC_WALK_B[i]}"
+  done
+}
+
 # --- 1: as root, found programs are not run by default; loaded code is checked too -------
 
 @test "consent: --no-exec runs nothing, --yes runs everything listed (as root too)" {
@@ -568,7 +584,7 @@ EOS
   readelf -d "$T/app/lib/libA.so" | grep -qE 'RPATH|RUNPATH' && skip "toolchain added a search path to libA.so"
   bcc_ldcache_load
   bcc_dep_walk_prefetch "$T/app/bin/prog"
-  [[ ${BCC_DEPWALK_CACHE["$T/app/bin/prog"]} == *$'N\tlibX.so\t'"$T/app/lib/libX.so"* ]]
+  grep -qxF "N"$'\t'"libX.so"$'\t'"$T/app/lib/libX.so" <<<"$(walk_records "$T/app/bin/prog")"
 }
 
 @test "round 6: the end of a read is never taken from the file's own bytes" {
@@ -723,4 +739,126 @@ EOS
   BCC_IDX_LIB=("$T/opt/app/libbrotlidec.so.1.2.0")
   bcc_check_c09_libs
   [[ ${BCC_SKIPPED[*]} == *"$T/opt/app/libbrotlidec.so.1.2.0"$'\t'"could not be read to the end"* ]]
+}
+
+# --- Automatic security review after round 6 (2026-10-27) ---------------------------------
+# The list of programs to run is the screen the user decides on, so what it shows must be
+# what is there, and what runs must be what it showed - whatever bytes a found path holds.
+
+@test "review 10/27: control characters in a found path never reach the terminal in the consent list" {
+  d="$T/esc"$'\033'"]0;title"$'\a'$'\033'"[2J"$'\xc2\x9b'"31m/bin"
+  make_fake_elf "$d/bun"
+  bcc_plan_add "$d/bun" --version "C05 bun"
+  run bcc_exec_consent </dev/null
+  [ "$status" -eq 3 ]
+  [[ $output != *$'\033'* && $output != *$'\a'* && $output != *$'\xc2\x9b'* ]]
+  [[ $output == *" 1. $T/esc?]0;title??[2J?31m/bin/bun --version  (C05 bun)"* ]]
+}
+
+@test "review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON" {
+  n="$T/a"$'\n'"b"
+  mkdir -p "$n/open/bin" "$n/open/sub"
+  chmod 777 "$n/open" "$n/open/sub"
+  make_fake_elf "$n/open/bin/bun"
+  BCC_FACTS=()
+  bcc_path_facts "$n/open/bin/bun"
+  [ "${#BCC_FACTS[@]}" -eq 1 ]
+  [ "${BCC_FACTS[0]}" = "$n/open can be written by anyone" ]
+  # A fact with a newline in it does not hide the ones after it.
+  BCC_FACTS=()
+  bcc_path_facts "$n/open/sub"
+  [ "${#BCC_FACTS[@]}" -eq 2 ]
+  [ "${BCC_FACTS[1]}" = "$n/open/sub can be written by anyone" ]
+  bcc_plan_add "$n/open/bin/bun" --version "C05 bun"
+  BCC_NO_EXEC=1
+  run bcc_render_exec_text
+  [[ $output == *"[NOT RUN] $T/a?b/open/bin/bun --version (--no-exec)"* ]]
+  [[ $output == *$'\n'"    - $T/a?b/open can be written by anyone"* ]]
+  run bcc_render_exec_json
+  [[ $output == *"\"path\":\"$T/a\\nb/open/bin/bun\""* ]]
+  [[ $output == *"\"$T/a\\nb/open can be written by anyone\""* ]]
+}
+
+@test "review 10/27: libraries searched through \$ORIGIN under a path with a newline are examined there" {
+  command -v cc >/dev/null || skip "no C compiler"
+  command -v readelf >/dev/null || skip "readelf not available"
+  n="$T/x"$'\n'"y"
+  mkdir -p "$n/bin" "$n/lib"
+  chmod 777 "$n/lib"
+  printf 'int main(void){return 0;}\n' >"$T/m.c"
+  # shellcheck disable=SC2016  # $ORIGIN is for the linker
+  cc -Wl,-rpath,'$ORIGIN/../lib' -o "$n/bin/prog" "$T/m.c"
+  bcc_ldcache_load
+  bcc_exec_facts "$n/bin/prog"
+  has_fact "$n/lib can be written by anyone"
+}
+
+@test "review 10/27: what runs is the program listed, even with a tab in its path" {
+  d="$T/evil"$'\t'"dir/bin"
+  mkdir -p "$d"
+  printf '#!/bin/sh\necho "listed $*"\n' >"$d/bun"
+  # What splitting the entry at its first tab would have run instead.
+  printf '#!/bin/sh\necho "split $*"\n' >"$T/evil"
+  chmod +x "$d/bun" "$T/evil"
+  bcc_plan_add "$d/bun" --version "C05 bun"
+  run bcc_print_plan
+  [[ $output == *" 1. $T/evil?dir/bin/bun --version  (C05 bun)"* ]]
+  BCC_YES=1
+  bcc_exec_consent
+  bcc_exec_run
+  run bcc_probe "$d/bun" --version
+  [ "$output" = "listed --version" ]
+}
+
+@test "review 10/27: a symlink is followed to its exact target; a chain too long to follow is said so" {
+  w="$T/w"$'\n'
+  mkdir -p "$w"
+  chmod 777 "$w"
+  ln -s "$w" "$T/l"
+  BCC_FACTS=()
+  bcc_path_facts "$T/l"
+  has_fact "$w can be written by anyone"
+  # The kernel gives up after 40 links; the walk does too, and says so.
+  ln -s loop2 "$T/loop1"
+  ln -s loop1 "$T/loop2"
+  BCC_FACTS=()
+  bcc_path_facts "$T/loop1/x"
+  [[ ${BCC_FACTS[*]} == *"$T/loop1: symbolic links were not followed further"* ]]
+}
+
+@test "review 10/27: library lookups under different search paths are kept apart" {
+  command -v cc >/dev/null || skip "no C compiler"
+  command -v readelf >/dev/null || skip "readelf not available"
+  # One directory whose name holds ":" (reached through $ORIGIN), and two directories
+  # that a RUNPATH lists with ":" - joined, both read the same.
+  one="$T/a:$T/b"
+  mkdir -p "$one" "$T/b"
+  printf 'int q(void){return 0;}\n' >"$T/q.c"
+  printf 'int q(void);\nint main(void){return q();}\n' >"$T/m.c"
+  cc -shared -fPIC -o "$T/b/libq.so" "$T/q.c"
+  cp "$T/b/libq.so" "$one/libq.so"
+  # shellcheck disable=SC2016  # $ORIGIN is for the linker
+  cc -o "$one/p1" "$T/m.c" -L"$T/b" -lq -Wl,-rpath,'$ORIGIN'
+  cc -o "$T/p2" "$T/m.c" -L"$T/b" -lq -Wl,-rpath,"$T/a:$T/b"
+  bcc_ldcache_load
+  bcc_dep_walk_prefetch "$one/p1"
+  bcc_dep_walk_prefetch "$T/p2"
+  grep -qxF "N"$'\t'"libq.so"$'\t'"$one/libq.so" <<<"$(walk_records "$one/p1")"
+  grep -qxF "N"$'\t'"libq.so"$'\t'"$T/b/libq.so" <<<"$(walk_records "$T/p2")"
+}
+
+@test "review 10/27: a [ or * in a library directory is part of its name, not a pattern" {
+  d="$T/app [1]/lib"
+  mkdir -p "$d/glibc-hwcaps/x86-64-v3" "$T/app 1/lib/glibc-hwcaps/x86-64-v3"
+  : >"$d/glibc-hwcaps/x86-64-v3/libq.so"
+  : >"$T/app 1/lib/glibc-hwcaps/x86-64-v3/libq.so"
+  [ "$(bcc_dep_find libq.so "$d")" = "$d/glibc-hwcaps/x86-64-v3/libq.so" ]
+  command -v cc >/dev/null || skip "no C compiler"
+  command -v readelf >/dev/null || skip "readelf not available"
+  chmod 777 "$d/glibc-hwcaps/x86-64-v3"
+  printf 'int main(void){return 0;}\n' >"$T/m.c"
+  cc -Wl,-rpath,"$d" -o "$T/prog" "$T/m.c"
+  bcc_ldcache_load
+  bcc_exec_facts "$T/prog"
+  has_fact "$d/glibc-hwcaps/x86-64-v3 can be written by anyone"
 }

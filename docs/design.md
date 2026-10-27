@@ -462,3 +462,45 @@ rejected alternative.
     free of Brotli; failures of `snap list`, `flatpak list` and `ss` are listed as not scanned;
     Electron snaps are found through `/snap/NAME/current` (a symlink, which `find -P` would
     not enter - missed since the first version).
+13. **The list of programs to run, and its facts, hold whatever bytes a found path holds
+    (2026-10-27; automatic security review after the commit of 10.11/10.12, two findings, and
+    what checking them showed).** The list is the screen the user decides on (10.11), so what
+    it shows must be what is there, and what runs must be what it showed. Seen on this host
+    before fixing:
+    - The list was written to the terminal as it was: an escape sequence in a directory name
+      reached the terminal and could rewrite the facts above the question. It now goes through
+      the same filter as the report (control characters as `?`), and tabs and newlines in a
+      path or fact are shown as `?` too, so a path cannot print a line that reads like another
+      program or fact. Fields of findings show tabs and newlines as `?` as well (they were
+      spaces): one path reads the same in every part of the report.
+    - A path with a newline gave wrong facts, not just fewer: `IFS=/ read` stopped at the
+      newline, so the walk examined a shorter path and said "`/…/a` does not exist", and the
+      facts joined with `\037` and read back with `read` lost everything after the first
+      newline. Facts are now kept in arrays (`BCC_FACT_POOL`, with caches holding ranges), and
+      paths are split with parameter expansion.
+    - Found while checking (not in the review): **a tab in a path ran another program.** A plan
+      entry was "path<TAB>argument" and was split at the first tab, so for
+      `/x/evil<TAB>dir/bin/bun` the tool showed that path and ran `/x/evil` with the argument
+      `dir/bin/bun<TAB>--version`. The entry's key is now only compared; the program and the
+      argument are kept apart (`BCC_PLAN_BIN`, `BCC_PLAN_ARG`).
+    - The dependency walk wrote its records as lines of tab-separated fields, and the search
+      path a library inherits as a `:`-joined string. A program under a directory with a
+      newline and an `$ORIGIN` RUNPATH (common in Electron and Chromium builds) gave facts
+      about the wrong directory. Records and inherited chains are now arrays; the cache key of
+      a library lookup gives each part with its length, so two different searches never share
+      one (a directory reached through `$ORIGIN` may hold `:`).
+    - Smaller ones in the same functions: a symlink target ending in a newline lost it to
+      `$(...)`; a chain of more than 40 links (where the kernel stops too) or an unreadable link
+      ended the walk silently and could leave only "as far as examined, only root…" - now a fact
+      says so; a `[` or `*` in a library directory was taken as a glob pattern when looking for
+      `glibc-hwcaps`; and readelf's `Library runpath: [VALUE]` was parsed with a greedy
+      `.*\[`, so `/opt/app [1]/lib` became the relative entry `1]/lib` and the real directory
+      was never examined (the new test showed it). The value now runs from the first `[` to
+      the `]` that ends the line.
+    Checked: each new test fails on the code before the fix and passes after; `--no-exec --json`
+    on the development host gives the same `execution` (32 entries with their facts) and the same
+    64 findings before and after, in the same time. Left as they are (for the next review): the
+    path of a linked libbrotlidec is passed to the checks as "path<TAB>readelf" and split at the
+    first tab; a candidate whose resolved name ends in a newline loses it to `$(...)`; a value
+    inside the ELF (RPATH, NEEDED, PT_INTERP) holding a newline is cut by readelf's line output.
+    Each needs a crafted name; in each, what runs is still the program listed.

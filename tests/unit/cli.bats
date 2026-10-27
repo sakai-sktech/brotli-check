@@ -240,3 +240,23 @@ assert e and e[0]["ran"] is True and e[0]["output"].strip() == "1.4.4" and e[0][
   grep -q "\[RUN\] $T/srv/b/bin/bun --version" "$T/out.txt"
   grep -q "\[NOT RUN\] $T/srv/a/bin/bun --version (not chosen)" "$T/out.txt"
 }
+
+@test "a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed" {
+  command -v cc >/dev/null || skip "no C compiler"
+  p="$T/srv/x"$'\033'"[2J"$'\n'"y"
+  mkdir -p "$p"$'\t'"z/bin"
+  printf '#include <stdio.h>\nint main(void){puts("1.4.4");return 0;}\n' >"$T/stub.c"
+  cc -o "$p"$'\t'"z/bin/bun" "$T/stub.c"
+  # What splitting the entry at the tab would have run instead.
+  printf '#!/bin/sh\necho 9.9.9\n' >"$p"
+  chmod +x "$p"
+  shown="$T/srv/x?[2J?y?z/bin/bun"
+  run --separate-stderr "$BIN" --roots "$T/srv" --timeout 30 </dev/null
+  [ "$status" -eq 3 ]
+  [[ $stderr != *$'\033'* ]]
+  [[ $stderr == *". $shown --version  (C05 bun)"* ]]
+  run --separate-stderr "$BIN" --roots "$T/srv" --timeout 30 --yes </dev/null
+  [[ $output != *$'\033'* ]]
+  [[ $output == *"[RUN] $shown --version -> 1.4.4 (exit status 0)"* ]]
+  [[ $output == *"[FIXED] C05 | bun | $shown | 1.4.4"* ]]
+}

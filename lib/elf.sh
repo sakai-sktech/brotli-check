@@ -11,7 +11,7 @@ bcc_elf_needed() {
   local out
   bcc_have readelf || return 2
   out=$(bcc_sys readelf -d -- "$1") || return 1
-  sed -n 's/.*(NEEDED).*\[\(.*\)\].*/\1/p' <<<"$out"
+  sed -n 's/^[^[]*(NEEDED)[^[]*\[\(.*\)\]$/\1/p' <<<"$out"
 }
 
 # Cache of "soname<TAB>arch<TAB>path" from ldconfig -p (system query, not a found program),
@@ -111,35 +111,47 @@ bcc_dep_find() {
   local name=$1 d h
   shift
   for d in "$@"; do
-    bcc_glob "$d/glibc-hwcaps/*/$name"
-    for h in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do printf '%s\n' "$h"; return 0; done
+    bcc_hwcaps_dirs "$d"
+    for h in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do
+      [[ -e $h/$name ]] && { printf '%s\n' "$h/$name"; return 0; }
+    done
     [[ -e $d/$name ]] && { printf '%s\n' "$d/$name"; return 0; }
   done
   bcc_elf_resolve "$name"
+}
+
+# One record of a dependency walk, appended to BCC_WALK_K/_A/_B (see bcc_dep_walk_uncached).
+bcc_walk_rec() {
+  BCC_WALK_K+=("$1")
+  BCC_WALK_A+=("$2")
+  BCC_WALK_B+=("${3:-}")
 }
 
 # The libraries FILE would load, looked up the way glibc's ld.so does: for each object, the
 # DT_RPATH of the object that needs the library and then of the objects that loaded it, up
 # to the executable - unless the needing object has a DT_RUNPATH, which also hides its own
 # DT_RPATH - then that object's DT_RUNPATH, the ld.so cache, the default directories.
-# (LD_LIBRARY_PATH does not apply: programs run with an empty environment.) Records,
-# tab-separated, one per line:
+# (LD_LIBRARY_PATH does not apply: programs run with an empty environment.) Records, each
+# a kind and up to two fields:
 #   I  path            the loader named by PT_INTERP
 #   D  dir             a directory listed in some RPATH/RUNPATH
 #   N  soname  path    a needed library and where it resolved ("" when not found)
 #   X  kind  detail    something not followed: empty/relative/token (search entries, see
 #                      bcc_dep_dirs), missing (soname), readelf (failed on file), depth
-# The records go to BCC_WALK_OUT; status 2 when readelf is not available. Run in the main shell, it keeps
-# each object's dynamic section (BCC_DYN_CACHE) and each lookup (BCC_FIND_CACHE), so that
-# libraries shared by many programs are read once.
+# The records are appended to the arrays BCC_WALK_K/_A/_B, never joined into lines: the
+# fields hold paths, and a path (or $ORIGIN) may hold a newline or a tab. Status 2 when
+# readelf is not available. Run in the main shell, it keeps each object's dynamic section
+# (BCC_DYN_CACHE) and each lookup (BCC_FIND_CACHE), so that libraries shared by many
+# programs are read once.
 bcc_dep_walk_uncached() {
-  local file=$1 out="" interp dyn needed rpath runpath cur inh so path d depth i fkey
+  local file=$1 interp dyn needed rpath runpath cur inh so path d depth i fkey hs hc
   local -A seen=()
-  local -a q=("$file") qi=("") nq=() nqi=() own_rp=() own_run=() search=() inh_a=()
+  # The search path each queued object inherits is a range "start count" of chains.
+  local -a q=("$file") qi=("0 0") nq=() nqi=() own_rp=() own_run=() search=() inh_a=() chains=()
   bcc_have readelf || return 2
   if interp=$(bcc_sys readelf -l -- "$file"); then
     interp=$(sed -n 's/.*\[Requesting program interpreter: \(.*\)\]$/\1/p' <<<"$interp" | head -n 1)
-    [[ -z $interp ]] || out+="I"$'\t'"$interp"$'\n'
+    [[ -z $interp ]] || bcc_walk_rec I "$interp"
   fi
   for ((depth = 0; depth < 8 && ${#q[@]}; depth++)); do
     nq=() nqi=()
@@ -152,23 +164,27 @@ bcc_dep_walk_uncached() {
       fi
       dyn=${BCC_DYN_CACHE[$cur]}
       if [[ $dyn == $'\001' ]]; then
-        out+="X"$'\t'"readelf"$'\t'"$cur"$'\n'
+        bcc_walk_rec X readelf "$cur"
         continue
       fi
-      needed=$(sed -n 's/.*(NEEDED).*\[\(.*\)\].*/\1/p' <<<"$dyn")
-      rpath=$(sed -n 's/.*(RPATH).*\[\(.*\)\].*/\1/p' <<<"$dyn" | head -n 1)
-      runpath=$(sed -n 's/.*(RUNPATH).*\[\(.*\)\].*/\1/p' <<<"$dyn" | head -n 1)
+      # "(TAG)  Library runpath: [VALUE]": the value runs from the first "[" to the "]"
+      # that ends the line, since a directory may have "[" or "]" in its name.
+      needed=$(sed -n 's/^[^[]*(NEEDED)[^[]*\[\(.*\)\]$/\1/p' <<<"$dyn")
+      rpath=$(sed -n 's/^[^[]*(RPATH)[^[]*\[\(.*\)\]$/\1/p' <<<"$dyn" | head -n 1)
+      runpath=$(sed -n 's/^[^[]*(RUNPATH)[^[]*\[\(.*\)\]$/\1/p' <<<"$dyn" | head -n 1)
       # glibc ignores DT_RPATH when the same object has DT_RUNPATH.
       [[ -n $runpath ]] && rpath=""
       bcc_dep_dirs "$rpath" "$cur"
       own_rp=(${BCC_DIRS[@]+"${BCC_DIRS[@]}"})
-      for d in ${BCC_DIR_ISSUES[@]+"${BCC_DIR_ISSUES[@]}"}; do out+="X"$'\t'"$d"$'\n'; done
+      # (An issue is "kind<TAB>detail"; the kind has no tab, the detail may.)
+      for d in ${BCC_DIR_ISSUES[@]+"${BCC_DIR_ISSUES[@]}"}; do bcc_walk_rec X "${d%%$'\t'*}" "${d#*$'\t'}"; done
       bcc_dep_dirs "$runpath" "$cur"
       own_run=(${BCC_DIRS[@]+"${BCC_DIRS[@]}"})
-      for d in ${BCC_DIR_ISSUES[@]+"${BCC_DIR_ISSUES[@]}"}; do out+="X"$'\t'"$d"$'\n'; done
-      for d in ${own_rp[@]+"${own_rp[@]}"} ${own_run[@]+"${own_run[@]}"}; do out+="D"$'\t'"$d"$'\n'; done
+      for d in ${BCC_DIR_ISSUES[@]+"${BCC_DIR_ISSUES[@]}"}; do bcc_walk_rec X "${d%%$'\t'*}" "${d#*$'\t'}"; done
+      for d in ${own_rp[@]+"${own_rp[@]}"} ${own_run[@]+"${own_run[@]}"}; do bcc_walk_rec D "$d"; done
       inh_a=()
-      [[ -n $inh ]] && IFS=: read -r -a inh_a <<<"$inh"
+      read -r hs hc <<<"$inh"
+      ((hc == 0)) || inh_a=("${chains[@]:hs:hc}")
       if [[ -n $runpath ]]; then
         search=(${own_run[@]+"${own_run[@]}"})
       else
@@ -180,15 +196,18 @@ bcc_dep_walk_uncached() {
           path=$so
           [[ -e $path ]] || path=""
         else
-          fkey="$so"$'\t'"$(IFS=:; printf '%s' "${search[*]:-}")"
+          # Each part with its length: no two different searches share a key (a directory
+          # reached through $ORIGIN may hold ":" or any other separator).
+          fkey="${#so}:$so"
+          for d in ${search[@]+"${search[@]}"}; do fkey+=" ${#d}:$d"; done
           if [[ -z ${BCC_FIND_CACHE[$fkey]+x} ]]; then
             BCC_FIND_CACHE[$fkey]=$(bcc_dep_find "$so" ${search[@]+"${search[@]}"}) || BCC_FIND_CACHE[$fkey]=""
           fi
           path=${BCC_FIND_CACHE[$fkey]}
         fi
-        out+="N"$'\t'"$so"$'\t'"$path"$'\n'
+        bcc_walk_rec N "$so" "$path"
         if [[ -z $path ]]; then
-          out+="X"$'\t'"missing"$'\t'"$so"$'\n'
+          bcc_walk_rec X missing "$so"
           continue
         fi
         if [[ -z ${BCC_FIND_CACHE[real:$path]+x} ]]; then
@@ -200,24 +219,25 @@ bcc_dep_walk_uncached() {
         nq+=("$path")
         # What this library needs is looked up in its own RPATH, then in ours, upward.
         local -a chain=(${own_rp[@]+"${own_rp[@]}"} ${inh_a[@]+"${inh_a[@]}"})
-        nqi+=("$(IFS=:; printf '%s' "${chain[*]:-}")")
+        nqi+=("${#chains[@]} ${#chain[@]}")
+        chains+=(${chain[@]+"${chain[@]}"})
       done <<<"$needed"
     done
     q=(${nq[@]+"${nq[@]}"})
     qi=(${nqi[@]+"${nqi[@]}"})
   done
-  ((${#q[@]} == 0)) || out+="X"$'\t'"depth"$'\t'"$file"$'\n'
-  BCC_WALK_OUT=$out
+  ((${#q[@]} == 0)) || bcc_walk_rec X depth "$file"
+  return 0
 }
 
-# bcc_dep_walk_uncached once per file, kept in the main shell (BCC_DEPWALK_CACHE and _RC) so
-# that later callers - often in a subshell - reuse it.
+# bcc_dep_walk_uncached once per file, kept in the main shell so that later callers - often
+# in a subshell - reuse it: BCC_DEPWALK_CACHE holds the range "start count" of its records
+# in BCC_WALK_K/_A/_B, BCC_DEPWALK_RC its status.
 bcc_dep_walk_prefetch() {
-  local rc=0
+  local rc=0 start=${#BCC_WALK_K[@]}
   [[ -z ${BCC_DEPWALK_RC[$1]+x} ]] || return 0
-  BCC_WALK_OUT=""
   bcc_dep_walk_uncached "$1" || rc=$?
-  BCC_DEPWALK_CACHE[$1]=$BCC_WALK_OUT
+  BCC_DEPWALK_CACHE[$1]="$start $((${#BCC_WALK_K[@]} - start))"
   BCC_DEPWALK_RC[$1]=$rc
 }
 
@@ -228,19 +248,28 @@ bcc_dep_walk_prefetch() {
 # to NOT_APPLICABLE. The file is only read: ldd, which hands the file to the loader, is not
 # used.
 bcc_links_brotlidec_uncached() {
-  local file=$1 walk rc lib
+  local file=$1 rc s c i lib="" open=0
   bcc_dep_walk_prefetch "$file"
-  walk=${BCC_DEPWALK_CACHE[$file]}
   rc=${BCC_DEPWALK_RC[$file]}
   ((rc == 0)) || return 2
-  lib=$(awk -F'\t' '$1 == "N" && $2 ~ /^libbrotlidec/ { print ($3 == "" ? $2 " (not found)" : $3); exit }' <<<"$walk")
+  read -r s c <<<"${BCC_DEPWALK_CACHE[$file]}"
+  for ((i = s; i < s + c; i++)); do
+    case ${BCC_WALK_K[i]} in
+      N)
+        if [[ -z $lib && ${BCC_WALK_A[i]} == libbrotlidec* ]]; then
+          lib=${BCC_WALK_B[i]:-"${BCC_WALK_A[i]} (not found)"}
+        fi
+        ;;
+      X)
+        case ${BCC_WALK_A[i]} in missing | readelf | depth) open=1 ;; esac
+        ;;
+    esac
+  done
   if [[ -n $lib ]]; then
     printf '%s\treadelf\n' "$lib"
     return 0
   fi
-  if grep -qE $'^X\t(missing|readelf|depth)\t' <<<"$walk"; then
-    return 2
-  fi
+  ((open)) && return 2
   return 1
 }
 

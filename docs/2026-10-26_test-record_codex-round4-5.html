@@ -75,7 +75,7 @@ small.src { color: var(--muted); }
   <nav class="toc">
     <a href="#why">この記録の目的</a><a href="#static">静的検査</a><a href="#unit-new">単体（新規・変更）</a>
     <a href="#unit-old">単体（既存）</a><a href="#mutation">変異テスト</a><a href="#integration">統合テスト</a>
-    <a href="#experiments">再現実験</a><a href="#perf">速度</a><a href="#host">実機</a><a href="#codex">Codex</a><a href="#gaps">テストしていないこと</a><a href="#add1027">追記 10/27</a>
+    <a href="#experiments">再現実験</a><a href="#perf">速度</a><a href="#host">実機</a><a href="#codex">Codex</a><a href="#gaps">テストしていないこと</a><a href="#add1027">追記 10/27</a><a href="#add1027b">追記 10/27（自動レビュー）</a>
   </nav>
 </header>
 
@@ -439,6 +439,47 @@ small.src { color: var(--muted); }
 <li><b>今日の修正の変異テスト</b>（修正を戻してテストが落ちるか）はまだ。</li>
 <li>Codex 7 回目（新しい基準: 事実の誤り・黙った抜け・示さない実行・余計な書き込み）はまだ。</li>
 <li>CI はまだ（push していない）。</li>
+</ul>
+
+
+<h2 id="add1027b">12. 追記（2026-10-27）— commit 後の自動セキュリティレビュー 2 件と、確かめる中で見つけたもの</h2>
+<p><b>背景:</b> 10 章 11・12 の commit（<code>c4777ab</code>）の後、自動セキュリティレビューが 2 件を出した。(1) 実行したいプログラムの一覧が、パスの中の端末の制御文字をそのまま出す。(2) 改行を含むパスで事実の後半が消える。一覧は人が判断する画面なので、どちらも「事実を誤って見せない」に反する。直す前にこの端末で再現し、(2) は「消える」だけでなく<b>誤った事実</b>（「<code>…/a</code> は存在しない」）が出ることを確かめた。さらに同じ根（パスのバイトを区切りに使う）で、<b>パスにタブがあると一覧と違うプログラムが実行される</b>ことを見つけた（<code>…/evil&lt;TAB&gt;dir/bin/bun --version</code> を示して <code>…/evil</code> を実行）。判断の理由と全体は <code>docs/design.md</code> 10 章 13。</p>
+<p><b>結果（記録の追記時点）:</b> ShellCheck 警告 0、単体テスト <b>161 / 161</b>（skip 0。新規 8、書き換え 1）、統合テスト <b>26 / 26</b>。<b>新規 8 件は、直す前のコード（HEAD <code>6182bd2</code> を <code>tests/tmp/</code> に展開し、テストだけ新しくしたもの）ですべて落ちた</b>（8 / 8 not ok）。</p>
+
+<h3>12.1 新しい単体テスト（8 件）</h3>
+<div class="wrap"><table>
+<tr><th>テスト</th><th>何のためのテストか</th><th>直す前</th><th>結果</th></tr>
+<tr><td class="name">review 10/27: control characters in a found path never reach the terminal in the consent list</td><td>パスに仕込んだ ESC・BEL・C1 の CSI が、端末なしで止まるときの一覧（stderr）に一切出ず、<code>?</code> で示されること。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">review 10/27: a newline in a path leaves every fact whole, on one line in the text, exact in JSON</td><td>改行を含むパスの下の候補で、事実が欠けず正しいこと（誰でも書けるディレクトリが名指しされる）。改行を含む事実の後ろの事実も消えないこと。テキストでは 1 行に収まり（改行は <code>?</code>）、JSON では正確（<code>\n</code>）なこと。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">review 10/27: libraries searched through $ORIGIN under a path with a newline are examined there</td><td>改行を含むディレクトリの下で <code>$ORIGIN</code> の RUNPATH を持つプログラム（実際にコンパイル）で、本当の探索先のディレクトリの事実が出ること。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">review 10/27: what runs is the program listed, even with a tab in its path</td><td>タブを含むパスのプログラムを選んだとき、実行されるのがそのプログラムで、タブの前で切ったパス（囮を置く）ではないこと。一覧ではタブが <code>?</code> で示されること。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">review 10/27: a symlink is followed to its exact target; a chain too long to follow is said so</td><td>改行で終わる symlink の先をそのまま辿ること。40 を超える連鎖（ループ）で黙って止まらず、事実として出すこと。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">review 10/27: library lookups under different search paths are kept apart</td><td><code>:</code> を名前に含む 1 つのディレクトリ（<code>$ORIGIN</code> 経由）と、<code>:</code> で並べた 2 つのディレクトリ（RUNPATH）の探索が、キャッシュで混ざらないこと（実際にコンパイルした 2 つのプログラム）。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">review 10/27: a [ or * in a library directory is part of its name, not a pattern</td><td><code>app [1]</code> のようなディレクトリの <code>glibc-hwcaps</code> を、囮の <code>app 1</code> と取り違えないこと。その RUNPATH を持つプログラムで本当のディレクトリの事実が出ること。<b>このテストで、readelf の <code>[値]</code> を貪欲に読んで相対の探索先 <code>1]/lib</code> に化けていた欠陥が分かり、直した</b>。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">a found path with control characters, a newline and a tab: shown as ?, and what runs is what was listed</td><td>ツール全体で: そのようなパスの bun（実際にコンパイル）が、端末なしの一覧・<code>--yes</code> の結果の実行の節・所見のどこでも同じ <code>?</code> の形で出て、ESC が出ないこと。実行されるのがその bun（版 1.4.4）で、タブの前で切ったパスの囮（9.9.9 を答える）ではないこと。</td><td><span class="b ng">落ちる</span></td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>12.2 書き換えた単体テスト（1 件）</h3>
+<div class="wrap"><table>
+<tr><th>テスト</th><th>何のためのテストか</th><th>結果</th></tr>
+<tr><td class="name">round 6: libraries are looked up through the RPATH inherited from the executable</td><td>中身は変えていない。依存の辿りの記録が文字列から配列になったので、記録の読み方だけ新しい補助関数（<code>walk_records</code>）に替えた。</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>12.3 実機（開発機、一般ユーザー）</h3>
+<ul>
+<li>直す前（HEAD）と後で、<code>--no-exec --json</code> を交互に 2 回ずつ。<code>execution</code>（32 件とその事実）と所見 64 件が同じ。違いは既知データのパス（<code>data_source</code>、HEAD の写しの場所）だけ。標準エラーは空、終了コードはどちらも 1。</li>
+<li>所要: HEAD 25.0・26.6 秒、直した後 24.9・25.1 秒（負荷で揺れる。差は無い）。</li>
+<li><code>--yes</code> はこの記録のためには実行していない（見つけたプログラムを実行するので）。</li>
+</ul>
+
+<h3>12.4 統合テスト（26 項目、すべて ok）</h3>
+<p>11.3 と同じ構成（Ubuntu 22.04/24.04/26.04・Debian 12/13 × root/一般ユーザー × <code>--no-exec</code>/<code>--yes</code>、各イメージの <code>/bin/sh</code> での C14 のスクリプト、bash 4.2）を Docker 28.3.0 で。<b>何のためか:</b> 事実と依存の辿りを配列で持つ形（配列の切り出し <code>${a[@]:s:c}</code> など）が、実際のディストリビューションと bash 4.2 でも動き、判定が変わらないことを確かめる。結果: 26 / 26 ok（終了コードはどれも 1、期待どおり）。</p>
+
+<h3>12.5 まだやっていないこと</h3>
+<ul>
+<li><b>変異テスト</b>（今日の修正を 1 つずつ戻してテストが落ちるか）。上の「直す前」は、修正全体を戻したときに落ちることだけを示す。13 章で記録する。<code>tests/tmp/mutrec.*/muts.py</code> の既存の変異のうち、今回書き換えた箇所（<code>bcc_path_facts</code>・依存の辿り・一覧の表示）を指すものは置き換えが要る。</li>
+<li>残した 3 点（<code>docs/design.md</code> 10 章 13 の末尾）は、テストも修正もしていない。</li>
+<li>Codex 7 回目、CI はまだ。</li>
 </ul>
 
 <p><small class="src">この記録の元: <code>bats --tap tests/unit/*.bats</code>（記録作成時に取り直し）、<code>make lint</code>、<code>tests/integration/run.sh</code> のログ（4 回目後・5 回目後）、作業中の計測。判断の理由は <code>docs/design.md</code> 10 章 9・10。</small></p>

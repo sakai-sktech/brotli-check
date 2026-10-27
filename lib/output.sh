@@ -92,6 +92,16 @@ bcc_text_safe() {
   LC_ALL=C sed -e 's/[\x01-\x08\x0b-\x1f\x7f]/?/g' -e 's/\xc2[\x80-\x9f]/?/g'
 }
 
+# A value from the scanned host, kept on its line of the text: the newlines and tabs that
+# bcc_text_safe leaves for the layout are shown as "?" too (a path with a newline could
+# otherwise print a line of its own that reads like another program or fact).
+bcc_line_safe() {
+  local s=$1
+  s=${s//$'\n'/?}
+  s=${s//$'\t'/?}
+  printf '%s' "$s"
+}
+
 bcc_skipped_scopes() {
   local f
   local -a scopes=()
@@ -197,37 +207,37 @@ bcc_render_json() {
 
 # What was run to read versions, what was not, and the facts shown before asking.
 bcc_render_exec_text() {
-  local key f out first
-  local -a facts=()
+  local key f out first bin arg
   ((${#BCC_PLAN[@]})) || return 0
   printf '\n== %s ==\n' "$(bcc_msg title_exec)"
   for key in "${BCC_PLAN[@]}"; do
+    bin=$(bcc_line_safe "${BCC_PLAN_BIN[$key]}")
+    arg=${BCC_PLAN_ARG[$key]}
     if [[ -n ${BCC_PROBE_RC[$key]+x} ]]; then
       out=${BCC_PROBE_OUT[$key]}
       first=${out%%$'\n'*}
-      bcc_msg x_ran "${key%%$'\t'*}" "${key#*$'\t'}" "${first:0:200}" "${BCC_PROBE_RC[$key]}"
+      bcc_msg x_ran "$bin" "$arg" "${first:0:200}" "${BCC_PROBE_RC[$key]}"
     elif ((BCC_NO_EXEC)); then
-      bcc_msg x_not_run "${key%%$'\t'*}" "${key#*$'\t'}" "$(bcc_msg x_reason_noexec)"
+      bcc_msg x_not_run "$bin" "$arg" "$(bcc_msg x_reason_noexec)"
     else
-      bcc_msg x_not_run "${key%%$'\t'*}" "${key#*$'\t'}" "$(bcc_msg x_reason_declined)"
+      bcc_msg x_not_run "$bin" "$arg" "$(bcc_msg x_reason_declined)"
     fi
     printf '  (%s)\n' "${BCC_PLAN_PURPOSE[$key]}"
-    IFS=$'\037' read -r -a facts <<<"${BCC_PLAN_FACTS[$key]}"
-    for f in ${facts[@]+"${facts[@]}"}; do
-      [[ -n $f ]] && printf '    - %s\n' "$f"
+    bcc_plan_facts "$key"
+    for f in ${BCC_PF[@]+"${BCC_PF[@]}"}; do
+      printf '    - %s\n' "$(bcc_line_safe "$f")"
     done
   done
 }
 
 bcc_render_exec_json() {
   local key f first=1 ff
-  local -a facts=()
   printf '['
   for key in ${BCC_PLAN[@]+"${BCC_PLAN[@]}"}; do
     ((first)) || printf ','
     first=0
-    printf '{"path":%s,"argument":%s,"check":%s,"ran":%s,' "$(bcc_json_str "${key%%$'\t'*}")" \
-      "$(bcc_json_str "${key#*$'\t'}")" "$(bcc_json_str "${BCC_PLAN_PURPOSE[$key]}")" \
+    printf '{"path":%s,"argument":%s,"check":%s,"ran":%s,' "$(bcc_json_str "${BCC_PLAN_BIN[$key]}")" \
+      "$(bcc_json_str "${BCC_PLAN_ARG[$key]}")" "$(bcc_json_str "${BCC_PLAN_PURPOSE[$key]}")" \
       "$([[ -n ${BCC_PROBE_RC[$key]+x} ]] && echo true || echo false)"
     if [[ -n ${BCC_PROBE_RC[$key]+x} ]]; then
       printf '"exit_status":%d,"output":%s,' "${BCC_PROBE_RC[$key]}" "$(bcc_json_str "${BCC_PROBE_OUT[$key]:0:4096}")"
@@ -236,9 +246,8 @@ bcc_render_exec_json() {
     fi
     printf '"facts":['
     ff=1
-    IFS=$'\037' read -r -a facts <<<"${BCC_PLAN_FACTS[$key]}"
-    for f in ${facts[@]+"${facts[@]}"}; do
-      [[ -n $f ]] || continue
+    bcc_plan_facts "$key"
+    for f in ${BCC_PF[@]+"${BCC_PF[@]}"}; do
       ((ff)) || printf ','
       ff=0
       bcc_json_str "$f"

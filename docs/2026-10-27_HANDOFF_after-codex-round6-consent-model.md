@@ -25,8 +25,8 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
   **実行の扱いを作り直した**: 見つけたプログラムを実行するかはツールが規則で決めず、**実行するもの・理由・事実（誰が書き換えられるか）を
   先に示して人が選ぶ**（端末で全部／しない／番号。端末が無ければ `--yes` か `--no-exec`）。ldd は廃止。README に「`--yes` を使う前に」。
   テストの記録を HTML で作成。
-- **いまの段階:** 単体 153/153、統合 26/26、ShellCheck 0。**作業ツリーは未 commit**（このセッションを閉じるときに commit・push する予定。
-  §4 の git 状態を確かめよ）。次は **今日の修正の変異テスト → Codex 7 回目（新しい基準）→ push と CI → 図解 → リリース**。
+- **いまの段階:** 単体 153/153、統合 26/26、ShellCheck 0。`c4777ab` で commit・push 済み（CI は push 直後に実行中だった。結果を確かめよ）。
+  **commit 後の自動レビューで本物の欠陥 2 件**（同意の一覧の制御文字、改行入りパスで事実が消える）→ §5 の 0。次は **今日の修正の変異テスト → Codex 7 回目（新しい基準）→ push と CI → 図解 → リリース**。
 
 ## 1. 最初に読む 3 点
 
@@ -88,9 +88,8 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
 
 ## 4. 運用・インフラ状態
 
-- **git**: HEAD は `eb4205b`（前セッションの最後）。本セッションの変更は**未 commit**（session-close で commit・push する予定）。次セッションの最初に
-  `git status --short` と `git log --oneline -3` で、commit されたか・push されたかを確かめよ。`.context/` は exclude 済み（commit に入らない）。
-- **CI**: 最後に緑なのは `eb4205b`。本セッションの変更は CI 未実行。**CI のランナーには `/usr/local/bin/node` がある**ので、CLI テストで
+- **git**: 本セッションの変更は `c4777ab` で commit・push 済み（この引き継ぎの追記はその次の commit）。`.context/` は exclude 済み（commit に入らない）。
+- **CI**: 最後に緑を確認したのは `eb4205b`。`c4777ab` の CI は push 直後に実行中（`gh run list -L 2` で確かめる）。**CI のランナーには `/usr/local/bin/node` がある**ので、CLI テストで
   `--no-exec`/`--yes` を付け忘れると「端末が無い」で exit 3 になる（ローカルでも一度起きた）。
 - **開発**: `make lint`（ShellCheck、0 であること）、`make test`（bats 153 件、約 6〜8 分）、`make dist`、`make integration`（Docker Desktop が要る）。
   統合のイメージは `bcc-it:<distro>`。1 つだけ: `ONLY=ubuntu:24.04 SKIP_BASH42=1 bash tests/integration/run.sh`。
@@ -106,6 +105,19 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
 - 実機（開発機・一般ユーザー）: `--no-exec`・`--yes` とも約 23.5 秒、stderr 空。
 
 ## 5. 未解決スレッド / Next Steps（優先順）
+
+0. **[実装に降ろす・最優先] commit 後の自動セキュリティレビュー（2026-10-27、プラグイン）の 2 件を直す。** どちらも本人の思想
+   （事実を誤って見せない）に反する本物の欠陥。
+   - **同意の一覧が端末の制御文字を素通しする**（HIGH）: `bcc_print_plan`（`lib/exec.sh`）は stderr に、パス・引数・目的・事実を
+     そのまま出す。結果本体は `bcc_text_safe`（`lib/output.sh`、制御文字を `?` に）を通るが、一覧は通らない。ファイル名に仕込んだ
+     端末の制御文字で、人が判断する画面（事実の行）を書き換えられる。端末なしで止まるときの一覧も同じ。→ `bcc_print_plan | bcc_text_safe >&2`
+     の形にし、テストを足す（ESC を含むパスの候補で、一覧に ESC が出ないこと）。
+   - **改行を含むパスで事実の後半が消える**（MEDIUM）: 事実を `\037` でつないで `IFS=$'\037' read -r -a` で読み戻している
+     （`bcc_path_facts` のキャッシュ、`BCC_PLAN_FACTS`、`bcc_render_exec_*`）。`read` は改行で止まるので、パスに改行があるとそれ以降の
+     事実（警告）が消える。`bcc_path_facts` のパスの分解（`IFS=/ read -r -a`）も同じ。→ 事実は `read -d $'\037'` のループで読む（bash 4.2 に
+     `mapfile -d` は無い）か配列のまま持つ。パスの分解はパラメータ展開で。表示するパスの改行は `?` などに置き換える。テスト: 改行入りのパスの
+     下の候補で、事実が全部出ること。
+   - 3 件目（root の `--yes` は他人のプログラムを実行する）は本人判断で README に書いた（§3 の 7）。コードは変えない。
 
 1. **[実装に降ろす] 今日の修正の変異テスト**（同意の判定、事実の収集、継承 RPATH、完了の判定、6 回目の各修正、候補の名前照合）。
    `tests/tmp/mutrec.*/muts.py` を土台に、10/27 の修正の変異を足す。結果はテスト記録の HTML に 12 章として追記（**実測で書く**）。
@@ -129,5 +141,5 @@ tags: [handoff, reading-guide, release, codex-review, consent-model]
 
 ## 6. Done-when（このハンドオフの役目）
 
-次セッションが §1 の 3 点を読み、§5 の 1（変異テスト）か 2（Codex 7 回目）に着手した時点で役目を果たす。7 回目の結果と対応を新しい日付の
+次セッションが §1 の 3 点を読み、§5 の 0（自動レビューの 2 件）に着手した時点で役目を果たす（その後 1 変異テスト、2 Codex 7 回目）。7 回目の結果と対応を新しい日付の
 実装記録に残し、v0.1.0 のリリースまで進んだら、本書の冒頭に「後継あり: <後継のファイル名>」を 1 行足して凍結すること。

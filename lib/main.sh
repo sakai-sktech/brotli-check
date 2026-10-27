@@ -25,7 +25,8 @@ bcc_parse_args() {
   BCC_ROOTS_RAW=$BCC_DEFAULT_ROOTS
   BCC_EXCLUDE_RAW=""
   BCC_DEEP=0 BCC_PROJECTS=0 BCC_CONTAINERS=0 BCC_INSPECT_CONTAINERS=0 BCC_EXPOSURE=0
-  BCC_NO_EXEC=0 BCC_SHOW_CMDLINE=0 BCC_JSON=0 BCC_INCLUDE_REMOTE=0
+  BCC_NO_EXEC=0 BCC_YES=0
+  BCC_SHOW_CMDLINE=0 BCC_JSON=0 BCC_INCLUDE_REMOTE=0
   BCC_OUTPUT="" BCC_DATA_FILE="" BCC_ENVOY_CONFIG="" BCC_LANG=en
   BCC_TIMEOUT=120 BCC_MAX_ELF_MB=512
   local opt val
@@ -55,6 +56,7 @@ bcc_parse_args() {
       --exposure) BCC_EXPOSURE=1 ;;
       --envoy-config) BCC_ENVOY_CONFIG=$val ;;
       --no-exec) BCC_NO_EXEC=1 ;;
+      --yes) BCC_YES=1 ;;
       --show-cmdline) BCC_SHOW_CMDLINE=1 ;;
       --json) BCC_JSON=1 ;;
       --output) BCC_OUTPUT=$val ;;
@@ -82,6 +84,7 @@ bcc_parse_args() {
     esac
   done
   # The language is known only after parsing; an earlier error message used English.
+  ((BCC_NO_EXEC && BCC_YES)) && bcc_die "$(bcc_msg err_exec_conflict)"
   BCC_PROBE_TIMEOUT=$((BCC_TIMEOUT < 10 ? BCC_TIMEOUT : 10))
   mapfile -t BCC_ROOTS < <(bcc_split_list "$BCC_ROOTS_RAW")
   mapfile -t BCC_EXCLUDES < <(bcc_split_list "$BCC_EXCLUDE_RAW")
@@ -89,8 +92,12 @@ bcc_parse_args() {
   for r in ${BCC_ROOTS[@]+"${BCC_ROOTS[@]}"}; do
     [[ $r == /* ]] || bcc_die "$(bcc_msg err_relative "$r")"
   done
-  for r in ${BCC_EXCLUDES[@]+"${BCC_EXCLUDES[@]}"}; do
+  local i x
+  for i in ${BCC_EXCLUDES[@]+"${!BCC_EXCLUDES[@]}"}; do
+    r=${BCC_EXCLUDES[i]}
     [[ $r == /* ]] || bcc_die "$(bcc_msg err_relative "$r")"
+    # Roots are walked at their real paths (bcc_find_each); so are the paths to leave out.
+    x=$(bcc_realpath "$r") && [[ -n $x ]] && BCC_EXCLUDES[i]=$x
   done
   if [[ -n $BCC_OUTPUT ]]; then
     if [[ -e $BCC_OUTPUT || -L $BCC_OUTPUT ]]; then
@@ -140,10 +147,12 @@ bcc_output_dir_ok() {
 # created exclusively (mktemp) in DIR and hard-linked to the final name: link(2) fails on any
 # existing name and never follows a symlink, so a FIFO, device or symlink planted after the
 # option check is never opened (bash's noclobber would still open existing non-regular files).
+# -T: without it, GNU ln treats an existing directory (or a symlink to one) planted at NAME as
+# the place to put the link, and would create it inside that directory.
 bcc_write_output() {
   local dir=$1 name=$2 report=$3 tmp
   tmp=$(mktemp -- "$dir/.brotli-cve-check.XXXXXX" 2>/dev/null) || return 1
-  if printf '%s\n' "$report" 2>/dev/null >>"$tmp" && ln -- "$tmp" "$dir/$name" 2>/dev/null; then
+  if printf '%s\n' "$report" 2>/dev/null >>"$tmp" && ln -T -- "$tmp" "$dir/$name" 2>/dev/null; then
     rm -f -- "$tmp"
     return 0
   fi
@@ -163,16 +172,35 @@ bcc_check_roots() {
     elif [[ ! -r $r || ! -x $r ]]; then
       bcc_skip "$r" "$(bcc_msg skip_unreadable)"
     else
+      [[ -L $r ]] && bcc_add_info scan "$(bcc_msg i_root_symlink "$r" "$(bcc_realpath "$r")")"
       ok+=("$r")
     fi
   done
   BCC_ROOTS=(${ok[@]+"${ok[@]}"})
 }
 
+# The advisory data decides the verdicts. A data file that users other than root (or you)
+# can change - the file, or a directory on its path - is used, but the report says so at the
+# top (BCC_DATA_WRITABLE): the scan checks; it does not vouch for a file others may have
+# edited. Same ownership rule as --output (bcc_output_dir_ok).
+bcc_data_file_check() {
+  local real uid gid mode
+  BCC_DATA_WRITABLE=0
+  real=$(bcc_realpath "$1") || { BCC_DATA_WRITABLE=1; return; }
+  read -r uid gid mode < <(stat -c '%u %g %a' -- "$real" 2>/dev/null) || { BCC_DATA_WRITABLE=1; return; }
+  if [[ ! $uid =~ ^[0-9]+$ || ! $mode =~ ^[0-7]+$ ]] || ((uid != 0 && uid != EUID)) ||
+    (((8#$mode & 8#002) != 0)) || ! bcc_output_dir_ok "${real%/*}" >/dev/null; then
+    BCC_DATA_WRITABLE=1
+  elif (((8#$mode & 8#020) != 0)) && { ((EUID == 0)) || ! bcc_group_is_private "$uid" "$gid"; }; then
+    BCC_DATA_WRITABLE=1
+  fi
+}
+
 bcc_load_data_source() {
-  local src=""
+  local src="" text rc=0 size
+  BCC_DATA_WRITABLE=0
   if [[ -n $BCC_DATA_FILE ]]; then
-    [[ -r $BCC_DATA_FILE ]] || bcc_die "$(bcc_msg err_data_unreadable "$BCC_DATA_FILE")"
+    [[ -f $BCC_DATA_FILE && -r $BCC_DATA_FILE ]] || bcc_die "$(bcc_msg err_data_unreadable "$BCC_DATA_FILE")"
     src=$BCC_DATA_FILE
   fi
   if [[ -z $src ]] && ! declare -F bcc_embedded_data >/dev/null && [[ -n ${BCC_DEFAULT_DATA:-} && -r $BCC_DEFAULT_DATA ]]; then
@@ -180,7 +208,16 @@ bcc_load_data_source() {
   fi
   if [[ -n $src ]]; then
     BCC_DATA_LABEL=$src
-    bcc_load_data "$BCC_DATA_LABEL" <"$src"
+    # Read by a bounded child (bcc_read_file): a FIFO put in its place cannot hang the scan.
+    # The data is about 10 KiB; 16 MiB is far beyond any real file.
+    size=$(stat -L -c %s -- "$src" 2>/dev/null) || size=0
+    if [[ ! $size =~ ^[0-9]+$ ]] || ((size > 16777216)); then
+      bcc_die "$(bcc_msg err_data_unreadable "$src")"
+    fi
+    text=$(bcc_read_file "$src" 16777216) || rc=$?
+    ((rc == 0)) || bcc_die "$(bcc_msg err_data_unreadable "$src")"
+    [[ -n $BCC_DATA_FILE ]] && bcc_data_file_check "$src"
+    bcc_load_data "$BCC_DATA_LABEL" < <(printf '%s\n' "$text")
   elif declare -F bcc_embedded_data >/dev/null; then
     BCC_DATA_LABEL=embedded
     bcc_load_data embedded < <(bcc_embedded_data)
@@ -189,13 +226,16 @@ bcc_load_data_source() {
   fi
 }
 
-# Ranges that were not scanned because an option was not given.
+# Ranges that were not scanned because an option was not given (or was given: --exclude).
 bcc_note_disabled() {
+  local x
   ((BCC_DEEP)) || bcc_skip "C09 --deep" "$(bcc_msg skip_opt_deep)"
   ((BCC_PROJECTS)) || bcc_skip "C07 --projects" "$(bcc_msg skip_opt_projects)"
   ((BCC_CONTAINERS)) || bcc_skip "C14 --containers" "$(bcc_msg skip_opt_containers)"
   ((BCC_EXPOSURE)) || bcc_skip "C15 --exposure" "$(bcc_msg skip_opt_exposure)"
-  ((BCC_NO_EXEC)) && bcc_skip "--no-exec" "$(bcc_msg skip_opt_noexec)"
+  for x in ${BCC_EXCLUDES[@]+"${BCC_EXCLUDES[@]}"}; do
+    bcc_skip "$x" "$(bcc_msg skip_excluded)"
+  done
   if ((!BCC_IS_ROOT)); then
     bcc_skip "root" "$(bcc_msg skip_not_root)"
   fi
@@ -206,6 +246,11 @@ bcc_note_disabled() {
 bcc_run_checks() {
   bcc_have readelf && bcc_ldcache_load
   bcc_build_index
+  # Programs whose version the checks need: listed with their facts, run only with consent.
+  bcc_build_exec_plan
+  bcc_exec_consent
+  bcc_exec_run
+  bcc_note_exec
   bcc_check_c01
   bcc_check_c02
   bcc_check_c03
@@ -222,7 +267,6 @@ bcc_run_checks() {
   bcc_check_c13
   ((BCC_CONTAINERS)) && bcc_check_c14
   ((BCC_EXPOSURE)) && bcc_check_c15
-  ((${#BCC_UNSAFE_EXEC[@]} == 0)) || bcc_add_info C04 "$(bcc_msg i_unsafe_exec "${#BCC_UNSAFE_EXEC[@]}")"
   return 0
 }
 
@@ -231,11 +275,12 @@ bcc_main() {
     printf 'brotli-cve-check: bash 4.2 or later is required\n' >&2
     exit 3
   fi
+  bcc_init_path
   BCC_LANG=en
   bcc_init_findings
   bcc_parse_args "$@"
   local t
-  for t in find grep sed awk sort od tr timeout readlink date; do
+  for t in find grep sed awk sort od tr timeout readlink date head fold stat; do
     bcc_have "$t" || bcc_die "$(bcc_msg err_missing_tool "$t")"
   done
   bcc_load_data_source

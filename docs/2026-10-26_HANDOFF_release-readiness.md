@@ -12,6 +12,8 @@ tags: [handoff, reading-guide, release, codex-review]
 
 # brotli-cve-check 引き継ぎ（リリース前）
 
+> **後継あり（2026-10-27）:** `docs/2026-10-27_HANDOFF_after-codex-round6-consent-model.md` から始めること。本書は 2026-10-26 時点の写像として凍結。
+
 > **次セッションはまずこれを読め。** これ＋「最初に読む 3 点」で文脈が立ち上がる。
 
 ## 0. 30 秒サマリ

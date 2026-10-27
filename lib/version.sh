@@ -111,6 +111,57 @@ bcc_pep440_cmp() {
   fi
 }
 
+# Is VERSION a pre-release (rc, alpha, beta, nightly, dev) of exactly the release FIXED?
+# Such a build may have been made before the fix landed, so it is neither VULNERABLE nor
+# FIXED. Pre-releases of earlier releases sort below FIXED and of later ones above it as
+# usual. Debian versions are left to dpkg. Usage: bcc_is_prerelease_of KIND VERSION FIXED
+bcc_is_prerelease_of() {
+  local kind=$1 v=$2 fixed=$3 core fcore suffix
+  case $kind in
+    semver)
+      [[ $v =~ ^v?([0-9]+(\.[0-9]+)*)-[0-9A-Za-z.-]+ ]] || return 1
+      core=${BASH_REMATCH[1]}
+      fcore=${fixed#v}
+      fcore=${fcore%%-*}
+      ;;
+    pep440)
+      v=$(tr '[:upper:]' '[:lower:]' <<<"$v")
+      v=${v#v}
+      [[ ${v%%+*} =~ ^([0-9]+(\.[0-9]+)*)(.*)$ ]] || return 1
+      core=${BASH_REMATCH[1]}
+      suffix=${BASH_REMATCH[3]}
+      (($(bcc_pep440_suffix_rank "$suffix") <= 1)) || return 1
+      fcore=$fixed
+      ;;
+    *) return 1 ;;
+  esac
+  [[ $(bcc_numcmp "$core" "$fcore") == 0 ]]
+}
+
+# Version as printed by a program or a path: X.Y.Z with an optional pre-release ("-rc.1",
+# "-nightly2026...", "-pre"), which is kept: dropping it turns 1.4.4-rc.1 into 1.4.4.
+# Build metadata ("+abc") is dropped. Prints nothing when STRING does not start with one.
+# Usage: bcc_semver_parse STRING
+bcc_semver_parse() {
+  local re='^v?([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+  [[ $1 =~ $re ]] && printf '%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+}
+
+# Version from a directory name of a version manager or a release archive (v22.23.4,
+# 22.23.4, node-v22.23.4-linux-x64, v24.0.0-rc.1): the platform part of archive names is
+# dropped; anything else after X.Y.Z is kept as a pre-release, so it is never read as the
+# final release. Usage: bcc_version_from_dirname NAME
+bcc_version_from_dirname() {
+  local re='^(node-|bun-)?v?([0-9]+\.[0-9]+\.[0-9]+)(.*)$' core rest
+  local plat='-(linux|darwin|win|aix|sunos|freebsd|openbsd)(-[0-9A-Za-z_]+)+$'
+  [[ $1 =~ $re ]] || return 1
+  core=${BASH_REMATCH[2]}
+  rest=${BASH_REMATCH[3]}
+  [[ $rest =~ $plat ]] && rest=${rest%"${BASH_REMATCH[0]}"}
+  [[ -z $rest || $rest == -* ]] || rest="-$rest"
+  printf '%s%s' "$core" "$rest"
+}
+
 # bcc_version_ge KIND A B  (KIND: deb | semver | pep440)
 # Status: 0 when A >= B, 1 when A < B, 2 when the comparison is not possible.
 bcc_version_ge() {

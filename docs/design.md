@@ -188,12 +188,19 @@ and reported with a reason.
   variables instead).
 - Found programs run only through one function (`bcc_probe`), bounded by `timeout` and an allow-list
   of arguments (`--version` and the like); system tools (`dpkg-query`, `ldd`, ...) through
-  `bcc_sys`. With `--no-exec`, `bcc_probe` runs nothing.
+  `bcc_sys`. They run only with the user's consent, after being listed with their facts
+  (`lib/exec.sh`, 10.11); with `--no-exec` nothing found runs.
+- System tools run from `/usr/sbin:/usr/bin:/sbin:/bin` (plus `/usr/local/{sbin,bin}` when only root
+  can change them), never from the caller's `PATH` (10.9).
 - `find` uses `-xdev` and `-P` (never follows symlinks) and prunes `/proc /sys /dev /run`. NFS,
   CIFS, fuse.sshfs and similar are pruned unless `--include-remote` (from `/proc/self/mountinfo`).
-  The ELF search has a 512 MiB size limit by default.
-- No environment variables are read (except the scanning user's `PATH`). Command lines only with
-  `--show-cmdline`.
+  Local-disk file systems mounted below a root are walked too; other mounts below a root, and
+  `--exclude` paths, are listed as not scanned (10.9). The ELF search has a 512 MiB size limit by
+  default, and files above it are listed.
+- Files the scan found are read only as regular files, under a time limit and up to the size limit
+  (`bcc_read_file`, 10.9).
+- No environment variables are read (the caller's `PATH` only tells where to look for programs to
+  judge). Command lines only with `--show-cmdline`.
 - Other users' homes are enumerated with `getent passwd`; unreadable ones are listed as skipped.
 
 ### 7.1 Interpretation of the request (settled during implementation, 2026-10-26)
@@ -201,7 +208,10 @@ and reported with a reason.
 - **`--no-exec` stops running *found* programs**: `--version` of node, bun, curl, envoy and
   browsers, `ldd` on found executables, and commands inside containers. System query tools
   (dpkg-query, dpkg, readelf, ldconfig, ss, snap, flatpak, docker ps) still run; they are outside
-  "running the programs it found" in section 2.4 of the request.
+  "running the programs it found" in section 2.4 of the request. Without `--no-exec`, found
+  programs run only after the user chose them from the list (or gave `--yes`), 10.11;
+  `--inspect-containers` runs its fixed script inside containers, the option itself being the
+  consent. `--no-exec` with `--yes` is an error.
 - **Every external command runs with `LC_ALL=C`.** The development host's readelf printed localized
   output. Found programs run with an emptied environment (`env -i`) so that `NODE_OPTIONS` and the
   like have no effect.
@@ -275,7 +285,8 @@ rejected alternative.
    and exactly the checked path is run (TOCTOU). `ldd` follows the same rule. Reason: running as
    root, root could otherwise run `--version` of a node that an ordinary user replaced. Rejected:
    always `--no-exec` as root (cannot run even root's own programs, and does not protect an
-   ordinary user from other users' files).
+   ordinary user from other users' files). **Superseded by 10.11** (2026-10-27): the tool shows
+   the facts and the user decides; it no longer decides by such a rule.
 4. **Versions are read only from a line of the expected shape per product.** Chrome prints a log
    line (`[1026/070739.474907:WARNING:…]`) before its version; taking the first number produced a
    false FIXED. Chromium needs a four-part version, otherwise UNKNOWN.
@@ -284,9 +295,170 @@ rejected alternative.
    `_ERROR_FORMAT_*` names (every verified build had 16 or 17, or none).
 6. **C11 decides from the files, not the product name**: does a binary or module carry decoder
    markers, or load libbrotlidec? (Measures the request's "compression only, therefore
-   NOT_APPLICABLE".)
+   NOT_APPLICABLE".) **Refined by 10.9.5**: no markers is NOT_APPLICABLE only for a packaged file
+   or a Go program without the cgo binding; a hand-built one is UNKNOWN.
 7. **Control characters in the text report are shown as `?`**, and paths and package names inside
    suggested commands are quoted with `%q` (same review). JSON uses RFC 8259 escaping.
 8. **The single-file build concatenates `lib/*.sh` and the data** (`scripts/build-dist.sh`).
    shellcheck must report zero warnings both per file (except SC2034, SC2004) and on the build (all
    checks).
+9. **Codex adversarial review, round 4 (2026-10-26): ten findings, all confirmed and fixed**
+   (two hours, source on stdin; P1 × 6, P2 × 4). Three were the requester's decisions (1, 5, 9).
+   1. **As root, found programs are not run unless `--allow-exec`.** (Superseded by 10.11.) The rule of 10.3 covers the
+      file and the directories above it, not the code it loads: a root-owned `/opt/app/bin/node`
+      whose RUNPATH points to a user-writable `/opt/app/lib` would run that user's library
+      constructors as root. When programs do run (ordinary users by default, root with
+      `--allow-exec`), the loader (PT_INTERP), every RUNPATH/RPATH directory with the
+      glibc-hwcaps/tls subdirectories ld.so tries first, every needed library as resolved here and
+      `/etc/ld.so.preload` must pass the same rule; without readelf nothing runs. Reason: even the
+      extended check cannot see dlopen or files read at run time, and root is where a mistake
+      costs most. Lost as root by default: `--version` of root-owned bun, envoy, curl and browsers
+      (official Node.js tarballs were never run as root: their files belong to uid 1001); versions
+      come from headers, package records, paths and strings. Rejected: extending the check and
+      keeping execution as root's default (still blind to dlopen); never running as root (no way
+      left to get exact versions).
+   2. **System tools come from `/usr/sbin:/usr/bin:/sbin:/bin`**, with `/usr/local/{sbin,bin}`
+      appended only when only root can change them; the caller's `PATH` is kept for discovery.
+      readelf, stat and timeout run even under `--no-exec`, so a directory on root's `PATH` that
+      another user can write would supply them. (The precondition is a root `PATH` that is
+      already unsafe; the fix is cheap.)
+   3. **`ln -T` for `--output`.** Without it GNU ln creates the link inside a directory planted at
+      the target name. (The symlink variant in `/tmp` is already blocked by
+      `fs.protected_symlinks`; the directory variant still misplaced the report.)
+   4. **Only packages that C01 judged are left to C01.** Any dpkg owner used to make C09 skip a
+      libbrotlidec and C06 a PyPI Brotli, so a vendor's `.deb` (an agent with its own Python under
+      `/opt/<vendor>/embedded`) was never judged. Such copies are now judged like unpackaged ones,
+      and the advice names the package to update. `--deep` no longer skips `libbrotlidec*` by name.
+   5. **Absent markers are not proof.** C11 says NOT_APPLICABLE only where the build is known: a
+      file from a package, or a Go program whose build info does not name the cgo binding
+      (`github.com/google/brotli/go/cbrotli`); a hand-built server without markers is UNKNOWN.
+      Rejected: UNKNOWN for every server (every nginx/Apache host would exit 2, and "needs review"
+      would be ignored); NOT_APPLICABLE with only a wording change (the request's literal C11).
+      C08: NOT_APPLICABLE only when `curl -V` lists no brotli; not run and no markers → UNKNOWN (a
+      static curl names no decoder symbols and does not use `BrotliDecoderErrorString`). Several
+      copies in one file: the linker merges equal strings, so a fixed copy hides an unfixed one.
+      The copies of Brotli's dictionary are counted (one per copy: 1 in libbrotlicommon and in
+      Node.js); with two or more, LIKELY_FIXED, or FIXED from a path or metadata, becomes UNKNOWN.
+   6. **Pre-releases keep their suffix and are never the release.** Bun `1.4.4-rc.1`, Firefox
+      `150.0a1` / `150.0b3` / Debian's `150.0~b3`, Node.js `v26.0.0-nightly…` and a header with
+      `NODE_VERSION_IS_RELEASE 0` (read as `X.Y.Z-pre`) lost the suffix and could come out FIXED.
+      A pre-release of exactly the fixed version is UNKNOWN; of an earlier release VULNERABLE; of a
+      later one FIXED. Platform parts of archive names (`-linux-x64`) are dropped; anything else
+      after X.Y.Z in a directory name counts as a pre-release.
+   7. **Reads of found files are bounded** (`bcc_read_file`): regular files only, opened by
+      `head -c` under `timeout` (a FIFO swapped in after the test cannot hang the scan), up to the
+      size limit. The string scan is one pass without `sort` (distinct names counted up to 64),
+      with grep and awk under a 256 MiB address-space limit (a file that is one huge printable
+      line). A file not read to the end is UNKNOWN, never judged by part of its strings.
+      Rejected: `tr -s` or `fold` to cap lines (seven times slower on a 130 MB node binary).
+   8. **Failures go to "Not scanned"**: dpkg-query exiting 2 or more (or timing out) no longer
+      reads as "none installed"; directories find could not read are counted with an example
+      (files that vanished during the walk are not); a timeout of the `--deep` search is recorded.
+   9. **Excluded ranges are listed; local disks below the roots are searched.** File systems on
+      local disks mounted below a root (ext4, xfs, btrfs, zfs, …; network ones too with
+      `--include-remote`) are walked as roots of their own, since `-xdev` stops at their mount
+      point. Other kinds (tmpfs, overlay, squashfs, fuse) are listed once per kind with a count;
+      `--exclude` paths and `--deep` files above the size limit are listed. Rejected: listing all
+      mounts below the roots and asking for `--roots` (a data disk under `/srv` is what the roots
+      mean). Not covered: btrfs subvolumes that are not mounts (`-xdev` stops at them and
+      mountinfo does not list them).
+   10. **The container probe is POSIX sh.** `command -v -a` exists in neither dash nor busybox;
+      the error was discarded, so Node.js inside containers produced neither a finding nor a
+      skipped entry, and the unit test fed mock output without running the script. The probe now
+      walks `PATH` itself, deduplicates by real path and ends with `END`; output without it is
+      listed under "Not scanned". The script now runs in the unit test (dash) and in the
+      integration test (each image's `/bin/sh`, with real Node.js).
+
+   The dependency check first tripled the run time on the development host (20 s → 51 s); one
+   `stat` per path chain, no `dirname` processes and caches for libraries, directories and
+   whole dependency trees brought it back to about 20 s.
+10. **Codex adversarial review, round 5 (2026-10-26): ten findings, nine fixed, one answered by
+    reporting.** Round 4's items 2, 3, 4, 9 and 10 were confirmed fixed; the rest led to the
+    findings below. Two were the requester's decisions (5, 8).
+    1. **Symlinks anywhere on a path are checked where they live.** `bcc_safe_path` canonicalized
+       the parent first, so a RUNPATH `/srv/shared/current/lib` whose `current` link sits in a
+       directory others can write passed while it pointed into a root-owned release. The path is
+       now walked one component at a time from `/`, each directory checked before a link in it
+       is followed.
+    2. **Empty RUNPATH/RPATH entries mean "do not run".** ld.so reads an empty entry
+       (`:/x`, `/x:`, `/x::/y`) as the current directory (verified: a library there was
+       loaded). Such programs are not run, and what does run (the probe, `ldd`) is started
+       from `/`.
+    3. **A version from a file needs the strings to confirm it.** Path, header, metadata or file
+       name saying "fixed" yields FIXED only when the strings show the fix's error name in one
+       copy of Brotli; no error names, several copies, or a file not read to the end make it
+       UNKNOWN, with what was and was not found (this is what the implementation record already
+       said: "no marker of the fix → UNKNOWN"; the code had kept FIXED when there were no names
+       at all). A file not read to the end is also listed under "Not scanned", and C11 does not
+       take a partly read file for one without markers.
+    4. **conda coverage needs the record.** An empty `conda-meta/` next to a `lib/libbrotlidec*`
+       hid the library; C09 now defers only to an environment for which C06 reported a record.
+    5. **What the strings show is reported as found and not found** (requester's decision, instead
+       of either keeping "probably fixed" or making every such case UNKNOWN). The status names
+       stay (they are the request's and the JSON's); the reason says, for example, "Found: the
+       fix's error name; copies of the Brotli dictionary: 1. Not determined: whether all decoder
+       code in the file is fixed (equal strings are merged)", and the advice no longer says
+       "probably fixed". Two decoders sharing one dictionary cannot be told apart; that is now
+       said in the result itself and in limitations.md, rather than claimed away.
+    6. **"Covered by C01" is said only of a library C01 judged.** A program that loads a
+       private libbrotlidec (through RUNPATH, possibly outside the search roots) used to be
+       reported as using "the OS libbrotlidec"; that copy is now judged where it is (as in C09),
+       and one that cannot be found is UNKNOWN.
+    7. **Chromium**: a Debian-style `~` suffix is a pre-release. (Chromium's own channels use plain
+       four-part numbers; `-rc` forms do not occur.)
+    8. **`--data`: bounded read, and a warning instead of a refusal** (requester's decision). A
+       FIFO or oversized file is refused before it is opened, and the file is read by a bounded
+       child. A data file that users other than root (or the scanning user) can change — the file
+       or a directory on its path, the `--output` rule — is used, but the report says so at the
+       top (`data_writable_by_others` in JSON): the scan checks; it does not vouch for a file
+       someone else may have edited. Rejected: refusing such a file as root.
+    9. **Failures inside a run that completed are reported**: grep errors in `--deep` (xargs folded
+       them into the "no match" status), and `dpkg-query` failing inside a container (the probe
+       now prints its status).
+    10. **Search roots that are symlinks are walked at their targets** (`find -P` does not descend
+       into a symlink given as a starting point; a host with `/srv -> /data/srv` lost the whole
+       tree silently). Exclusions are resolved the same way, and the report says which root was
+       a link.
+11. **Running found programs: the user decides, from the facts (2026-10-27, requester's
+    decision; supersedes 10.3 and 10.9.1).** Six rounds of adversarial review kept finding gaps
+    in the rule that decided by itself which found programs were "safe" to run: each fix
+    (ownership of the file, then of the libraries, RPATH, symlinks on the way, empty entries,
+    inherited RPATH) moved the question without settling it, and the decisions it made
+    surfaced in the results as reservations nobody had asked for. The requester's principle:
+    the tool checks; what it needs to do for that is stated, with the reason, before it is
+    done; the result goes back to the user, and the judgment is the user's. So:
+    - The checks name the programs whose version they need (node, bun, envoy, browsers
+      `--version`; curl `-V`). A packaged node or curl that loads the OS libbrotlidec, and a
+      packaged browser, are not asked for: their verdict does not depend on it.
+    - Each comes with facts: who besides root (or you) could change the program, a directory
+      on its path, a library it would load, or a directory those are searched in (walked the
+      way the kernel and glibc's ld.so resolve them, including inherited DT_RPATH); empty or
+      relative search entries; what could not be examined.
+    - At a terminal the user chooses: all, none, or by number. Without a terminal, `--yes` or
+      `--no-exec` must be given; otherwise the tool lists the programs and stops (exit 3). With
+      nothing to run, nothing is asked.
+    - The chosen programs run from `/`, with an empty environment, stdin closed, a time limit,
+      and their output capped; the report lists what ran (with its output), what did not and
+      why, and the facts (JSON `execution`).
+    - `ldd` is no longer used: it hands the file to the loader, which is running it in all but
+      name. Linkage is followed with readelf only.
+    Rejected: deciding by rules (6 rounds; see above); running nothing ever (versions from
+    files are weaker, and the user may well want them); running everything without asking
+    (the user would learn the facts only afterwards). The tool's own system tools still come
+    from fixed directories (10.9.2): those are the tool's, not the host's findings.
+12. **Codex adversarial review, round 6 (2026-10-26/27): fixed under the principle of 10.11.**
+    The execution items (ancestor and dangling symlinks, inherited RPATH) became facts shown
+    before asking. The rest were fixed: the completeness of a read is taken from the exit
+    status of every stage, never from marks in the data (a file could forge them); a version
+    read from a file is confirmed against the decoder for Firefox (`application.ini` against
+    `libxul.so`), flatpak runtimes and conda records too; a file that loads libbrotlidec but
+    carries its own decoder error names gets that copy judged; a libbrotlidec loaded under a
+    name its file does not have is still judged; candidates are matched by name before and
+    after resolving links (an alias such as `node -> node-22.0.0` is kept, a multi-call shim
+    such as mise's `node -> mise` is not - the first version of this fix ran `mise --version`
+    as a node, which the new report showed at once); paths travel NUL-separated, so a newline
+    in a path cannot split it; a container's dist-packages counts as the distribution's only
+    when python3-brotli is installed there; an Envoy configuration read in part is not called
+    free of Brotli; failures of `snap list`, `flatpak list` and `ss` are listed as not scanned;
+    Electron snaps are found through `/snap/NAME/current` (a symlink, which `find -P` would
+    not enter - missed since the first version).

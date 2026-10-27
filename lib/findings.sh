@@ -15,7 +15,15 @@ bcc_init_findings() {
   declare -gA BCC_DPKG_CACHE=()
   declare -gA BCC_PRIVGRP_CACHE=()
   declare -gA BCC_JUDGED=()
-  declare -gA BCC_UNSAFE_EXEC=()
+  declare -gA BCC_C01_JUDGED=()
+  # Filled by C06, read by C09; declared here so that every entry point has them as
+  # associative arrays (an undeclared one would evaluate a path key arithmetically).
+  declare -gA BCC_C06_SITES=() BCC_C06_CONDA_ENVS=()
+  # Execution plan, consent and results (lib/exec.sh); caches for facts and linkage.
+  BCC_PLAN=()
+  declare -gA BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=() BCC_PROBE_OUT=() BCC_PROBE_RC=()
+  declare -gA BCC_UNAME_CACHE=() BCC_PATHFACTS_CACHE=() BCC_DEPWALK_CACHE=() BCC_DEPWALK_RC=()
+  declare -gA BCC_LINK_CACHE=() BCC_LINK_RC=() BCC_DYN_CACHE=() BCC_FIND_CACHE=()
 }
 
 # Split a tab-separated record into the global array BCC_F, keeping empty fields

@@ -15,24 +15,29 @@ bcc_node_patterns() {
   done
 }
 
-# Prints "VERSION<TAB>METHOD" (METHOD: exec | header | path).
+# Prints "VERSION<TAB>METHOD" (METHOD: exec | header | path). Pre-release suffixes are kept
+# (v24.0.0-rc.1, v26.0.0-nightly...; a header of a non-release build gives X.Y.Z-pre).
 bcc_node_version() {
-  local bin=$1 out v hdr ma mi pa re
-  if out=$(bcc_probe "$bin" --version) && v=$(bcc_version_from_output "$out" '^v([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$'); then
-    printf '%s\texec\n' "$v"
+  local bin=$1 out v hdr text ma mi pa rel re
+  if out=$(bcc_probe "$bin" --version) && v=$(bcc_version_from_output "$out" '^(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)[[:space:]]*$'); then
+    printf '%s\texec\n' "$(bcc_semver_parse "$v")"
     return 0
   fi
   # Official tarballs ship include/node/node_version.h next to bin/.
   hdr="$(dirname -- "$(dirname -- "$bin")")/include/node/node_version.h"
-  if [[ -r $hdr ]]; then
-    ma=$(sed -n 's/^#define NODE_MAJOR_VERSION \([0-9][0-9]*\).*/\1/p' "$hdr" | head -n 1)
-    mi=$(sed -n 's/^#define NODE_MINOR_VERSION \([0-9][0-9]*\).*/\1/p' "$hdr" | head -n 1)
-    pa=$(sed -n 's/^#define NODE_PATCH_VERSION \([0-9][0-9]*\).*/\1/p' "$hdr" | head -n 1)
-    [[ -n $ma && -n $mi && -n $pa ]] && { printf '%s.%s.%s\theader\n' "$ma" "$mi" "$pa"; return 0; }
+  if text=$(bcc_read_file "$hdr" 65536); then
+    ma=$(sed -n 's/^#define NODE_MAJOR_VERSION \([0-9][0-9]*\).*/\1/p' <<<"$text" | head -n 1)
+    mi=$(sed -n 's/^#define NODE_MINOR_VERSION \([0-9][0-9]*\).*/\1/p' <<<"$text" | head -n 1)
+    pa=$(sed -n 's/^#define NODE_PATCH_VERSION \([0-9][0-9]*\).*/\1/p' <<<"$text" | head -n 1)
+    rel=$(sed -n 's/^#define NODE_VERSION_IS_RELEASE \([0-9][0-9]*\).*/\1/p' <<<"$text" | head -n 1)
+    if [[ -n $ma && -n $mi && -n $pa ]]; then
+      printf '%s.%s.%s%s\theader\n' "$ma" "$mi" "$pa" "$([[ $rel == 0 ]] && printf -- -pre)"
+      return 0
+    fi
   fi
   # Version managers keep one directory per version: .../v22.17.1/bin/node, .../node-v22.17.1-linux-x64/bin/node
-  re='/(node-)?v?([0-9]+\.[0-9]+\.[0-9]+)[^/]*/(installation/)?bin/[^/]+$'
-  [[ $bin =~ $re ]] && { printf '%s\tpath\n' "${BASH_REMATCH[2]}"; return 0; }
+  re='/([^/]+)/(installation/)?bin/[^/]+$'
+  [[ $bin =~ $re ]] && v=$(bcc_version_from_dirname "${BASH_REMATCH[1]}") && { printf '%s\tpath\n' "$v"; return 0; }
   return 1
 }
 
@@ -72,19 +77,29 @@ bcc_pids_of() {
 # version number may not reflect a distributor's backport: use the C09 string heuristic.
 # Usage: bcc_report_by_strings ID COMPONENT PATH VERSION REASON-PREFIX
 bcc_report_by_strings() {
-  local id=$1 comp=$2 path=$3 ver=$4 prefix=$5 res status count
+  local id=$1 comp=$2 path=$3 ver=$4 prefix=$5 res status count dicts
   res=$(bcc_brotli_heuristic "$path")
   bcc_split_tab "$res"
   status=${BCC_F[0]}
   count=${BCC_F[1]}
+  dicts=${BCC_F[3]:-0}
   case $status in
     LIKELY_FIXED)
-      bcc_add_finding "$id" LIKELY_FIXED "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_fixed)" \
+      bcc_add_finding "$id" LIKELY_FIXED "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_fixed "$dicts")" \
         "$(bcc_msg n_confirm_vendor)" "$(bcc_msg e_heur "$count" yes)" "$(bcc_msg conf_heur)"
       ;;
     LIKELY_VULNERABLE)
       bcc_add_finding "$id" LIKELY_VULNERABLE "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_vuln)" \
         "$(bcc_msg n_update_product)" "$(bcc_msg e_heur "$count" no)" "$(bcc_msg conf_heur)"
+      ;;
+    MULTIPLE_COPIES)
+      bcc_add_finding "$id" UNKNOWN "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_multiple)" \
+        "$(bcc_msg n_check_vendor)" "$(bcc_msg e_heur "$count" yes); $(bcc_msg e_dicts "$dicts")" ""
+      ;;
+    INCOMPLETE)
+      bcc_add_finding "$id" UNKNOWN "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_incomplete "$BCC_MAX_ELF_MB")" \
+        "$(bcc_msg n_check_vendor)" "" ""
+      bcc_note_incomplete "$path"
       ;;
     *)
       bcc_add_finding "$id" VENDORED_COPY "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_none)" \
@@ -93,22 +108,28 @@ bcc_report_by_strings() {
   esac
 }
 
+# The node executables C04 judges (and bcc_build_exec_plan asks about): the known places,
+# the index, and the executables of running node processes. Computed once (BCC_C04_CANDS).
+bcc_c04_candidates() {
+  [[ -z ${BCC_C04_DONE:-} ]] || return 0
+  local exe c known
+  bcc_collect0 < <({ bcc_node_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_NODE[@]+"${BCC_IDX_NODE[@]}"}; } | bcc_candidates 'node|nodejs')
+  BCC_C04_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
+  # Running node executables outside the searched places are judged too.
+  while IFS= read -r -d '' exe; do
+    known=0
+    for c in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do [[ $c == "$exe" ]] && known=1; done
+    ((known)) || { bcc_is_elf "$exe" && BCC_C04_CANDS+=("$exe"); }
+  done < <(bcc_running_exes node nodejs)
+  BCC_C04_DONE=1
+}
+
 bcc_check_c04() {
   local bin owner link rc libpath method ver vm major pids next
-  local -a cands=()
-  mapfile -t cands < <({ bcc_node_patterns; bcc_index_list ${BCC_IDX_NODE[@]+"${BCC_IDX_NODE[@]}"}; } | bcc_candidates 'node|nodejs')
+  bcc_c04_candidates
   bcc_scan_proc_exes C04 node nodejs
-  # Running node executables outside the searched places are judged too.
-  local pid exe c known
-  for pid in "${!BCC_PROC_EXE[@]}"; do
-    exe=${BCC_PROC_EXE[$pid]}
-    known=0
-    for c in ${cands[@]+"${cands[@]}"}; do [[ $c == "$exe" ]] && known=1; done
-    ((known)) || { bcc_is_elf "$exe" && cands+=("$exe"); }
-  done
-  for bin in ${cands[@]+"${cands[@]}"}; do
+  for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
     BCC_JUDGED[$bin]=1
-    bcc_note_exec_safety "$bin"
     pids=$(bcc_pids_of "$bin")
     if owner=$(bcc_dpkg_owner "$bin"); then
       rc=0
@@ -117,7 +138,8 @@ bcc_check_c04() {
         bcc_split_tab "$link"
         libpath=${BCC_F[0]}
         method=${BCC_F[1]}
-        bcc_add_info C04 "$(bcc_msg i_uses_os_lib "$bin" "$owner" "$libpath" "$method")"
+        bcc_report_linked_lib C04 "$owner" "$bin" "$libpath" "$method"
+        bcc_report_own_copy C04 "node ($owner)" "$bin"
         continue
       elif ((rc == 1)); then
         vm=$(bcc_node_version "$bin") || vm=""
@@ -160,23 +182,29 @@ bcc_bun_patterns() {
   done
 }
 
+bcc_c05_candidates() {
+  [[ -z ${BCC_C05_DONE:-} ]] || return 0
+  bcc_collect0 < <({ bcc_bun_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_BUN[@]+"${BCC_IDX_BUN[@]}"}; } | bcc_candidates bun)
+  BCC_C05_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
+  BCC_C05_DONE=1
+}
+
 bcc_check_c05() {
-  local bin out ver method pids next re='/v?([0-9]+\.[0-9]+\.[0-9]+)[^/]*/bin/bun$'
-  local -a cands=()
-  mapfile -t cands < <({ bcc_bun_patterns; bcc_index_list ${BCC_IDX_BUN[@]+"${BCC_IDX_BUN[@]}"}; } | bcc_candidates bun)
+  local bin out ver method pids next re='/([^/]+)/bin/bun$'
+  bcc_c05_candidates
   bcc_scan_proc_exes C05 bun
-  for bin in ${cands[@]+"${cands[@]}"}; do
+  for bin in ${BCC_C05_CANDS[@]+"${BCC_C05_CANDS[@]}"}; do
     BCC_JUDGED[$bin]=1
-    bcc_note_exec_safety "$bin"
     pids=$(bcc_pids_of "$bin")
     ver=""
-    if out=$(bcc_probe "$bin" --version) && ver=$(bcc_version_from_output "$out" '^([0-9]+\.[0-9]+\.[0-9]+)([-+][0-9A-Za-z.]+)?[[:space:]]*$'); then
+    # The whole version, pre-release included (1.4.4-rc.1 is not 1.4.4).
+    if out=$(bcc_probe "$bin" --version) && ver=$(bcc_version_from_output "$out" '^([0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)*)[[:space:]]*$') &&
+      ver=$(bcc_semver_parse "$ver"); then
       method="exec"
     else
       ver=""
     fi
-    if [[ -z $ver && $bin =~ $re ]]; then
-      ver=${BASH_REMATCH[1]}
+    if [[ -z $ver && $bin =~ $re ]] && ver=$(bcc_version_from_dirname "${BASH_REMATCH[1]}"); then
       method=path
     fi
     if [[ -z $ver ]]; then

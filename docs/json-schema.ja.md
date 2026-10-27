@@ -14,8 +14,10 @@ UTF-8 の JSON オブジェクトを 1 行で出します。フィールドは�
 | `data_snapshot_date` | 既知データの日付（ファイル先頭の `# snapshot:` 行） |
 | `data_age_days`, `data_stale` | 今日までの日数。30 日以上で `data_stale` が true |
 | `data_source` | `embedded`（同梱）か、`--data` で渡したパス |
+| `data_writable_by_others` | `--data` のファイル（または置き場所のディレクトリ）を root（または実行者）以外が変更できるとき true（結果の冒頭でも警告） |
 | `host` | OS（`/etc/os-release`）、パッケージの系列（例 `ubuntu:noble`）、カーネル、uid、root かどうか |
-| `options` | 指定されたオプション |
+| `options` | 指定されたオプション。`no_exec` は `--no-exec`、`yes` は `--yes`（一覧のプログラムを尋ねずに実行した） |
+| `execution[]` | 版を読むために実行したいと挙げたプログラム（一覧の順）。`path`・`argument`・`check`、`ran`（実行したか）、実行したものは `exit_status` と `output`（4096 文字まで）、しなかったものは `not_run_because`（`not-chosen` か `no-exec`）、`facts`（尋ねる前に示した事実） |
 | `scanned_roots` | 探索した場所 |
 | `skipped[]` | **走査しなかった範囲**（`scope` と `reason`）。必ず出す |
 | `findings[]` | 所見。`id`（C01〜C15）、`status`、`component`、`path`、`version`、`reason`、`next_step`、`evidence`、`confidence` |

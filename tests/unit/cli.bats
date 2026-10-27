@@ -155,12 +155,88 @@ EOF
   printf 'Name: Brotli\nVersion: 1.2.0\n' >"$T/srv/venv/lib/python3.12/site-packages/Brotli-1.2.0.dist-info/METADATA"
   printf '{"version": "1.7.9"}\n' >"$T/srv/app/node_modules/axios/package.json"
   before=$(find "$T/srv" -printf '%p %s %T@ %m\n' | sort)
-  run "$BIN" --roots "$T/srv" --deep --projects --timeout 30
+  run "$BIN" --roots "$T/srv" --deep --projects --timeout 30 --no-exec
   after=$(find "$T/srv" -printf '%p %s %T@ %m\n' | sort)
   [ "$before" = "$after" ]
+}
+
+@test "system tools never come from the caller's PATH (a planted stat or timeout is not run)" {
+  mkdir -p "$T/evil"
+  for t in stat timeout grep od readelf; do
+    printf '#!/bin/sh\n: >"%s/ran-%s"\nexit 1\n' "$T" "$t" >"$T/evil/$t"
+    chmod +x "$T/evil/$t"
+  done
+  PATH="$T/evil:$PATH" run "$BIN" "${ARGS[@]}"
+  [ "$status" -ne 3 ]
+  [ -z "$(find "$T" -maxdepth 1 -name 'ran-*')" ]
 }
 
 @test "a root named with --roots that does not exist is listed as not scanned" {
   run "$BIN" --roots "$T/srv,$T/nope" --no-exec
   [[ $output == *"[SKIPPED] $T/nope | does not exist"* ]]
+}
+
+@test "--data: a FIFO is refused at once (never opened); others' write access is warned about" {
+  mkfifo "$T/fifo.tsv"
+  SECONDS=0
+  run timeout 30 "$BIN" "${ARGS[@]}" --data "$T/fifo.tsv"
+  [ "$status" -eq 3 ]
+  ((SECONDS < 20))
+  cp "$REPO_ROOT/data/advisories.tsv" "$T/data.tsv"
+  chmod 644 "$T/data.tsv"
+  run "$BIN" "${ARGS[@]}" --data "$T/data.tsv"
+  [[ $output != *"can change the advisory data"* ]]
+  chmod 666 "$T/data.tsv"
+  run "$BIN" "${ARGS[@]}" --data "$T/data.tsv"
+  [[ $output == *"WARNING: users other than root (or you) can change the advisory data $T/data.tsv"* ]]
+  command -v python3 >/dev/null || return 0
+  run --separate-stderr "$BIN" "${ARGS[@]}" --data "$T/data.tsv" --json
+  printf '%s' "$output" | python3 -I -c 'import json,sys; assert json.load(sys.stdin)["data_writable_by_others"] is True'
+}
+
+@test "consent: with programs to run and no terminal, the tool lists them and asks for --yes or --no-exec" {
+  mkdir -p "$T/srv/tools/bin"
+  printf '\177ELF\002\001\001\000' >"$T/srv/tools/bin/bun"
+  chmod +x "$T/srv/tools/bin/bun"
+  run "$BIN" --roots "$T/srv" --timeout 30 </dev/null
+  [ "$status" -eq 3 ]
+  [[ $output == *"$T/srv/tools/bin/bun --version"* ]]
+  [[ $output == *"--yes (run them) or --no-exec"* ]]
+  run "$BIN" --roots "$T/srv" --timeout 30 --no-exec </dev/null
+  [ "$status" -ne 3 ]
+  [[ $output == *"[NOT RUN] $T/srv/tools/bin/bun --version (--no-exec)"* ]]
+}
+
+@test "consent: --yes runs the listed programs and the report says what ran (JSON too)" {
+  command -v cc >/dev/null || skip "no C compiler"
+  mkdir -p "$T/srv/tools/bin"
+  printf '#include <stdio.h>\nint main(void){puts("1.4.4");return 0;}\n' >"$T/stub.c"
+  cc -o "$T/srv/tools/bin/bun" "$T/stub.c"
+  run "$BIN" --roots "$T/srv" --timeout 30 --yes </dev/null
+  [[ $output == *"[RUN] $T/srv/tools/bin/bun --version -> 1.4.4 (exit status 0)"* ]]
+  [[ $output == *"[FIXED] C05 | bun | $T/srv/tools/bin/bun | 1.4.4"* ]]
+  command -v python3 >/dev/null || return 0
+  run --separate-stderr "$BIN" --roots "$T/srv" --timeout 30 --yes --json </dev/null
+  printf '%s' "$output" | python3 -I -c '
+import json, sys
+d = json.load(sys.stdin)
+e = [x for x in d["execution"] if x["path"].endswith("/srv/tools/bin/bun")]
+assert e and e[0]["ran"] is True and e[0]["output"].strip() == "1.4.4" and e[0]["facts"], e'
+}
+
+@test "consent: at a terminal the user chooses by number" {
+  command -v script >/dev/null || skip "script (util-linux) is needed for a terminal"
+  command -v cc >/dev/null || skip "no C compiler"
+  mkdir -p "$T/srv/a/bin" "$T/srv/b/bin"
+  printf '#include <stdio.h>\nint main(void){puts("1.4.4");return 0;}\n' >"$T/stub.c"
+  cc -o "$T/srv/a/bin/bun" "$T/stub.c"
+  cp "$T/srv/a/bin/bun" "$T/srv/b/bin/bun"
+  # The host's own programs are listed too: find b's number first (no terminal: list, stop).
+  run "$BIN" --roots "$T/srv" --timeout 30 </dev/null
+  n=$(sed -n 's|^ *\([0-9]*\)\. '"$T"'/srv/b/bin/bun --version.*|\1|p' <<<"$output")
+  [ -n "$n" ]
+  printf '%s\n' "$n" | script -qec "$BIN --roots $T/srv --timeout 30 --lang en" /dev/null >"$T/out.txt" 2>&1 || true
+  grep -q "Run them?" "$T/out.txt"
+  grep -q "\[RUN\] $T/srv/b/bin/bun --version" "$T/out.txt"
+  grep -q "\[NOT RUN\] $T/srv/a/bin/bun --version (not chosen)" "$T/out.txt"
 }

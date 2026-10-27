@@ -4,19 +4,41 @@
 # Fixed, read-only script run inside a container with --inspect-containers.
 # It prints tagged lines only; nothing is installed, written, or started. os-release is
 # read with sed, never sourced (it is a file the image's author controls).
+# POSIX sh only: /bin/sh is dash (Debian/Ubuntu) or busybox, and neither knows
+# "command -v -a", so node/nodejs are looked up in each PATH directory by hand.
+# The END line tells a complete run from one that stopped early.
 # shellcheck disable=SC2016  # expanded inside the container, not here
 BCC_C14_PROBE='
 osr() { sed -n "s/^$1=//p" /etc/os-release 2>/dev/null | head -n 1 | tr -d "\"\047"; }
 echo "OS	$(osr ID)	$(osr VERSION_CODENAME)	$(osr UBUNTU_CODENAME)"
 if command -v dpkg-query >/dev/null 2>&1; then
   dpkg-query -W -f "PKG	\${db:Status-Abbrev}	\${binary:Package}	\${Version}	\${source:Package}	\${source:Version}\n" libbrotli1 python3-brotli 2>/dev/null
+  echo "PKGRC	$?"
 fi
-for n in $(command -v -a node nodejs 2>/dev/null | sort -u); do echo "NODE	$n	$("$n" --version 2>/dev/null)"; done
+seen=" "
+set -f
+old_ifs=$IFS
+IFS=:
+for d in ${PATH:-/usr/local/bin:/usr/bin:/bin}:/usr/local/bin:/usr/bin:/bin; do
+  IFS=$old_ifs
+  case $d in /*) ;; *) continue ;; esac
+  for n in node nodejs; do
+    p="$d/$n"
+    [ -f "$p" ] && [ -x "$p" ] || continue
+    r=$(readlink -f "$p" 2>/dev/null) || r=$p
+    case $seen in *" $r "*) continue ;; esac
+    seen="$seen$r "
+    echo "NODE	$p	$("$p" --version 2>/dev/null | head -n 1)"
+  done
+done
+IFS=$old_ifs
+set +f
 for d in /usr/lib/python3/dist-packages /usr/local/lib/python3*/site-packages /usr/lib/python3*/site-packages /opt/*/lib/python3*/site-packages; do
   for m in "$d"/[Bb]rotli-*.dist-info/METADATA "$d"/brotlicffi-*.dist-info/METADATA; do
     [ -f "$m" ] && echo "PY	$m	$(sed -n "s/^Name: *//p" "$m" | head -n 1)	$(sed -n "s/^Version: *//p" "$m" | head -n 1)"
   done
 done
+echo END
 '
 
 bcc_check_c14() {
@@ -61,7 +83,7 @@ bcc_check_c14() {
 }
 
 bcc_c14_inspect() {
-  local engine=$1 id=$2 name=$3 image=$4 out line series="" where
+  local engine=$1 id=$2 name=$3 image=$4 out line series="" where ended=0 deb_py=0
   if ! out=$(timeout -k 2 "$BCC_TIMEOUT" "$engine" exec "$id" sh -c "$BCC_C14_PROBE" </dev/null 2>/dev/null); then
     bcc_skip "container $name" "$(bcc_msg skip_c14_exec_failed)"
     return
@@ -70,6 +92,11 @@ bcc_c14_inspect() {
   while IFS= read -r line; do
     bcc_split_tab "$line"
     case ${BCC_F[0]} in
+      END) ended=1 ;;
+      PKGRC)
+        # 1 only means a package is not installed; 2 and above: the database was not read.
+        [[ ${BCC_F[1]:-} =~ ^[01]$ ]] || bcc_skip "container $name (dpkg)" "$(bcc_msg skip_c14_dpkg_failed "${BCC_F[1]:-?}")"
+        ;;
       OS)
         case ${BCC_F[1]:-} in
           ubuntu | debian) series="${BCC_F[1]}:${BCC_F[2]:-}" ;;
@@ -80,12 +107,13 @@ bcc_c14_inspect() {
       PKG)
         [[ ${BCC_F[1]:-} == [ih]i* && -n $series ]] || continue
         local pkg=${BCC_F[2]%%:*} ver=${BCC_F[3]} src=${BCC_F[4]:-brotli} srcver=${BCC_F[5]:-${BCC_F[3]}}
+        [[ $pkg == python3-brotli ]] && deb_py=1
         bcc_judge "deb-src:$src" "$series" deb "$srcver"
         bcc_add_finding C14 "$BCC_J_STATUS" "$pkg" "$where" "$ver" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
         ;;
       NODE)
         local nver npath=${BCC_F[1]:-}
-        nver=$(bcc_version_extract "${BCC_F[2]:-}")
+        nver=$(bcc_semver_parse "${BCC_F[2]:-}") || nver=""
         if [[ -z $nver ]]; then
           bcc_add_finding C14 UNKNOWN node "$where $npath" "" "$(bcc_msg r_version_unknown)" "$(bcc_msg n_check_vendor)" "" ""
           continue
@@ -98,12 +126,15 @@ bcc_c14_inspect() {
         local lname meta=${BCC_F[1]:-} pname=${BCC_F[2]:-} pver=${BCC_F[3]:-}
         lname=$(tr '[:upper:]' '[:lower:]' <<<"$pname")
         [[ $lname == brotli || $lname == brotlicffi ]] || continue
-        [[ $meta == /usr/lib/python3/dist-packages/* ]] && continue # distribution package: PKG line
+        # The distribution's python3-brotli (judged from its PKG line) puts its metadata here;
+        # anything else here (pip --target) is judged by its own version.
+        [[ $meta == /usr/lib/python3/dist-packages/* ]] && ((deb_py)) && continue
         bcc_judge "pypi:$lname" '*' pep440 "$pver"
         bcc_add_finding C14 "$BCC_J_STATUS" "$pname" "$where ${meta%/*}" "$pver" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
         ;;
     esac
   done <<<"$out"
+  ((ended)) || bcc_skip "container $name" "$(bcc_msg skip_c14_incomplete)"
 }
 
 # C15: who listens beyond loopback? Only a hint for prioritizing.
@@ -112,7 +143,12 @@ bcc_check_c15() {
     bcc_skip C15 "$(bcc_msg skip_no_ss)"
     return
   fi
-  local line local_addr procinfo pname pid any_hidden=0
+  local line local_addr procinfo pname pid any_hidden=0 out rc=0
+  out=$(bcc_sys ss -ltnpH) || rc=$?
+  if ((rc != 0)); then
+    bcc_skip C15 "$(bcc_msg skip_cmd_failed ss "$rc")"
+    return 0
+  fi
   while IFS= read -r line; do
     read -r _ _ _ local_addr _ procinfo <<<"$line"
     [[ -n $local_addr ]] || continue
@@ -131,6 +167,6 @@ bcc_check_c15() {
       *) continue ;;
     esac
     bcc_add_finding C15 EXPOSURE "$pname (pid $pid)" "$local_addr" "" "$(bcc_msg r_c15_listen)" "$(bcc_msg n_c15)" "" ""
-  done < <(bcc_sys ss -ltnpH)
+  done <<<"$out"
   ((any_hidden == 0 || BCC_IS_ROOT)) || bcc_skip C15 "$(bcc_msg skip_c15_hidden)"
 }

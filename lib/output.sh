@@ -17,6 +17,7 @@ bcc_options_summary() {
   ((BCC_CONTAINERS && !BCC_INSPECT_CONTAINERS)) && o+=(--containers)
   ((BCC_EXPOSURE)) && o+=(--exposure)
   ((BCC_NO_EXEC)) && o+=(--no-exec)
+  ((BCC_YES)) && o+=(--yes)
   ((BCC_INCLUDE_REMOTE)) && o+=(--include-remote)
   [[ -n $BCC_ENVOY_CONFIG ]] && o+=("--envoy-config $BCC_ENVOY_CONFIG")
   if ((${#o[@]})); then printf '%s' "${o[*]}"; else printf -- '-'; fi
@@ -34,8 +35,13 @@ bcc_render_text() {
     bcc_msg w_data_stale "$BCC_DATA_AGE_DAYS"
     printf '\n'
   fi
+  if ((${BCC_DATA_WRITABLE:-0})); then
+    bcc_msg w_data_writable "$BCC_DATA_LABEL"
+    printf '\n'
+  fi
   bcc_msg h_roots "$(IFS=,; printf '%s' "${BCC_ROOTS[*]:-}")" "$(bcc_options_summary)"
   printf '\n'
+  bcc_render_exec_text
   for id in $BCC_CHECK_IDS; do
     printed=0
     for f in ${BCC_FINDINGS[@]+"${BCC_FINDINGS[@]}"}; do
@@ -137,18 +143,19 @@ bcc_render_json() {
   local f first st
   printf '{'
   printf '"tool":"brotli-cve-check","tool_version":%s,"cve":%s,' "$(bcc_json_str "$BCC_VERSION")" "$(bcc_json_str "$BCC_CVE")"
-  printf '"data_snapshot_date":%s,"data_age_days":%d,"data_stale":%s,"data_source":%s,' \
+  printf '"data_snapshot_date":%s,"data_age_days":%d,"data_stale":%s,"data_source":%s,"data_writable_by_others":%s,' \
     "$(bcc_json_str "$BCC_DATA_SNAPSHOT")" "$BCC_DATA_AGE_DAYS" "$( ((BCC_DATA_AGE_DAYS >= 30)) && echo true || echo false)" \
-    "$(bcc_json_str "$BCC_DATA_LABEL")"
+    "$(bcc_json_str "$BCC_DATA_LABEL")" "$(bcc_json_bool "${BCC_DATA_WRITABLE:-0}")"
   printf '"host":{"os_id":%s,"os_version_id":%s,"os_codename":%s,"os_pretty_name":%s,"package_series":%s,"kernel":%s,"uid":%d,"is_root":%s},' \
     "$(bcc_json_str "${BCC_OS_ID:-}")" "$(bcc_json_str "${BCC_OS_VERSION_ID:-}")" "$(bcc_json_str "${BCC_OS_CODENAME:-}")" \
     "$(bcc_json_str "${BCC_OS_PRETTY:-}")" "$(bcc_json_str "${BCC_DEB_SERIES:-}")" "$(bcc_json_str "${BCC_KERNEL:-}")" \
     "$BCC_UID" "$( ((BCC_IS_ROOT)) && echo true || echo false)"
-  printf '"options":{"deep":%s,"projects":%s,"containers":%s,"inspect_containers":%s,"exposure":%s,"no_exec":%s,"include_remote":%s,"lang":%s},' \
+  printf '"options":{"deep":%s,"projects":%s,"containers":%s,"inspect_containers":%s,"exposure":%s,"no_exec":%s,"yes":%s,"include_remote":%s,"lang":%s},' \
     "$(bcc_json_bool "$BCC_DEEP")" "$(bcc_json_bool "$BCC_PROJECTS")" "$(bcc_json_bool "$BCC_CONTAINERS")" \
     "$(bcc_json_bool "$BCC_INSPECT_CONTAINERS")" "$(bcc_json_bool "$BCC_EXPOSURE")" "$(bcc_json_bool "$BCC_NO_EXEC")" \
-    "$(bcc_json_bool "$BCC_INCLUDE_REMOTE")" "$(bcc_json_str "$BCC_LANG")"
+    "$(bcc_json_bool "$BCC_YES")" "$(bcc_json_bool "$BCC_INCLUDE_REMOTE")" "$(bcc_json_str "$BCC_LANG")"
   printf '"scanned_roots":%s,' "$(bcc_json_array_of_strings ${BCC_ROOTS[@]+"${BCC_ROOTS[@]}"})"
+  printf '"execution":%s,' "$(bcc_render_exec_json)"
   printf '"skipped":['
   first=1
   for f in ${BCC_SKIPPED[@]+"${BCC_SKIPPED[@]}"}; do
@@ -186,6 +193,59 @@ bcc_render_json() {
   done
   printf '}},"exit_code":%d,"disclaimer":%s}' "$BCC_EXIT" "$(bcc_json_str "$(bcc_msg s_disclaimer)")"
   printf '\n'
+}
+
+# What was run to read versions, what was not, and the facts shown before asking.
+bcc_render_exec_text() {
+  local key f out first
+  local -a facts=()
+  ((${#BCC_PLAN[@]})) || return 0
+  printf '\n== %s ==\n' "$(bcc_msg title_exec)"
+  for key in "${BCC_PLAN[@]}"; do
+    if [[ -n ${BCC_PROBE_RC[$key]+x} ]]; then
+      out=${BCC_PROBE_OUT[$key]}
+      first=${out%%$'\n'*}
+      bcc_msg x_ran "${key%%$'\t'*}" "${key#*$'\t'}" "${first:0:200}" "${BCC_PROBE_RC[$key]}"
+    elif ((BCC_NO_EXEC)); then
+      bcc_msg x_not_run "${key%%$'\t'*}" "${key#*$'\t'}" "$(bcc_msg x_reason_noexec)"
+    else
+      bcc_msg x_not_run "${key%%$'\t'*}" "${key#*$'\t'}" "$(bcc_msg x_reason_declined)"
+    fi
+    printf '  (%s)\n' "${BCC_PLAN_PURPOSE[$key]}"
+    IFS=$'\037' read -r -a facts <<<"${BCC_PLAN_FACTS[$key]}"
+    for f in ${facts[@]+"${facts[@]}"}; do
+      [[ -n $f ]] && printf '    - %s\n' "$f"
+    done
+  done
+}
+
+bcc_render_exec_json() {
+  local key f first=1 ff
+  local -a facts=()
+  printf '['
+  for key in ${BCC_PLAN[@]+"${BCC_PLAN[@]}"}; do
+    ((first)) || printf ','
+    first=0
+    printf '{"path":%s,"argument":%s,"check":%s,"ran":%s,' "$(bcc_json_str "${key%%$'\t'*}")" \
+      "$(bcc_json_str "${key#*$'\t'}")" "$(bcc_json_str "${BCC_PLAN_PURPOSE[$key]}")" \
+      "$([[ -n ${BCC_PROBE_RC[$key]+x} ]] && echo true || echo false)"
+    if [[ -n ${BCC_PROBE_RC[$key]+x} ]]; then
+      printf '"exit_status":%d,"output":%s,' "${BCC_PROBE_RC[$key]}" "$(bcc_json_str "${BCC_PROBE_OUT[$key]:0:4096}")"
+    else
+      if ((BCC_NO_EXEC)); then printf '"not_run_because":"no-exec",'; else printf '"not_run_because":"not-chosen",'; fi
+    fi
+    printf '"facts":['
+    ff=1
+    IFS=$'\037' read -r -a facts <<<"${BCC_PLAN_FACTS[$key]}"
+    for f in ${facts[@]+"${facts[@]}"}; do
+      [[ -n $f ]] || continue
+      ((ff)) || printf ','
+      ff=0
+      bcc_json_str "$f"
+    done
+    printf ']}'
+  done
+  printf ']'
 }
 
 bcc_json_bool() {

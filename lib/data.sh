@@ -94,7 +94,11 @@ bcc_judge() {
     fixed | analysis | unreleased)
       rc=0
       bcc_version_ge "$kind" "$ver" "$BCC_D_FIXED" || rc=$?
-      if ((rc == 0)); then
+      if ((rc == 1)) && bcc_is_prerelease_of "$kind" "$ver" "$BCC_D_FIXED"; then
+        BCC_J_STATUS=UNKNOWN
+        BCC_J_REASON=$(bcc_msg r_prerelease "$ver" "$BCC_D_FIXED")
+        BCC_J_NEXT=$(bcc_msg n_prerelease "$BCC_D_FIXED")
+      elif ((rc == 0)); then
         BCC_J_STATUS=FIXED
         BCC_J_REASON=$(bcc_msg r_fixed_ge "$BCC_D_FIXED")
       elif ((rc == 1)) && [[ $BCC_D_STATUS == unreleased ]]; then

@@ -13,8 +13,16 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
 - **Static copies without markers.** `--deep` recognizes a bundled decoder by its exported
   symbol names (`BrotliDecoderDecompressStream`, ...) or its error-name strings. A fully
   stripped, link-time-optimized binary that does not use `BrotliDecoderErrorString` can carry
-  neither and is then invisible.
+  neither and is then invisible. For the web servers of C11 this is why "no markers" is
+  `NOT_APPLICABLE` only for a packaged file or a Go program without the cgo binding; a server
+  you built yourself is `UNKNOWN`. A static curl that was not run is `UNKNOWN` for the same reason.
 - **Network file systems** (NFS, CIFS, sshfs, ...) unless `--include-remote`.
+- **Search roots that are symbolic links** are searched at their targets (the report says so);
+  other symbolic links are never followed.
+- **Other file systems below the search roots.** Local disks mounted below a root are searched;
+  tmpfs, overlay, squashfs, fuse and other kinds are not, and are listed under "Not scanned"
+  (name them with `--roots`). btrfs subvolumes that are not mount points are not searched and not
+  listed (`find -xdev` stops at them, and they do not appear in the mount table).
 - **Other implementations.** Go (`andybalholm/brotli`), Rust (`brotli-decompressor`), Java and
   .NET decoders are separate code bases and are not checked; whether they are affected by this
   CVE is not covered here.
@@ -49,6 +57,19 @@ source); their binaries were not built for the verification. A vendor's own patc
 the flaw differently would not carry the marker and would show as `LIKELY_VULNERABLE`; when
 a file name says one thing and the strings another, the tool reports `UNKNOWN`.
 
+The linker merges equal strings, so a file with two copies of the decoder shows one set of
+names: one fixed copy would hide an unfixed one. The tool counts copies of Brotli's built-in
+dictionary (one per copy) and reports `UNKNOWN` instead of `LIKELY_FIXED` when there are two or
+more. Two decoders that share one dictionary, or a copy built with an external dictionary, are
+not told apart; that is why a `LIKELY_FIXED` line says what was found (the fix's error name, the
+number of dictionaries) and what was not determined (whether all decoder code in the file is
+fixed). Files are read up to the size limit (512 MiB); a file that could not be read to the end
+is `UNKNOWN` and is listed under "Not scanned".
+
+A version read from a file rather than from the program (a directory name, `node_version.h`,
+package metadata, a library's file name) gives `FIXED` only when the file's strings confirm the
+fix in a single copy of Brotli; otherwise the result is `UNKNOWN` and says what was missing.
+
 ## Version numbers
 
 - Distribution packages are compared by the distributor's fixed version; a fix released after
@@ -62,19 +83,36 @@ a file name says one thing and the strings another, the tool reports `UNKNOWN`.
   vulnerable by derivation: the Node.js advisory says end-of-life versions are always affected
   and no fixed release exists for them. Versions 10 and earlier are `UNKNOWN` (they may predate
   bundled Brotli).
+- A pre-release (`1.4.4-rc.1`, Firefox `150.0a1`/`150.0b3`, Node.js nightly or `-pre` builds) of
+  exactly the fixed version is `UNKNOWN`: it may have been built before the fix.
 
 ## Running programs
 
-The tool runs a found program only for `--version` (or `-V`), with an empty environment and a
-timeout, and only if the file and every directory above it belong to root (or to you, when you
-are not root) and are not writable by others. As root, group-writable paths are never run.
-As an ordinary user, a group-writable directory is accepted only when its group is your user
-private group (same name as you, your primary group, one entry for the GID, no other members,
-nobody else's primary group). This cannot see group passwords (`gshadow`) or users that a
-directory service does not enumerate; use `--no-exec` where that matters. Others are judged from files. `ldd` is
-subject to the same rule; otherwise linkage is followed with `readelf` and `ldconfig -p`,
-which can miss unusual `RUNPATH` setups. `--inspect-containers` runs a fixed read-only script
-inside running containers.
+To read exact versions the tool asks to run some programs it found, each with one argument
+(`--version`, or `-V` for curl). Nothing found runs without your consent: the tool lists them
+first, with facts — who besides root (or you) could change the program, a directory on its
+path, a library it would load or a directory those are searched in, and anything it could not
+examine — and asks at the terminal (all, none, or by number). Without a terminal it needs
+`--yes` or `--no-exec`. The facts are as complete as the walk can make them: it follows
+symlinks where they are and looks libraries up the way glibc's ld.so does (DT_RPATH of the
+needing object and of its loaders, DT_RUNPATH, the ld.so cache, the default directories), but it
+cannot see what a program opens once it runs (dlopen, configuration files), and tokens such as
+`$LIB` are not expanded (the facts say so). Programs run from `/`, with an empty environment, a
+time limit and their output capped. `--inspect-containers` runs a fixed read-only script inside
+running containers; asking for it is the consent.
+
+System tools (`readelf`, `stat`, `dpkg-query`, ...) are taken from `/usr/sbin`, `/usr/bin`,
+`/sbin` and `/bin` (and `/usr/local/sbin`, `/usr/local/bin` when only root can change them),
+never from your `PATH`. The launcher itself is found through your `PATH`
+(`#!/usr/bin/env bash`): run it as `sudo bash brotli-cve-check`, where sudo's `secure_path`
+applies.
+
+## The advisory data (`--data`)
+
+The data decides the verdicts. A file given with `--data` that users other than root (or you)
+can change — the file, or a directory on its path, by the same rule as `--output` — is used, but
+the report warns about it at the top (`data_writable_by_others` in JSON). Only regular files are
+read, at most 16 MiB, under the time limit.
 
 ## Writing the report (`--output`)
 

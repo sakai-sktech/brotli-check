@@ -15,6 +15,7 @@ load_libs() {
   set -o pipefail
   BCC_LANG=en
   BCC_NO_EXEC=0
+  BCC_YES=0
   BCC_SHOW_CMDLINE=0
   BCC_TIMEOUT=20
   BCC_PROBE_TIMEOUT=5

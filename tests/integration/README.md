@@ -1,7 +1,10 @@
 # Integration tests
 
-`run.sh` builds one image per distribution and scans it twice: as root (programs may be run
-for their version) and as an ordinary user with `--no-exec` (versions from files only).
+`run.sh` builds one image per distribution and scans it four times: as root and as an ordinary
+user, each with `--no-exec` (found programs are not run) and with `--yes` (the programs the
+tool lists to read their versions are run; there is no terminal to ask). It also runs
+the fixed script of `--inspect-containers` (C14) in the image's own `/bin/sh` (dash) with both
+Node.js copies on `PATH`, and expects both copies, the package lines and the final `END`.
 
 | Image | Expected for `libbrotli1` / `python3-brotli` (data snapshot 2026-10-26) |
 |---|---|

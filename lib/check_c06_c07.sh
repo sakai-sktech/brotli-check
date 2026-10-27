@@ -19,9 +19,11 @@ bcc_python_dirs() {
 
 # Name and Version from a METADATA / PKG-INFO file. Prints "name<TAB>version".
 bcc_py_metadata() {
-  local f=$1 name ver
-  name=$(sed -n 's/^Name: *//p' "$f" | head -n 1 | tr -d '\r')
-  ver=$(sed -n 's/^Version: *//p' "$f" | head -n 1 | tr -d '\r')
+  local f=$1 text name ver
+  # The headers come first; a long description may follow.
+  text=$(bcc_read_file "$f" 65536) || [[ -n $text ]] || return 1
+  name=$(sed -n 's/^Name: *//p' <<<"$text" | head -n 1 | tr -d '\r')
+  ver=$(sed -n 's/^Version: *//p' <<<"$text" | head -n 1 | tr -d '\r')
   [[ -n $name && -n $ver ]] || return 1
   printf '%s\t%s\n' "$name" "$ver"
 }
@@ -50,8 +52,11 @@ bcc_c06_entry() {
   esac
   site=$(dirname -- "$p")
   # Distribution packages (python3-brotli) report the upstream version (1.1.0) even
-  # after the distributor's fix; C01 judges them by the package version instead.
-  if owner=$(bcc_dpkg_owner "$p"); then
+  # after the distributor's fix; C01 judges them by the package version instead. Only
+  # the packages C01 judged: a vendor's .deb with its own Python (monitoring agents under
+  # /opt/<vendor>/embedded) ships PyPI's Brotli and is judged here by its version.
+  owner=$(bcc_dpkg_owner "$p") || owner=""
+  if bcc_covered_by_c01 "$p"; then
     bcc_add_info C06 "$(bcc_msg i_c06_dpkg "$p" "$owner")"
     bcc_c06_exposure "$site"
     return 0
@@ -63,8 +68,12 @@ bcc_c06_entry() {
   done < <(compgen -G "$site/_brotli*.so" || true; compgen -G "$site/brotlicffi/_brotlicffi*.so" || true)
   BCC_C06_SITES[$site]=1
   local next=$BCC_J_NEXT
-  [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_pip_upgrade "$(printf '%q' "$site")" "$lname" "$BCC_J_FIXED")
-  bcc_add_finding C06 "$BCC_J_STATUS" "$name" "$p" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
+  if [[ $BCC_J_STATUS == VULNERABLE && -n $owner ]]; then
+    next=$(bcc_msg n_update_owner_pkg "$(printf '%q' "${owner%%,*}")")
+  elif [[ $BCC_J_STATUS == VULNERABLE ]]; then
+    next=$(bcc_msg n_pip_upgrade "$(printf '%q' "$site")" "$lname" "$BCC_J_FIXED")
+  fi
+  bcc_add_finding C06 "$BCC_J_STATUS" "$name" "$p" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE${owner:+; dpkg: $owner}" ""
   bcc_c06_exposure "$site"
 }
 
@@ -91,10 +100,25 @@ bcc_c06_conda() {
   local f=$1 base ver series
   [[ $f == */conda-meta/* ]] || return 0
   base=${f##*/}
-  [[ $base =~ ^libbrotlidec-([0-9]+\.[0-9]+\.[0-9]+)- ]] || return 0
+  if [[ ! $base =~ ^libbrotlidec-([0-9]+\.[0-9]+\.[0-9]+)- ]]; then
+    # A version such as 1.2.1rc0 must not drop out of the report.
+    bcc_add_finding C06 UNKNOWN "conda:libbrotlidec" "$f" "" "$(bcc_msg r_version_unparsable "$base")" \
+      "$(bcc_msg n_check_vendor)" "" ""
+    return 0
+  fi
   ver=${BASH_REMATCH[1]}
   series=${ver%.*}
   bcc_judge brotli "$series" semver "$ver"
+  # The record is a file name in the environment; its "fixed" is confirmed against the
+  # library it describes (lib/libbrotlidec.so.*).
+  local env lib
+  env=$(dirname -- "$(dirname -- "$f")")
+  bcc_glob "$env/lib/libbrotlidec.so.*"
+  for lib in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do
+    [[ -f $lib && ! -L $lib ]] && bcc_crosscheck_fixed "$lib"
+  done
+  # C09 leaves this environment's lib/libbrotlidec* to this finding.
+  BCC_C06_CONDA_ENVS[$env]=1
   local next=$BCC_J_NEXT
   [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_conda_update "$(printf '%q' "$(dirname -- "$(dirname -- "$f")")")")
   bcc_add_finding C06 "$BCC_J_STATUS" "conda:libbrotlidec" "$f" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
@@ -102,7 +126,7 @@ bcc_c06_conda() {
 
 bcc_check_c06() {
   local p
-  declare -gA BCC_C06_SITES=()
+  declare -gA BCC_C06_SITES=() BCC_C06_CONDA_ENVS=()
   for p in ${BCC_IDX_PY[@]+"${BCC_IDX_PY[@]}"}; do bcc_c06_entry "$p"; done
   for p in ${BCC_IDX_CONDA[@]+"${BCC_IDX_CONDA[@]}"}; do bcc_c06_conda "$p"; done
 }
@@ -113,7 +137,7 @@ BCC_C07_OUTBOUND="undici axios got node-fetch"
 
 # The first "version" key of a package.json (top-level in practice; also works when minified).
 bcc_pkg_version() {
-  grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$1" 2>/dev/null | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/'
+  bcc_read_file "$1" 1048576 | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' 2>/dev/null | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/'
 }
 
 bcc_c07_entry() {

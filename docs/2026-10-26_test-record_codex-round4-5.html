@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テスト記録 — Codex レビュー 4・5 回目の修正（2026-10-26）</title>
+<style>
+:root {
+  --bg: #f6f7f9; --paper: #ffffff; --ink: #1f2933; --muted: #5b6876; --line: #dde3ea;
+  --accent: #1f5f99; --ok: #1e7a4f; --ok-bg: #e8f5ee; --ng: #a8323c; --ng-bg: #fdeeee;
+  --warn: #8a5a00; --warn-bg: #fff6e0; --new: #5b3fa0; --new-bg: #f0ebfb; --code-bg: #f1f3f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181d; --paper: #1b2027; --ink: #e3e8ee; --muted: #9aa7b4; --line: #2c343e;
+    --accent: #7db3e8; --ok: #6fd3a0; --ok-bg: #173226; --ng: #f08a92; --ng-bg: #3a1d21;
+    --warn: #f2c46b; --warn-bg: #3a2f14; --new: #b9a3f0; --new-bg: #2a2340; --code-bg: #232a33;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181d; --paper: #1b2027; --ink: #e3e8ee; --muted: #9aa7b4; --line: #2c343e;
+  --accent: #7db3e8; --ok: #6fd3a0; --ok-bg: #173226; --ng: #f08a92; --ng-bg: #3a1d21;
+  --warn: #f2c46b; --warn-bg: #3a2f14; --new: #b9a3f0; --new-bg: #2a2340; --code-bg: #232a33;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.7 "Hiragino Sans", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+header.doc { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+h1 { font-size: 1.45rem; margin: 0 0 6px; line-height: 1.4; }
+h2 { font-size: 1.2rem; margin: 40px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+h3 { font-size: 1.02rem; margin: 26px 0 8px; }
+p, li { max-width: 72em; }
+.meta { color: var(--muted); font-size: .9rem; margin: 0; }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 16px; }
+.tile { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.tile b { display: block; font-size: 1.25rem; }
+.tile span { color: var(--muted); font-size: .85rem; }
+nav.toc { margin-top: 14px; font-size: .92rem; }
+nav.toc a { color: var(--accent); text-decoration: none; margin-right: 14px; white-space: nowrap; }
+.wrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { background: var(--bg); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.n { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+td.name { min-width: 15em; }
+code, .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: .86em;
+  background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-size: .84rem; line-height: 1.5; }
+.b { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.ok { color: var(--ok); background: var(--ok-bg); }
+.ng { color: var(--ng); background: var(--ng-bg); }
+.warn { color: var(--warn); background: var(--warn-bg); }
+.new { color: var(--new); background: var(--new-bg); }
+.note { background: var(--paper); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+.note.warn { border-left-color: var(--warn); background: var(--paper); color: var(--ink); }
+small.src { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<header class="doc">
+  <h1>テスト記録 — Codex レビュー 4・5 回目の修正（brotli-cve-check 0.1.0 リリース前）</h1>
+  <p class="meta">作成 2026-10-26 ／ 対象: コミット <code>eb4205b</code> の上の作業ツリー（未コミット）／ 単一ファイル版 <code>dist/brotli-cve-check</code> sha256 <code>4a3c63c101e19a51…</code></p>
+  <p class="meta"><b>2026-10-27 追記あり（11 章）:</b> 実行を「事実を示して同意を得る」形に作り直し、Codex 6 回目を直した後のテスト。1〜10 章は 2026-10-26 時点のまま。</p>
+  <p class="meta">開発機: Ubuntu 24.04.5 LTS、カーネル 7.0.0-30-generic、bash 5.2.21、ShellCheck 0.9.0、Bats 1.10.0、Docker 28.3.0、dash 0.5.12-6ubuntu5</p>
+  <div class="summary">
+    <div class="tile"><b>134 / 134</b><span>単体テスト成功（skip 0）。うち新規 41、変更 2</span></div>
+    <div class="tile"><b>0 件</b><span>ShellCheck の警告（ファイル単位・単一ファイル版・テスト）</span></div>
+    <div class="tile"><b>21 / 21</b><span>統合テスト（5 OS × 3 通りの走査＋C14 プローブ、bash 4.2）。4 回目後と 5 回目後の 2 回とも</span></div>
+    <div class="tile"><b>24 / 25</b><span>変異テスト: 修正を戻すとテストが落ちた。残る 1 つは設計上の二重の守り（片方を外しても他方が止める）</span></div>
+  </div>
+  <nav class="toc">
+    <a href="#why">この記録の目的</a><a href="#static">静的検査</a><a href="#unit-new">単体（新規・変更）</a>
+    <a href="#unit-old">単体（既存）</a><a href="#mutation">変異テスト</a><a href="#integration">統合テスト</a>
+    <a href="#experiments">再現実験</a><a href="#perf">速度</a><a href="#host">実機</a><a href="#codex">Codex</a><a href="#gaps">テストしていないこと</a><a href="#add1027">追記 10/27</a>
+  </nav>
+</header>
+
+<h2 id="why">この記録の目的</h2>
+<p>Codex の敵対的レビュー 4 回目（P1 × 6・P2 × 4）と 5 回目（P1 × 10）の指摘を直した後に、何を・何のために・どう確かめ、何が出たかを残す。
+判断の理由は <code>docs/design.md</code>（日本語は <code>design.ja.md</code>）の 10 章 9（4 回目）と 10 章 10（5 回目）にある。
+この記録はテストの側だけを扱う。結果はすべてこのセッションで実際に走らせたもので、単体テストと静的検査は記録の作成時に取り直した。</p>
+<div class="note">「指摘」の番号: <b>R4-n</b> は 4 回目の n 番目、<b>R5-n</b> は 5 回目の n 番目。指摘の全文は手元だけの <code>.context/</code> にあり、公開しない。</div>
+
+<h2 id="static">1. 静的検査（<code>make lint</code>）</h2>
+<div class="wrap"><table>
+<tr><th>検査</th><th>何のためか</th><th>結果</th></tr>
+<tr><td>ShellCheck: <code>lib/*.sh</code>（ファイル単位、SC2034・SC2004 を除く）</td><td>bash の書き間違い（クォート漏れ、到達しないコード、配列の誤用）を、ファイルごとに見つける。</td><td><span class="b ok">警告 0</span></td></tr>
+<tr><td>ShellCheck: <code>dist/brotli-cve-check</code>（全項目）</td><td>連結した単一ファイル版で、ファイルをまたぐ変数の衝突も見る。途中で 1 回、<code>next</code> を配列と文字列の両方に使っていた誤り（SC2178）を捉えた。</td><td><span class="b ok">警告 0</span></td></tr>
+<tr><td>ShellCheck: <code>bin/</code>・<code>scripts/</code>・統合テスト</td><td>起動スクリプトと補助スクリプトの書き間違い。</td><td><span class="b ok">警告 0</span></td></tr>
+<tr><td>ShellCheck: <code>tests/unit/*.bats</code></td><td>テスト自体の誤り。途中で 1 回、bats では <code>!</code> がテストの失敗にならない書き方（SC2314）を捉え、<code>run …; [ "$status" -eq 1 ]</code> に直した。</td><td><span class="b ok">警告 0</span></td></tr>
+</table></div>
+
+<h2 id="unit-new">2. 単体テスト — 今回足した・変えたもの（43 件）</h2>
+<p>実行: <code>bats tests/unit</code>（本体と同じく <code>set -o pipefail</code>）。外部コマンドは PATH の先頭の偽物で置き換える。<span class="b new">新規</span> は今回足したもの、<span class="b warn">変更</span> は既存のものを今回直したもの。</p>
+
+<h3>2.1 <code>tests/unit/hardening.bats</code> — 4 回目の指摘（29 件）</h3>
+<div class="wrap"><table>
+<tr><th>#</th><th>テスト</th><th>何のためのテストか</th><th>指摘</th><th>結果</th></tr>
+<tr><td class="n">1</td><td class="name">exec policy: as root, found programs are not run unless --allow-exec</td><td>root では見つけたプログラムを既定で実行せず、<code>--allow-exec</code> のときだけ実行し、一般ユーザーは従来どおり実行する、という方針の切り替えそのものを確かめる。</td><td>R4-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">2</td><td class="name">exec policy: the root default is reported, and --inspect-containers still works</td><td>root の既定で実行しなかったことが「走査しなかった範囲」に出ること、かつ明示指定の <code>--inspect-containers</code> は root の既定に巻き込まれずコンテナの中を調べることを確かめる。</td><td>R4-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">3</td><td class="name">exec policy: --no-exec and --allow-exec together are an error</td><td>矛盾する 2 つのオプションを黙ってどちらかに倒さず、ツールのエラー（終了コード 3）にすることを確かめる。</td><td>R4-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">4</td><td class="name">exec safety: a program whose RUNPATH others can write is never run</td><td>本体の所有者と権限は合格でも、RUNPATH が誰でも書けるディレクトリを指すなら実行しないこと（読み込むコードまで検査していること）を、実際にコンパイルしたプログラムで確かめる。</td><td>R4-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">5</td><td class="name">exec safety: without readelf the libraries cannot be checked, so nothing is run</td><td>readelf が無く依存を確かめられないときに、確かめずに実行してしまわないことを確かめる。</td><td>R4-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">6</td><td class="name">trusted tools: PATH is fixed to system directories; the caller's PATH is only searched</td><td>起動時に PATH がシステムのディレクトリに固定され、呼び出し側の PATH は「判定するプログラムを探す場所」としてだけ残ることを確かめる。</td><td>R4-2</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">7</td><td class="name">--output: a directory planted at the name makes the write fail; nothing lands inside</td><td>保存先の名前に後からディレクトリを置かれても、その中にレポートを作らず失敗し、一時ファイルも残らないこと（<code>ln -T</code>）を確かめる。</td><td>R4-3</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">8</td><td class="name">dpkg: a libbrotlidec owned by a vendor's package is judged, one owned by libbrotli1 is not</td><td>ベンダーの .deb が抱える libbrotlidec を「C01 が判定済み」とみなして飛ばさないこと、C01 が判定した libbrotli1 のものだけを任せること、--deep でも二重に出さないことを確かめる。</td><td>R4-4</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">9</td><td class="name">dpkg: Brotli in a vendor's packaged Python is judged by its version, with the package named</td><td>監視エージェントなどが <code>/opt/&lt;vendor&gt;/embedded</code> に持つ Python の Brotli を版で判定し、案内に更新すべきパッケージ名を出すことを確かめる。</td><td>R4-4</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">10</td><td class="name">dpkg: python3-brotli is left to C01 only when C01 judged it</td><td>配布元の python3-brotli（上流の版番号のまま修正が入る）は、C01 が判定したときだけ C01 に任せることを確かめる。</td><td>R4-4</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">11</td><td class="name">C11: no markers in a hand-built server is UNKNOWN; from a package it is NOT_APPLICABLE</td><td>本人の判断（出どころで分ける）どおり、印の無い自前ビルドのサーバーは判定保留、パッケージのものは NOT_APPLICABLE で理由にパッケージ名が出ることを確かめる。</td><td>R4-5</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">12</td><td class="name">C11: a Go server without the cgo binding is NOT_APPLICABLE; with it, UNKNOWN</td><td>Go のビルド情報から、C の Brotli（cbrotli）を使わない Go 製（Caddy・Traefik）は NOT_APPLICABLE、使うものは判定保留になることを確かめる。</td><td>R4-5</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">13</td><td class="name">C08: a curl that was not run and shows no markers is UNKNOWN, not NOT_APPLICABLE</td><td>静的リンクの curl は印を持たないので、<code>curl -V</code> を見ていなければ「Brotli 無し」と言い切らないことを確かめる。</td><td>R4-5</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">14</td><td class="name">strings: a fixed copy next to another copy of Brotli is not LIKELY_FIXED</td><td>辞書が 2 つある（Brotli が 2 コピーある）ファイルを LIKELY_FIXED にせず、パス由来の FIXED も UNKNOWN に落とすことを確かめる。辞書 1 つなら従来どおり。</td><td>R4-5</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">15</td><td class="name">pre-release of the fixed version is UNKNOWN; before it VULNERABLE, after it FIXED</td><td>修正版と同じ番号のプレリリース（1.4.4-rc.1、22.23.4-pre、1.2.1rc1）は UNKNOWN、前の版の候補は VULNERABLE、後の版（1.4.5-canary、1.2.1.post1）は FIXED という規則を、semver と PEP 440 の両方で確かめる。</td><td>R4-6</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">16</td><td class="name">pre-release: Firefox Nightly and Beta of the fixed version are UNKNOWN</td><td>Firefox の 150.0a1・150.0b3・Debian の 150.0~b3 を正式版 150.0 とみなさないこと、snap の改訂番号（150.0-1）はプレリリースと取り違えないことを確かめる。</td><td>R4-6</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">17</td><td class="name">pre-release: version strings keep their suffix</td><td>版の読み取り関数が後ろ（-nightly…、-rc.1）を残し、ビルド情報（+abc）とアーカイブ名のプラットフォーム（-linux-x64）だけを落とすことを確かめる。</td><td>R4-6</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">18</td><td class="name">pre-release: Bun and Node.js from paths and headers</td><td>実行しないときの版の取り方（mise のディレクトリ名、<code>NODE_VERSION_IS_RELEASE 0</code> のヘッダー）でもプレリリースが残り、UNKNOWN になることを確かめる。</td><td>R4-6</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">19</td><td class="name">pre-release: a Node.js release candidate in a container is UNKNOWN</td><td>コンテナの中の node の版（v22.23.4-rc.1）でも後ろを落とさないことを確かめる。</td><td>R4-6</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">20</td><td class="name">reads: a FIFO is never opened (header, ELF check, strings)</td><td>node_version.h・ELF の判定・文字列の走査が FIFO を開かず、5 秒以内に終わる（走査が止まらない）ことを確かめる。</td><td>R4-7</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">21</td><td class="name">reads: distinct error names are counted only up to 64 (no unbounded memory, no sort)</td><td>細工したファイルに名前を大量に並べられても、数えるのは 64 個までで、sort（一時ファイルを書く）を使わないことを確かめる。</td><td>R4-7</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">22</td><td class="name">reads: a file above the size limit is INCOMPLETE, not judged by part of its strings</td><td>サイズの上限を超えたファイルを、読めた前半の文字列だけで判定しないことを確かめる。</td><td>R4-7</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">23</td><td class="name">C01: a failing dpkg-query is not reported as 'none installed'</td><td>dpkg-query が失敗（終了状態 2）したとき、「どれも入っていない」と言わず「走査しなかった範囲」に出すことを確かめる。</td><td>R4-8</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">24</td><td class="name">find: directories that could not be read are listed as not scanned</td><td>find が読めなかったディレクトリを数え、例つきで「走査しなかった範囲」に出すことを確かめる（root では読めてしまうので一般ユーザーのときだけ）。</td><td>R4-8</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">25</td><td class="name">mounts: a local disk below a root is searched, a tmpfs is listed as not scanned</td><td>本人の判断どおり、探す場所の下のローカルディスク（ext4）は find に渡され、tmpfs は種類と件数つきで並ぶことを確かめる。find に渡した引数を偽の find で記録して確かめる。</td><td>R4-9</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">26</td><td class="name">--exclude paths are listed as not scanned</td><td>指定で除外した場所も「走査しなかった範囲」に出ることを確かめる。</td><td>R4-9</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">27</td><td class="name">--deep: files above the size limit are listed as not scanned</td><td>--deep でサイズの上限を超えて探さなかったファイルが、件数と例つきで出ることを確かめる。</td><td>R4-9</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">28</td><td class="name">C14: the probe finds node with dash (no 'command -v -a'), once per real file</td><td>コンテナの中で動く確認スクリプトを実際に dash で走らせ、node を見つけること、symlink の別名で二重に出さないこと、最後に END を出すことを確かめる（以前の単体テストは模擬の出力を渡すだけで、スクリプトを走らせていなかった）。</td><td>R4-10</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">29</td><td class="name">C14: a probe that stops before its end is listed as not scanned</td><td>END の無い出力（途中で止まった）を完了したものとして扱わないことを確かめる。</td><td>R4-10</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>2.2 <code>tests/unit/hardening.bats</code> — 5 回目の指摘（9 件）</h3>
+<div class="wrap"><table>
+<tr><th>#</th><th>テスト</th><th>何のためのテストか</th><th>指摘</th><th>結果</th></tr>
+<tr><td class="n">30</td><td class="name">round 5: a symlink in a directory others can write is not trusted, even as an ancestor</td><td>パスの途中の symlink（<code>…/open/current/lib</code> の <code>current</code>）が誰でも書けるディレクトリにあれば、指している先が安全でも信用しないこと、安全な場所の symlink は通ることを確かめる。</td><td>R5-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">31</td><td class="name">round 5: an empty RUNPATH entry (the working directory) means the program is not run</td><td>RUNPATH の空の項目（先頭の <code>:</code> と末尾の <code>:</code> の両方）を持つプログラムを実行しないこと、実行するものは <code>/</code> から起動する（作業ディレクトリが <code>/</code> と出る）ことを、コンパイルしたプログラムで確かめる。</td><td>R5-2</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">32</td><td class="name">round 5: a file name saying fixed is not FIXED when the file cannot be read to the end</td><td>ファイル名が 1.2.1 でも、最後まで読めなければ FIXED にせず、「走査しなかった範囲」にも出すことを確かめる。</td><td>R5-3</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">33</td><td class="name">round 5: C11 does not take a partly read file for one without markers</td><td>一部しか読めなかったサーバーを「印が無い」とみなして NOT_APPLICABLE にしないこと（パッケージのものでも）を確かめる。</td><td>R5-3</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">34</td><td class="name">round 5: an empty conda-meta/ next to a library does not hide it; a reported environment does</td><td>空の conda-meta/ があるだけでは libbrotlidec を飛ばさず、C06 が記録を報告した環境のものだけを任せることを確かめる。</td><td>R5-4</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">35</td><td class="name">round 5: a program loading a libbrotlidec that C01 did not judge gets that copy judged</td><td>RUNPATH などで自前の libbrotlidec を読み込むプログラムに「C01 で判定」と言わず、そのコピーを判定すること、見つからなければ UNKNOWN、C01 が判定したものだけを任せることを確かめる。</td><td>R5-5</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">36</td><td class="name">round 5: a Chromium version with a Debian-style pre-release suffix is not the release</td><td>Chromium の 148.0.7778.0~rc1 を正式版とみなさないことを確かめる。</td><td>R5-7</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">37</td><td class="name">round 5: --deep search errors and a failing dpkg-query in a container are listed as not scanned</td><td>--deep の grep の読み取りエラーと、コンテナの中の dpkg-query の失敗（終了状態 2）を「走査しなかった範囲」に出すことを確かめる（偽の xargs・docker で失敗を起こす）。</td><td>R5-9</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">38</td><td class="name">round 5: a search root that is a symlink is walked at its target, and said so</td><td>探索場所が symlink（<code>/srv → /data/srv</code> の形）でもリンク先を歩いてファイルを見つけること、そのことを情報に出すことを確かめる。</td><td>R5-10</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>2.3 既存のファイルに足した・変えたもの（5 件）</h3>
+<div class="wrap"><table>
+<tr><th>ファイル #</th><th>テスト</th><th>何のためのテストか</th><th>指摘</th><th>結果</th></tr>
+<tr><td class="n">cli 19</td><td class="name"><span class="b new">新規</span> system tools never come from the caller's PATH (a planted stat or timeout is not run)</td><td>ツール全体を走らせ、PATH の先頭に置いた偽の stat・timeout・grep・od・readelf が一度も実行されないことを確かめる（関数単体のテストでは、本体が呼び出しているかまでは見えなかったため）。</td><td>R4-2</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">cli 21</td><td class="name"><span class="b new">新規</span> --data: a FIFO is refused at once (never opened); others' write access is warned about</td><td>FIFO の既知データで止まらずすぐエラーになること、本人の判断どおり、他人が書けるデータは拒まずに冒頭で警告し JSON に <code>data_writable_by_others: true</code> が出ること、普通の権限なら警告しないことを確かめる。</td><td>R5-8</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">checks 11</td><td class="name"><span class="b warn">変更</span> C04: --no-exec without a header falls back to the version in the path (confirmed by strings)</td><td>ヘッダーが無いとき版管理ツールのディレクトリ名から版を読み、文字列で確かめられれば FIXED になることを確かめる。偽の ELF に修正済みの文字列を入れた（新しい決まりでは文字列が無いと FIXED にならないため）。</td><td>R5-3</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">checks 12</td><td class="name"><span class="b new">新規</span> C04: a version from the path that the file's strings cannot confirm is UNKNOWN, saying so</td><td>パス由来の版を文字列で確かめられないときは UNKNOWN とし、「ファイルからは確かめられなかった」と書くことを確かめる。</td><td>R5-3</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">checks 17</td><td class="name"><span class="b warn">変更</span> C04: a real node --version is used when the file is safe to run</td><td>安全に実行できる node は <code>--version</code> の版を使うことを確かめる。依存の検査に readelf が要るようになったので、readelf の無い環境では skip するようにした。</td><td>R4-1</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h2 id="unit-old">3. 単体テスト — 既存のもの（変更なし 91 件）</h2>
+<p>前のセッションまでに作ったもの。今回の変更で既存の判定を壊していないことの回帰として、毎回すべて走らせた。記録作成時の結果はすべて <span class="b ok">ok</span>。</p>
+
+<h3>3.1 <code>checks.bats</code>（変更なしの 37 件）</h3>
+<div class="wrap"><table>
+<tr><th>#</th><th>テスト</th><th>何のためのテストか</th><th>結果</th></tr>
+<tr><td class="n">1</td><td class="name">C01: Ubuntu noble packages are NO_FIX_AVAILABLE; python3-brotli gets its own finding</td><td>Ubuntu の OS の Brotli が修正待ちと出ること、静的にコンパイルされた python3-brotli を libbrotli1 と別の所見にすること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">2</td><td class="name">C01: Debian trixie judges the source version (binNMU suffix on the binary is ignored)</td><td>バイナリの +b1 に惑わされず、ソースパッケージの版で修正版と比べること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">3</td><td class="name">C01: removed packages (rc) are not judged</td><td>削除済みで設定だけ残るパッケージを判定しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">4</td><td class="name">C01: an unknown distribution is UNKNOWN, not guessed</td><td>既知データに無いディストリビューションを推測で判定しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">5</td><td class="name">host: derivatives map to the archive they follow (UBUNTU_CODENAME)</td><td>Linux Mint などの派生が、元になった Ubuntu のアーカイブで判定されること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">6</td><td class="name">C02: dependents of libbrotli1 are information, not findings</td><td>libbrotli1 に依存するパッケージを「更新が必要」として二重に数えないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">7</td><td class="name">C03: a deleted libbrotlidec or _brotli*.so mapping needs a restart; a live one does not</td><td>更新で置き換えられた（削除済みの）ライブラリを使い続けるプロセスに再起動を求め、普通に使っているだけなら求めないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">8</td><td class="name">C03: command lines are not shown unless --show-cmdline</td><td>秘密を含みうるコマンドラインを、指定なしでは出さないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">9</td><td class="name">C03: unreadable maps are counted as not scanned</td><td>読めなかった他ユーザーのプロセスを「走査しなかった範囲」に数えること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">10</td><td class="name">C04: --no-exec takes the version from include/node/node_version.h</td><td>実行しないとき、公式 tarball のヘッダーから版を読むこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">13</td><td class="name">C04: an end-of-life line is VULNERABLE with the 'move to a supported line' advice</td><td>サポートが終わった系列を、修正版の無い系列として「移行」の案内つきで脆弱と出すこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">14</td><td class="name">C04: unknown version falls back to the C09 strings (fixed Node.js strings)</td><td>版が分からない node を文字列で推定すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">15</td><td class="name">C04: a node process whose executable was replaced needs a restart</td><td>実行ファイルが置き換えられたのに古いものを動かし続けるプロセスに再起動を求めること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">16</td><td class="name">C04: shims and scripts named node are not judged</td><td>mise などが置くシェルスクリプトの shim を node 本体として判定しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">18</td><td class="name">C04: a program under a world-writable directory is never run</td><td>誰でも書けるディレクトリの下のプログラムを実行しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">19</td><td class="name">exec safety: a directory writable only by your own private group is fine</td><td>umask 002 の環境で、本人専用グループのディレクトリは実行を許すこと（一般ユーザーのとき）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">20</td><td class="name">exec safety: as root, a program owned by an ordinary user is never run</td><td>root では一般ユーザー所有のプログラムを実行しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">21</td><td class="name">exec safety: a path through a symlink is refused (checked path = executed path)</td><td>検査したパスと実行するパスを一致させるため、symlink を経由するパスを拒むこと（TOCTOU 対策）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">22</td><td class="name">C05: Bun 1.4.3 is VULNERABLE and the advice mentions compiled executables</td><td>Bun の脆弱な版と、<code>bun build --compile</code> で作った実行ファイルの作り直しの案内を出すこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">23</td><td class="name">C06: PyPI Brotli 1.2.0 is VULNERABLE, brotlicffi 1.2.1.0 is FIXED, and HTTP clients are EXPOSURE</td><td>PyPI の Brotli・brotlicffi の判定と、同じ環境の HTTP クライアントを露出のヒントとして出すこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">24</td><td class="name">C06: an egg-info file (not directory) is read too</td><td>ファイル形式の egg-info も読むこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">25</td><td class="name">C06: conda libbrotlidec is judged by its series</td><td>conda の libbrotlidec を系列ごとの修正版で判定すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">26</td><td class="name">index: package-manager caches are not reported</td><td>pip・npm などのキャッシュ（ダウンロード物）を所見にしないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">27</td><td class="name">C07: inbound and outbound decoding packages are exposure hints</td><td>node_modules の受信・取得で自動展開する構成を、露出のヒントとして出すこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">28</td><td class="name">C09: libbrotlidec named 1.2.1 with fixed strings is FIXED</td><td>ファイル名の版と文字列がともに修正済みなら FIXED になること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">29</td><td class="name">C09: file name and strings disagree -&gt; UNKNOWN (possibly a patched build)</td><td>ファイル名の版と文字列が食い違うとき、どちらか一方で決めず UNKNOWN にすること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">30</td><td class="name">C09: no version in the name -&gt; judged by strings</td><td>Pillow が抱える <code>libbrotlidec-ba690955.so.1</code> のように版の無い名前は、文字列で推定すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">31</td><td class="name">C09 --deep: a bundled decoder in an unknown ELF file is reported; a dynamic user is not</td><td>--deep で、未知の ELF の同梱デコーダーを報告し、libbrotlidec を動的に読み込むだけのものは報告しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">32</td><td class="name">C09 --deep: the extension module of a Brotli that C06 judged is not reported twice</td><td>C06 で判定した PyPI Brotli の拡張モジュールを、C09 で二重に報告しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">33</td><td class="name">lookup keeps the caller's BCC_F (judging must not clobber parsed fields)</td><td>判定関数が呼び出し側の作業変数を壊さないこと（コンテナの脆弱なコピーが消えた過去の欠陥の回帰）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">34</td><td class="name">C14: two node copies in one container are both reported (no dedup collision)</td><td>同じコンテナの 2 つの node が重複除去で 1 つに消えないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">35</td><td class="name">linkage that cannot be followed is undetermined (2), never 'not linked'</td><td>辿りきれないリンクを「libbrotlidec を読み込まない」と言わない（NOT_APPLICABLE の偽の安心を防ぐ）こと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">36</td><td class="name">C04: a path saying 22.23.4 over an unfixed decoder is UNKNOWN, not FIXED</td><td>パスが修正版を名乗っても、中のデコーダーが未修正なら FIXED にしないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">37</td><td class="name">C06: metadata saying 1.2.1 over an unfixed _brotli module is UNKNOWN, not FIXED</td><td>メタデータが修正版を名乗っても、拡張モジュールが未修正なら FIXED にしないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">38</td><td class="name">C10: an Envoy configuration with a Brotli decompressor is EXPOSURE</td><td>Envoy の設定に Brotli の展開フィルタがあれば露出のヒントを出すこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">39</td><td class="name">C13: Chromium needs a four-part version; 148 before branch 7778 is UNKNOWN</td><td>Chromium は 4 部の版でなければ判定せず、Brotli 更新前の 148 系は UNKNOWN にすること（ログ行の数字を版と取り違えた過去の偽の FIXED の回帰を含む）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">40</td><td class="name">C13: Firefox and Firefox ESR use their own thresholds</td><td>Firefox と Firefox ESR をそれぞれの修正版で判定すること。</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>3.2 <code>cli.bats</code>（変更なしの 19 件）</h3>
+<div class="wrap"><table>
+<tr><th>#</th><th>テスト</th><th>何のためのテストか</th><th>結果</th></tr>
+<tr><td class="n">1</td><td class="name">--help and --version exit 0</td><td>使い方と版の表示が正常終了すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">2</td><td class="name">an unknown option is an error of the tool (exit 3)</td><td>打ち間違えたオプションを黙って無視せず、ツールのエラーにすること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">3</td><td class="name">bad values are rejected, not guessed</td><td>不正な言語・時間・相対パス・値の無いオプションを推測で補わないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">4</td><td class="name">--output never overwrites an existing file</td><td>既存のファイルを上書きしないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">5</td><td class="name">--output refuses a dangling symlink (it would be followed)</td><td>行き先の無い symlink を辿って別の場所に書かないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">6</td><td class="name">--output refuses a directory others can modify without the sticky bit</td><td>他人が名前を差し替えられるディレクトリには書かないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">7</td><td class="name">--output through a symlinked directory writes into the resolved directory</td><td>検査したディレクトリ（実体）に書くこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">8</td><td class="name">--output leaves exactly one new file (no temporary file behind)</td><td>一時ファイルを残さないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">9</td><td class="name">--output writes the same report as stdout</td><td>ファイルと画面の内容が同じこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">10</td><td class="name">a scan prints nothing on stderr (no stray tool errors on the terminal)</td><td>外部コマンドのエラーが端末に漏れないこと（CI でだけ出た過去の欠陥の回帰）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">11</td><td class="name">JSON output parses and carries the documented fields</td><td>JSON が正しく読め、文書に書いた項目を持つこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">12</td><td class="name">text output ends with the four-line summary and the intrusion disclaimer</td><td>結果の最後に専門外の人向けの 4 行の要約と、侵入は調べないことの断りが出ること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">13</td><td class="name">the word SAFE never appears; the best result names the unscanned ranges</td><td>「安全」と言い切らず、いちばん良い結果でも走査しなかった範囲を示すこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">14</td><td class="name">--lang ja prints Japanese</td><td>日本語の出力。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">15</td><td class="name">exit 1 when something is VULNERABLE</td><td>脆弱なものがあれば終了コード 1。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">16</td><td class="name">control characters in a path are shown as ? in the text report</td><td>パスに仕込まれた制御文字で端末の表示を書き換えられないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">17</td><td class="name">stale data (30 days or more) is warned about</td><td>既知データが 30 日以上古いと警告すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">18</td><td class="name">the scan is read-only: nothing under the roots changes</td><td>走査で探索場所の中身（名前・大きさ・時刻・権限）が何も変わらないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">20</td><td class="name">a root named with --roots that does not exist is listed as not scanned</td><td>指定した探索場所が無いとき、黙らずに「走査しなかった範囲」に出すこと。</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>3.3 <code>data.bats</code>・<code>heuristic.bats</code>・<code>i18n.bats</code>・<code>version.bats</code>（35 件）</h3>
+<div class="wrap"><table>
+<tr><th>ファイル #</th><th>テスト</th><th>何のためのテストか</th><th>結果</th></tr>
+<tr><td class="n">data 1</td><td class="name">the shipped data file loads and has a snapshot date</td><td>同梱の既知データが読め、日付を持つこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 2</td><td class="name">lookup: an exact branch wins over a range row</td><td>系列ちょうどの行が範囲の行より優先されること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 3</td><td class="name">lookup: end-of-life Node.js lines are derived, with the reason in the note</td><td>サポートが終わった Node.js の系列が「導出」として理由つきで引けること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 4</td><td class="name">lookup: very old Node.js lines are unknown (may predate bundled Brotli)</td><td>Brotli 同梱前の可能性がある古い系列を不明とすること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 5</td><td class="name">lookup: a future Node.js line has no data</td><td>データに無い将来の系列を推測しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 6</td><td class="name">judge: below the fixed version is VULNERABLE, at or above is FIXED</td><td>判定の基本。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 7</td><td class="name">judge: Ubuntu without a fix is NO_FIX_AVAILABLE</td><td>配布元が修正を出していないときの判定。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 8</td><td class="name">judge: Debian sid 1.2.0-4.1 is not in the archive yet (unreleased)</td><td>修正版がアーカイブに届いていない状態の判定。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 9</td><td class="name">judge: Envoy 1.38.6 and 1.37.8 are FIXED (advisory and tags agree)</td><td>Envoy の修正版の判定（一次資料の再確認の結果どおり）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 10</td><td class="name">judge: PyPI brotlicffi 1.2.1.0 is FIXED, 1.2.0.2 is VULNERABLE</td><td>brotlicffi の 4 部の版の判定。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 11</td><td class="name">judge: analysis-based rows say so in the reason</td><td>ベンダー告知ではなくソースの分析が根拠の行は、そう書くこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">data 12–15</td><td class="name">data: a row with 6 columns / an unknown status / a source that is not https / a missing snapshot line is rejected</td><td>壊れた・不正な既知データを読み込まずにエラーにすること（4 件）。</td><td><span class="b ok">ok × 4</span></td></tr>
+<tr><td class="n">data 16</td><td class="name">data: age is computed against today</td><td>データの古さの計算。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">heuristic 1</td><td class="name">every fixed build is LIKELY_FIXED (shared, static -O2, static LTO p2, strip or not)</td><td>実際にビルドした修正版の文字列（fixture）すべてで修正の印を捉えること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">heuristic 2</td><td class="name">every unfixed build is LIKELY_VULNERABLE</td><td>未修正版の fixture すべてで印が無いと判定すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">heuristic 3</td><td class="name">LTO + gc-sections without BrotliDecoderErrorString is undecidable (VENDORED_COPY)</td><td>エラー名の表が消えるビルドを、修正済みとも未修正とも言わないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">heuristic 4</td><td class="name">official Node.js binaries: 22.23.3 / 24.22.0 unfixed, 22.23.4 / 24.22.1 fixed</td><td>Node.js 公式バイナリの文字列で正しく判定すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">heuristic 5</td><td class="name">PyPI wheels: Brotli 1.2.1 and brotlicffi 1.2.1.0 fixed, earlier ones not</td><td>PyPI の wheel の文字列で正しく判定すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">heuristic 6</td><td class="name">a longer name that merely contains _ERROR_FORMAT_BLOCK_SWITCH does not count</td><td>Node.js 自身の表にある長い名前を修正の印と取り違えないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">heuristic 7</td><td class="name">a few stray names are not enough to decide</td><td>名前が少なすぎる（断片）ときは判定しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">i18n 1</td><td class="name">every English key has a Japanese message and vice versa</td><td>今回足したメッセージも含め、英日がそろっていること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">i18n 2</td><td class="name">every key used by the code exists in the catalog</td><td>コードが使うメッセージがすべて定義されていること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">i18n 3</td><td class="name">both languages take the same number of arguments for each key</td><td>英日で引数の数が同じこと（bash の printf は引数の位置指定が使えないため、順番も英語に合わせた）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">i18n 4</td><td class="name">no message calls a result SAFE or 安全 as a verdict</td><td>どのメッセージも結果を「安全」と言い切らないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 1</td><td class="name">semver: numeric fields, not string order</td><td>版の数字を文字列の順でなく数で比べること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 2</td><td class="name">semver: a pre-release sorts before the release</td><td>プレリリースが正式版より前に並ぶこと（今回の規則の土台）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 3</td><td class="name">semver: unparsable input is reported, not guessed</td><td>読めない版を推測しないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 4</td><td class="name">pep440: 1.2.1 and 1.2.1.0 are equal (Brotli vs brotlicffi numbering)</td><td>PyPI の版の比べ方。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 5</td><td class="name">pep440: pre-releases, dev and post releases</td><td>PyPI のプレリリース・開発版・事後版の順序。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 6</td><td class="name">deb: dpkg --compare-versions decides, including +debNuM and ~</td><td>Debian の版は dpkg に比べさせること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 7</td><td class="name">version from output: a log line before the version is not taken (Chrome)</td><td>Chrome が版の前に出すログ行の数字を版と取り違えないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="n">version 8</td><td class="name">version from output: no matching line means no version</td><td>決めた形の行が無ければ版は無しとすること。</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h2 id="mutation">4. 変異テスト — テストが欠陥を本当に捉えるか</h2>
+<p><b>何のためか:</b> テストが 1 回目で全部通ったので、テストが欠陥を見ていない（すり抜けている）可能性を潰す。作業ツリーの写し（<code>tests/tmp/</code> の下）で修正を 1 つずつ元に戻し、テストが落ちるかを見た。</p>
+<p><b>やり方と時点:</b> 作業中は対応するテストだけを走らせて確かめ、落ちなかったものは原因を調べてテストを直した（下の「作業中の経緯」）。
+<b>この記録の作成時に、25 個すべてを最新の作業ツリーで取り直した。</b>そのときは毎回 134 件すべてを走らせ、落ちたテストを名前で記録した（下表の「落ちたテスト」はその実測）。番号は各ファイルの中の番号（h = hardening.bats、cli = cli.bats）。</p>
+
+<h3>4.1 4 回目の修正（12 個）</h3>
+<div class="wrap"><table>
+<tr><th>戻した修正</th><th>落ちた数</th><th>落ちたテスト（記録作成時の実測）</th><th>作業中の経緯</th></tr>
+<tr><td><code>ln -T</code> を外す</td><td><span class="b ok">1</span></td><td>h7</td><td>—</td></tr>
+<tr><td>コンテナのプローブを <code>command -v -a</code> に戻す</td><td><span class="b ok">1</span></td><td>h28</td><td>—</td></tr>
+<tr><td>プレリリースの規則を外す</td><td><span class="b ok">5</span></td><td>h15・h16・h18・h19・h36（Chromium の <code>~</code> も同じ規則を使う）</td><td>—</td></tr>
+<tr><td>dpkg の所有者なら何でも C01 に任せる</td><td><span class="b ok">2</span></td><td>h8・h9</td><td>—</td></tr>
+<tr><td>実行の検査で依存を見ない</td><td><span class="b ok">3</span></td><td>h4・h5・h31</td><td>最初は 0。写しを <code>/tmp</code> の下（誰でも書ける）に置いたため、実行の検査のテストが skip されていた。写しをリポジトリの中に置き直して捉えた。</td></tr>
+<tr><td>C11 の出どころ分けを外す</td><td><span class="b ok">3</span></td><td>h11・h12・cli 10（変異で変数が未設定のまま参照され、端末にエラーが出たため。変異の副作用）</td><td>—</td></tr>
+<tr><td>複数コピーの検出を外す</td><td><span class="b ok">1</span></td><td>h14</td><td>—</td></tr>
+<tr><td>root でも既定で実行する</td><td><span class="b ok">2</span></td><td>h1・h2</td><td>—</td></tr>
+<tr><td>find のエラーを数えない</td><td><span class="b ok">1</span></td><td>h24</td><td>—</td></tr>
+<tr><td>下のマウントを探索に加えない</td><td><span class="b ok">1</span></td><td>h25</td><td>最初は 0。テストのディレクトリは本物のマウントではなく、find がそのまま中へ入るので区別できなかった。偽の find で渡された引数を記録する形にテストを直した。</td></tr>
+<tr><td>dpkg-query の失敗を無視する</td><td><span class="b ok">1</span></td><td>h23</td><td>—</td></tr>
+<tr><td><code>bcc_main</code> で PATH を固定しない</td><td><span class="b ok">1</span></td><td>cli 19</td><td>最初は 0。関数単体のテストで、本体が呼んでいるかを見ていなかった。ツール全体を走らせる cli 19 を足した。</td></tr>
+</table></div>
+
+<h3>4.2 5 回目の修正（13 個）</h3>
+<div class="wrap"><table>
+<tr><th>戻した修正</th><th>落ちた数</th><th>落ちたテスト（記録作成時の実測）</th><th>作業中の経緯</th></tr>
+<tr><td>パスを先に実体に直してから検査する（前の版）</td><td><span class="b ok">1</span></td><td>h30</td><td>—</td></tr>
+<tr><td>RUNPATH の空の項目の検査を外す</td><td><span class="b ok">1</span></td><td>h31</td><td>最初は 0。先頭の <code>:</code> は相対パスの検査でも止まる（二重の守り）。末尾の <code>:</code> は <code>read -a</code> が黙って捨てるのでこの検査が要る。テストに末尾の場合を足した。</td></tr>
+<tr><td>実行を <code>/</code> から起動しない</td><td><span class="b ok">1</span></td><td>h31（作業ディレクトリが出力に出る）</td><td>—</td></tr>
+<tr><td>読み切れないときも FIXED を残す</td><td><span class="b ok">1</span></td><td>h32</td><td>—</td></tr>
+<tr><td>C11 で読み切れなかったことを無視する</td><td><span class="b ok">1</span></td><td>h33</td><td>—</td></tr>
+<tr><td><code>conda-meta/</code> があるだけで任せる（前の版）</td><td><span class="b ok">1</span></td><td>h34</td><td>—</td></tr>
+<tr><td>読み込む libbrotlidec を何でも「C01 で判定」とする</td><td><span class="b ok">1</span></td><td>h35</td><td>—</td></tr>
+<tr><td>Chromium の <code>~</code> を見ない</td><td><span class="b ok">1</span></td><td>h36</td><td>—</td></tr>
+<tr><td>--deep の grep のエラーを捨てる</td><td><span class="b ok">1</span></td><td>h37</td><td>—</td></tr>
+<tr><td>コンテナの dpkg-query の終了状態を捨てる</td><td><span class="b ok">1</span></td><td>h37</td><td>—</td></tr>
+<tr><td>symlink の探索場所を実体に直さない</td><td><span class="b ok">1</span></td><td>h38</td><td>最初は 0。調べる側の誤りで、絞り込みの語がテスト名に合っておらず 1 件も走っていなかった。</td></tr>
+<tr><td>既知データを上限なしで読む</td><td><span class="b warn">0</span></td><td>—</td><td>設計どおり。入口の「通常のファイルか」の検査が先に止めるので、片方だけ外しても落ちない（二重の守り）。両方を外す変異は試していない。</td></tr>
+<tr><td>既知データの警告を出さない</td><td><span class="b ok">1</span></td><td>cli 21</td><td>—</td></tr>
+</table></div>
+
+<h2 id="integration">5. 統合テスト（<code>tests/integration/run.sh</code>、Docker）</h2>
+<p><b>何のためか:</b> 実際のディストリビューションの上で、既知の未修正・修正済みのコピーを入れたイメージを点検し、期待どおりの判定になるかを見る。
+今回は root の既定（実行しない）と <code>--allow-exec</code> を分けて確かめ、さらにコンテナの中で動く確認スクリプトを各イメージ自身の <code>/bin/sh</code>（dash）で走らせる項目を足した（R4-10 の回帰）。</p>
+<p>各イメージの中身: Node.js 公式 22.23.3（期待 VULNERABLE）と 22.23.4（FIXED）を <code>/opt</code> に（<code>SHASUMS256.txt</code> で検証）、PyPI Brotli 1.2.0＋urllib3（VULNERABLE と EXPOSURE）と 1.2.1（FIXED）を <code>/srv</code> の仮想環境に。</p>
+<div class="wrap"><table>
+<tr><th>イメージ</th><th>libbrotli1 / python3-brotli の期待</th><th>root（既定）</th><th>root <code>--allow-exec</code></th><th>一般 <code>--no-exec</code></th><th>C14 プローブ</th></tr>
+<tr><td>ubuntu:22.04</td><td>NO_FIX_AVAILABLE</td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td>ubuntu:24.04</td><td>NO_FIX_AVAILABLE</td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td>ubuntu:26.04</td><td>NO_FIX_AVAILABLE</td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td>debian:12</td><td>FIXED</td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td>debian:13</td><td>FIXED</td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td><td><span class="b ok">ok</span></td></tr>
+<tr><td>bash:4.2（Alpine に GNU の道具を追加）</td><td colspan="5">いちばん古い対応 bash で PyPI Brotli 1.2.0 を VULNERABLE と判定し、終了コード 1、JSON が読める: <span class="b ok">ok</span></td></tr>
+</table></div>
+<ul>
+<li><b>実行の回数:</b> 4 回目の修正の後に 1 回（先に Ubuntu 24.04 だけで 1 回）、5 回目の修正の後に 1 回。どちらも全項目 ok（終了コード 0）。各走査の終了コード 1 は、未修正のものをわざと入れているための正しい結果。</li>
+<li><b>C14 プローブの合格条件:</b> 2 つの Node.js（22.23.3・22.23.4）の行、libbrotli1 のパッケージの行、最後の <code>END</code> 行がそろうこと。</li>
+<li><b>修正前のプローブで比べた:</b> HEAD の版のプローブを同じイメージで走らせると、OS とパッケージの行だけで <b>Node.js の行も END も出なかった</b>。新しい合格条件は旧来の不具合を捉える。</li>
+<li><b>中身の確認（Ubuntu 24.04 の報告）:</b> root の既定では curl のリンクを readelf で辿り、<code>--allow-exec</code> では ldd で確かめていた。<code>no_exec</code>・<code>allow_exec</code> の JSON の値も期待どおり。Node.js の tarball は uid 1001 所有なので、<code>--allow-exec</code> でも実行していない（設計どおり）。</li>
+<li><b>出力例（<code>docs/sample-output.md</code>）:</b> 4 回目の修正後に Ubuntu 24.04 のイメージで取り直し、5 回目の修正後にもう一度取って、英日とも一字一句同じことを確かめた。</li>
+</ul>
+
+<h2 id="experiments">6. 再現実験 — 指摘が本当か、直す前に確かめたもの</h2>
+<p><b>何のためか:</b> Codex の指摘を鵜呑みにせず、コードを読むだけでは決められないものを、小さな実験で確かめてから重さと直し方を決める。</p>
+<div class="wrap"><table>
+<tr><th>指摘</th><th>確かめたこと</th><th>結果</th></tr>
+<tr><td>R4-3</td><td>保存先の名前にディレクトリがあるとき、GNU ln がどう振る舞うか。</td><td><span class="b ng">再現</span> <code>ln tmp report</code> は <code>report/</code> の中にリンクを作った。<code>ln -T</code> は「ファイルが存在します」で失敗。</td></tr>
+<tr><td>R4-6</td><td>版の読み取り関数にプレリリースを渡すと何が残るか。</td><td><span class="b ng">再現</span> bun <code>1.4.4-rc.1</code>→<code>1.4.4</code>、Firefox <code>150.0a1</code>・<code>150.0b3</code>→<code>150.0</code>、dpkg <code>150.0~b3+build1</code>→<code>150.0</code>、コンテナの node <code>v26.0.0-nightly…</code>→<code>26.0.0</code>。</td></tr>
+<tr><td>R4-10</td><td>Debian/Ubuntu のコンテナの <code>/bin/sh</code>（dash）と busybox で <code>command -v -a</code> が動くか。</td><td><span class="b ng">再現</span> dash も busybox も「Illegal option -a」で終了状態 2。</td></tr>
+<tr><td>R4-5（対策の下調べ）</td><td>Brotli の辞書の先頭の文字列で、コピーの数を数えられるか。</td><td>libbrotlicommon と Node.js 18.16 の公式バイナリでどちらも 1 個。数えられると判断した。</td></tr>
+<tr><td>R4-5（対策の下調べ）</td><td>Go のプログラムをビルド情報の印で見分けられるか。</td><td>手元の Go 製 CLI で検出できた（ほかの印は無し）。</td></tr>
+<tr><td>R4-5（不採用）</td><td>実行せずに、curl が Brotli 対応でビルドされたかを文字列で見分けられるか。</td><td>想定した書式の文字列は見つからず、「brotli」という語だけでは弱いので採らなかった。静的な curl は実行しなければ UNKNOWN にした。</td></tr>
+<tr><td>R4-7（対策の検証）</td><td>文字列の走査が、修正前と同じ結果になるか。</td><td>C09 の fixture 30 本すべてで、記録（<code>tests/fixtures/c09/README.md</code>）どおりの判定（名前 16／17／0、BLOCK_SWITCH の有無）。</td></tr>
+<tr><td>R4-7（対策の検証）</td><td>メモリの上限（<code>ulimit -v</code> 256 MiB）が、1 行が巨大なファイルで効くか。</td><td>400 MB の 1 行で grep が「memory exhausted」で止まり、読み取りは partial（判定しない）になった。</td></tr>
+<tr><td>R5-10</td><td>探索場所が symlink のとき、<code>find -P</code> が中を歩くか。</td><td><span class="b ng">再現</span> 何も見つけなかった（<code>find -H</code> なら見つかる）。</td></tr>
+<tr><td>R5-2</td><td>RUNPATH に空の項目（<code>:/nonexistent</code>）があると、ld.so は作業ディレクトリのライブラリを読み込むか。</td><td><span class="b ng">再現</span> そのディレクトリの <code>libfoo.so</code> が読み込まれた。別のディレクトリからだと「見つからない」で終了。</td></tr>
+</table></div>
+
+<h2 id="perf">7. 速度の測定</h2>
+<p><b>何のためか:</b> 依存の検査と読み取りの上限で、点検の所要が実用に耐えなくならないかを見る。修正前の版（HEAD）と同じ端末・同じ条件（一般ユーザー、既定の探索場所）で比べた。</p>
+<div class="wrap"><table>
+<tr><th>測ったもの</th><th>結果</th><th>対応</th></tr>
+<tr><td>全体の所要（修正前 HEAD）</td><td>19.9 秒・19.2 秒</td><td>基準</td></tr>
+<tr><td>全体の所要（依存の検査の最初の版）</td><td><span class="b ng">51.3 秒</span></td><td>検出項目ごとに測ると C04 が 3.9→13.3 秒、C13 が 0.1→4.4 秒など。ライブラリ 1 つにつき約 30 のプロセスを起こしていた。</td></tr>
+<tr><td>文字列の走査の内訳（130 MB の node）</td><td><code>tr -c</code> 0.05 秒に対し <code>tr -cs</code>（連続をまとめる）0.36 秒、<code>fold</code> を足すとさらに遅い</td><td><code>tr -s</code> と <code>fold</code> をやめ、行の長さの上限は <code>ulimit -v</code> で守る形にした。</td></tr>
+<tr><td>全体の所要（直した後）</td><td>20.4 秒・22.7 秒（HEAD と交互に計測）、その後 24.5 秒</td><td>上下のディレクトリを 1 回の <code>stat</code> で調べる、<code>dirname</code> を使わない、ディレクトリ・ライブラリ・依存の木ごとにキャッシュする、で戻した。残りの差はマシンの負荷による揺れの範囲。</td></tr>
+</table></div>
+
+<h2 id="host">8. 実機（開発機、一般ユーザー）での実行</h2>
+<p><b>何のためか:</b> テスト用のイメージには無い、実際の雑多な環境（版管理ツールの Node.js、CI ランナー、Playwright、Pillow など）で、判定が意図せず変わっていないか、端末にエラーが漏れないかを見る。HEAD の結果と所見を並べて比べた。個人のパスはここには書かない。</p>
+<ul>
+<li><b>4 回目の修正の後:</b> 標準エラーは空。所見の変化は 3 種類で、どれも意図どおり。
+  <ol>
+  <li>C11 の apache2・mod_brotli.so の理由が「パッケージ apache2-bin のファイルで…」になった。</li>
+  <li>find が読めなかったディレクトリが「走査しなかった範囲」に例つきで出た（以前は黙っていた）。</li>
+  <li>「実行しなかったプログラム 6 個」の情報行が増えた。調べると 6 個は CI ランナーが抱える Alpine 用（musl）の node で、この端末には musl のローダーが無く、そもそも実行できない。依存が解決できないので実行しない、という判断は正しい。情報行の文面を「確かめられないため（ここに無いライブラリを必要とする）」を含む形に直した。</li>
+  </ol></li>
+<li><b>5 回目の修正の後:</b> 標準エラーは空。判定（状態）の変化は無く、文字列による推定の理由が「分かったこと／分からないこと」の形になっただけ（本人の判断どおり）。プロセス数の違いは実行時点の差。</li>
+</ul>
+
+<h2 id="codex">9. 別系統 AI による敵対的レビュー（Codex）</h2>
+<p><b>何のためか:</b> 書いた本人（Claude）とは別の系統の AI に、壊し方を探させる（author ≠ reviewer）。この端末では Codex のサンドボックスがコマンドを実行できないため、単一ファイル版を標準入力で渡し、コマンドを実行しないよう指示した。待ち時間の上限は 2 時間。</p>
+<div class="wrap"><table>
+<tr><th>回</th><th>渡したもの</th><th>結果</th><th>扱い</th></tr>
+<tr><td>4 回目</td><td>2c672aa＋4af7bbc の単一ファイル版</td><td><span class="b ng">GATE: FAIL</span> P1 × 6、P2 × 4</td><td>10 件ともコードと実験で確認。3 件は本人が判断（root の実行、C11、マウント）。すべて修正。</td></tr>
+<tr><td>5 回目</td><td>4 回目の修正後（sha256 bef5afea…）</td><td><span class="b ng">GATE: FAIL</span> 4 回目の 5 件は FIXED、5 件は PARTIAL。新しく P1 × 10</td><td>10 件とも確認（2 件は実験で）。2 件は本人が判断（「たぶん修正済み」の表示、他人が書ける <code>--data</code>）。9 件を修正し、1 件は報告のしかたで答えた。</td></tr>
+<tr><td>6 回目</td><td>5 回目の修正後（sha256 4a3c63c1…）の全体</td><td><span class="b ng">GATE: FAIL</span> 5 回目の 3 件は FIXED、6 件は PARTIAL。新しく P1 × 7、P2 × 2</td><td>この記録の作成中に返った。検討と修正はこの記録の範囲外（この記録のテストは 6 回目の指摘を直す前のコードに対するもの）。</td></tr>
+</table></div>
+
+<h2 id="gaps">10. テストしていないこと（分かっている穴）</h2>
+<div class="note warn">ここに挙げたものは「確かめていない」。安全だという意味ではない。</div>
+<ul>
+<li><b>CI での実行:</b> まだ push していないので、GitHub Actions（lint-and-unit・統合のマトリクス・bash42）では走らせていない。ここの結果はすべて開発機のもの。</li>
+<li><b>依存の検査の細部:</b> glibc-hwcaps・tls などの下位ディレクトリ、<code>/etc/ld.so.preload</code>、<code>$LIB</code>・<code>$PLATFORM</code> のトークンを持つ RUNPATH は、コードはあるが単体テストが無い。実行してから読み込むもの（dlopen、設定ファイル）は設計上覆えない（だから root では既定で実行しない）。</li>
+<li><b>メモリの上限:</b> <code>ulimit -v</code> の効き目は手で確かめただけで、単体テストは無い（巨大なファイルを作るのが重いため）。</li>
+<li><b>失敗の再現は偽物で:</b> --deep の grep のエラーは偽の xargs、コンテナの dpkg-query の失敗は偽の docker で起こしており、本物の読み取りエラーやデータベースの破損では試していない。</li>
+<li><b>マウント:</b> 本物の別ディスクや tmpfs のマウントでは試しておらず、偽の mountinfo と偽の find で、find に渡す引数を確かめただけ。</li>
+<li><b><code>--inspect-containers</code> の全体:</b> ホストからコンテナの中を調べる流れの全体は、偽の docker で確かめた。本物では、プローブのスクリプトを各イメージで走らせるところまで（上の統合テスト）。</li>
+<li><b>プレリリースの実物:</b> Bun の rc、Firefox の Nightly、Node.js の nightly の実際のバイナリでは試していない（版の文字列で確かめた）。</li>
+<li><b>図解（<code>docs/zukai/</code>）:</b> 今回の変更（root の既定）を反映していない。テストとは別に、リリース前に作り直すかを決める。</li>
+</ul>
+
+<h2 id="add1027">11. 追記（2026-10-27）— 同意して実行する形と Codex 6 回目</h2>
+<p><b>背景:</b> Codex 6 回目も GATE: FAIL（4 回目以降、実行まわりの穴が毎回出た）。本人の判断で、見つけたプログラムを実行するかどうかは、ツールが規則で決めるのをやめた。実行したいものと事実（誰が書き換えられるか）を実行する前に示し、人が選ぶ（端末で全部／しない／番号。端末が無ければ <code>--yes</code> か <code>--no-exec</code>）。判断の理由は <code>docs/design.md</code> 10 章 11・12。</p>
+<p><b>結果（記録の追記時点）:</b> ShellCheck 警告 0、単体テスト <b>153 / 153</b>（skip 0。新規 19、書き換え 9）、統合テスト <b>26 / 26</b>。</p>
+
+<h3>11.1 書き換えた単体テスト（9 件）— 実行の扱いが変わったため</h3>
+<div class="wrap"><table>
+<tr><th>テスト</th><th>何のためのテストか</th><th>結果</th></tr>
+<tr><td class="name">consent: --no-exec runs nothing, --yes runs everything listed (as root too)</td><td>同意の 2 つの指定どおりに、実行しない／一覧のすべてを実行する、となること（root でも同じ）。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">consent: without a terminal and without --yes or --no-exec, the tool lists and stops</td><td>尋ねる端末が無いとき、黙って実行も省略もせず、一覧を示して止まる（終了コード 3）こと。実行したいものが無ければ止まらないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">consent: --no-exec and --yes together are an error; answers are parsed strictly</td><td>矛盾する指定はエラー。答え（1,3／2-3／y／空／n）を正しく読み、範囲外や記号の混じった答えは受け付けないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">facts: a RUNPATH directory others can write is named before asking</td><td>読み込むライブラリの探索先を誰でも書けることが、尋ねる前の事実に出ること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">facts: without readelf the facts say the libraries were not examined</td><td>調べられなかったことも事実として出すこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 5: a symlink in a directory others can write is named, even as an ancestor</td><td>パスの途中の、他人が付け替えられる symlink が事実に出ること。安全な場所のものは出ないこと。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 5: an empty RUNPATH entry is named; chosen programs run from /</td><td>空の探索先（先頭・末尾の <code>:</code>）が事実に出ること。選ばれたプログラムは <code>/</code> から起動すること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">C04: a node chosen to run gives its version through --version</td><td>選ばれた node の版が実行の出力から読まれること。</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">C04: a program under a world-writable directory is named so, and is not run without consent</td><td>誰でも書けるディレクトリの下にあることが事実に出ること、同意が無ければ実行されないこと。</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>11.2 新しい単体テスト（19 件）</h3>
+<div class="wrap"><table>
+<tr><th>テスト</th><th>何のためのテストか</th><th>指摘</th><th>結果</th></tr>
+<tr><td class="name">round 6: a RUNPATH entry that is a dangling symlink in a writable directory is named</td><td>先の無い symlink の探索先（後から作られうる）も事実に出ること。</td><td>R6 T1-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: libraries are looked up through the RPATH inherited from the executable</td><td>実行ファイルの DT_RPATH を、子のライブラリの依存を探すときにも使うこと（glibc の ld.so と同じ）。実際にコンパイルした 3 段の構成で確かめる。</td><td>R6 T2-1</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: the end of a read is never taken from the file's own bytes</td><td>ファイルに偽の「読み終えた」印があっても影響せず、grep が失敗すれば「最後まで読めなかった」になること。</td><td>R6 T2-2</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: Firefox's application.ini and a flatpak runtime's file name are confirmed by strings</td><td>ファイルから読んだ版（application.ini、ライブラリのファイル名）を、デコーダーの文字列で確かめずに FIXED にしないこと。</td><td>R6 T2-3</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: a conda record saying fixed is confirmed against the environment's library</td><td>conda の記録の版も、環境のライブラリの文字列で確かめること。</td><td>R6 T1-4</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: a libbrotlidec loaded under a name its file does not have is still judged</td><td>libbrotlidec.so.1 → decoder.bin のように名前の違う実体も判定すること。</td><td>R6 T1-5</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: a file that loads libbrotlidec and carries its own decoder gets that copy judged</td><td>動的リンクしつつ自前の静的コピーも持つファイルの、そのコピーを見落とさないこと（実際に libbrotlidec へリンクしたプログラムで）。</td><td>R6 T2-4</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: a candidate found by its name is kept when it is a symlink to another name</td><td><code>node → node-22.0.0</code> のような別名を候補から落とさないこと。</td><td>R6 T2-5</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: a link to a program of another name (a mise or volta shim) is not the runtime</td><td>上の修正の最初の版で起きた回帰（mise の shim から mise 本体を node として実行しかけた）を防ぐこと。実機での実行結果の一覧で見つかった。</td><td>R6 T2-5 の回帰</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: a path with a newline in it stays one path</td><td>改行を含むパスが途中で 2 つに分かれないこと。</td><td>R6 T2-6</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: Brotli under a container's dist-packages without python3-brotli is judged</td><td>コンテナの dist-packages に pip で入れた Brotli を、配布元のものとみなして飛ばさないこと。</td><td>R6 T2-7</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: a Python package of the distribution in a container is left to its PKG line</td><td>配布元の python3-brotli が入っているときは、パッケージの版で判定し二重に出さないこと。</td><td>R6 T2-7</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: an Envoy configuration read only in part is not reported as free of Brotli</td><td>最後まで読めなかった設定を「Brotli の展開フィルタ無し」と言わないこと。</td><td>R6 T2-8</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: snap list and ss failures are listed as not scanned</td><td>一覧を取るコマンドの失敗を黙って「何も無い」にしないこと。</td><td>R6 T2-9</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: Electron snaps are found through /snap/NAME/current, which is a symlink</td><td>symlink の <code>current</code> の先も調べること（初版からの見落とし）。</td><td>R6 T1-9</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">round 6: an incomplete read of a library is listed even when its name says vulnerable</td><td>読み切れなかったことを、判定の結果によらず必ず「走査しなかった範囲」に出すこと。</td><td>R6 T1-3</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">consent: with programs to run and no terminal, the tool lists them and asks for --yes or --no-exec</td><td>ツール全体として、端末が無いと止まり、<code>--no-exec</code> なら「実行しなかった」と結果に出すこと。</td><td>同意</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">consent: --yes runs the listed programs and the report says what ran (JSON too)</td><td><code>--yes</code> で実行し、実行したもの・出力・事実が結果と JSON に出ること。</td><td>同意</td><td><span class="b ok">ok</span></td></tr>
+<tr><td class="name">consent: at a terminal the user chooses by number</td><td>本物の端末（<code>script</code> で作る擬似端末）で番号を答えると、その番号のものだけが実行されること。</td><td>同意</td><td><span class="b ok">ok</span></td></tr>
+</table></div>
+
+<h3>11.3 統合テスト（26 項目、すべて ok）</h3>
+<p>5 つのイメージそれぞれで、root と一般ユーザーを <code>--no-exec</code> と <code>--yes</code> で走らせる（4 通り）＋C14 のスクリプトを各イメージの <code>/bin/sh</code> で。bash 4.2 は <code>--yes</code> で実行の道も通した。<b>何のためか:</b> 実行してもしなくても判定が変わらないことと、実際のディストリビューションで同意・実行・報告が動くことを確かめる。出力例（<code>docs/sample-output.md</code>）は <code>--yes</code> で取り直した。</p>
+
+<h3>11.4 実機（開発機、一般ユーザー）</h3>
+<ul>
+<li><code>--no-exec</code> と <code>--yes</code> の両方で完走、標準エラーは空。<code>--yes</code> では実行したもの・その出力・事実がすべて結果に出た。実行できない Alpine 用の node は「見つからない」という出力と「libc.musl… が見つからない」という事実がそのまま出た。</li>
+<li>端末での確認（番号で選ぶ）を手で確かめた。<b>このとき、mise の shim を node として挙げる回帰を見つけた</b>（11.2 のテストで防ぐ）。</li>
+<li>所要: 同意の形にした直後は 27.7〜30.7 秒（事実を集める分）。依存の辿りのキャッシュで 23.5 秒。所見は変わらない。</li>
+</ul>
+
+<h3>11.5 まだやっていないこと</h3>
+<ul>
+<li><b>今日の修正の変異テスト</b>（修正を戻してテストが落ちるか）はまだ。</li>
+<li>Codex 7 回目（新しい基準: 事実の誤り・黙った抜け・示さない実行・余計な書き込み）はまだ。</li>
+<li>CI はまだ（push していない）。</li>
+</ul>
+
+<p><small class="src">この記録の元: <code>bats --tap tests/unit/*.bats</code>（記録作成時に取り直し）、<code>make lint</code>、<code>tests/integration/run.sh</code> のログ（4 回目後・5 回目後）、作業中の計測。判断の理由は <code>docs/design.md</code> 10 章 9・10。</small></p>
+</main>
+</body>
+</html>

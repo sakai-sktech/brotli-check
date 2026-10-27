@@ -70,6 +70,7 @@ bash brotli-cve-check --lang ja                     # Japanese output
 bash brotli-cve-check --json --output report.json   # machine-readable (docs/json-schema.md)
 sudo bash brotli-cve-check > report.txt             # as root, save the report via your own shell
 bash brotli-cve-check --no-exec                     # never run any program it finds
+sudo bash brotli-cve-check --yes > report.txt       # no questions: run the programs it lists
 sudo bash brotli-cve-check --deep --containers      # slower, wider
 bash brotli-cve-check --help
 ```
@@ -77,6 +78,33 @@ bash brotli-cve-check --help
 Requirements: bash 4.2 or later, coreutils, findutils, grep, sed, awk. binutils
 (`readelf`) is optional; without it some linkage checks are less precise and the report says so.
 No Python, no network.
+
+## Before you use `--yes`
+
+To read exact versions, the tool wants to run some of the programs it found, each with one
+argument such as `--version`. At a terminal it first shows you the list — each program, and
+who besides root or you could change it, a directory above it, or a library it loads — and
+you choose: all, none, or by number. That list is the point: it is what you are deciding on.
+
+`--yes` means "run everything on that list, without showing it to me first". It exists for
+runs with no one at a terminal: a script, cron, a container. Use it knowing what you agree to:
+
+- **A program runs with your rights.** With `sudo`, that means as root, with full control of
+  the host. If a program on the list belongs to another user, or sits where another user can
+  write, then that user decides what runs as root. The list says when this is the case
+  ("belongs to alice", "can be written by anyone"); `--yes` agrees without reading it.
+- **The list covers what can be seen before running**: the file, the directories above it,
+  the libraries it loads. What a program opens once it is running (plugins, configuration
+  files) is not on it.
+- **A version that a program reports is only as trustworthy as the program.** The report's
+  first section, "Programs run to read their versions", shows what ran, what it printed, and
+  the facts. Read the findings with it: a FIXED that came from running a program others can
+  change says what that program printed, nothing more.
+
+If you are not sure, run once at a terminal and look at the list. For unattended runs where
+nobody will read that section, `--no-exec` is the plain choice: nothing found is run, versions
+come from files (headers, package records, paths, strings), and the report says what was not
+run. For example: `sudo bash brotli-cve-check --no-exec --json > report.json`.
 
 ## Reading the result
 
@@ -95,7 +123,7 @@ Each finding is one line:
 | `LIKELY_VULNERABLE` / `LIKELY_FIXED` | Judged from the decoder's strings (verified heuristic, see below) | Confirm with the vendor |
 | `UNKNOWN` | Could not be judged; the reason is always given | Read the reason |
 | `EXPOSURE` | A path by which attacker data could reach a decoder; not a vulnerability by itself | Prioritize the updates it points to |
-| `NOT_APPLICABLE` | No decoder in that file (for example a compression-only module) | None for that file |
+| `NOT_APPLICABLE` | No decoder in that file (for example a packaged compression-only module; a build of your own that merely shows no markers is `UNKNOWN`) | None for that file |
 | `FIXED` | Contains the fix | None |
 
 The report ends with four lines for non-specialists ("needs update", "needs restart",
@@ -120,9 +148,17 @@ Version numbers are not trusted blindly:
   1.2.0 and 1.2.1 (shared, static, LTO, stripped or not), on official Node.js binaries and on
   PyPI wheels ([tests/fixtures/c09/README.md](tests/fixtures/c09/README.md)). When the linker
   removed the error-name table, the copy is reported as `VENDORED_COPY`, never as fixed.
-- The tool runs a program it found only to ask for its version, with an empty environment and
-  a timeout, and only when nobody but root (or you) could have replaced it. Otherwise, and with
-  `--no-exec`, versions come from files (headers, package records, paths, strings).
+- To read exact versions the tool asks to run some programs it found with one version argument.
+  **Before anything runs it lists them**, each with the facts that matter (who besides root or
+  you could change the program, a directory above it, or a library it loads), and asks: all,
+  none, or by number. Without a terminal, pass `--yes` or `--no-exec`. What ran, its output,
+  and what did not are in the report. Programs not run are judged from files (headers,
+  package records, paths, strings).
+- A pre-release of exactly the fixed version (`1.4.4-rc.1`, Firefox `150.0a1`, ...) is not taken
+  for the release; it is `UNKNOWN`.
+- A version read from a file instead of the program (a directory name, a header, package
+  metadata) gives `FIXED` only when the decoder's strings confirm the fix. Results from the
+  strings say what was found and what could not be determined.
 
 ## Limitations
 

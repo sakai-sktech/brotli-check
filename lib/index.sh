@@ -43,7 +43,7 @@ bcc_build_index() {
   bcc_find_each bcc_index_entry ${BCC_ROOTS[@]+"${BCC_ROOTS[@]}"} ${extra[@]+"${extra[@]}"} -- \
     \( -iname 'brotli-*.dist-info' -o -iname 'brotli-*.egg-info' -o -iname 'brotlicffi-*.dist-info' \
     -o -iname 'brotlicffi-*.egg-info' \
-    -o \( -path '*/conda-meta/*' -name 'libbrotlidec-[0-9]*.json' \) \
+    -o \( -path '*/conda-meta/*' -type f -name 'libbrotlidec-[0-9]*.json' \) \
     -o \( -type f \( -name 'libbrotlidec*.so*' -o -name 'libbrotlidec*.a' \) \) \
     -o \( -type f -perm -u=x \( -name node -o -name nodejs -o -name bun -o -name envoy \) \) \)
   bcc_find_status $? "$(IFS=,; printf '%s' "${BCC_ROOTS[*]:-}")"
@@ -51,15 +51,10 @@ bcc_build_index() {
   return 0
 }
 
-# Print the given paths with glob characters escaped, so that bcc_candidates
-# (which expands patterns) takes them literally. Usage: bcc_index_list PATH...
+# The given paths as literal ("L") records for bcc_candidates, NUL-terminated (paths may
+# contain newlines and glob characters). Usage: bcc_index_list PATH...
 bcc_index_list() {
   local p
-  for p in "$@"; do
-    p=${p//\\/\\\\}
-    p=${p//\*/\\*}
-    p=${p//\?/\\?}
-    p=${p//\[/\\[}
-    printf '%s\n' "$p"
-  done
+  for p in "$@"; do printf 'L%s\0' "$p"; done
+  return 0
 }

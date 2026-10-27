@@ -12,11 +12,19 @@ bcc_check_c01() {
     bcc_skip C01 "$(bcc_msg skip_no_dpkg)"
     return
   fi
-  local line st pkg ver src srcver next any=0
+  local line st pkg ver src srcver next any=0 out rc=0
   # shellcheck disable=SC2016  # dpkg-query format, not shell expansion
   local fmt='${db:Status-Abbrev}\t${binary:Package}\t${Version}\t${source:Package}\t${source:Version}\n'
+  # Status 1 only means that some of the packages are not installed; 2 and above (and a
+  # timeout) mean the database could not be read: then nothing may be said about them.
   # shellcheck disable=SC2086  # package list is a fixed word list
+  out=$(bcc_sys dpkg-query -W -f "$fmt" $BCC_C01_PACKAGES) || rc=$?
+  if ((rc > 1)); then
+    bcc_skip C01 "$(bcc_msg skip_dpkg_failed "$rc")"
+    return
+  fi
   while IFS= read -r line; do
+    [[ -n $line ]] || continue
     bcc_split_tab "$line"
     st=${BCC_F[0]}
     pkg=${BCC_F[1]:-}
@@ -42,26 +50,33 @@ bcc_check_c01() {
     esac
     bcc_add_finding C01 "$BCC_J_STATUS" "${pkg%%:*}" "dpkg ($BCC_DEB_SERIES)" "$ver" "$BCC_J_REASON" "$next" \
       "source $src $srcver; $BCC_J_EVIDENCE" ""
+    BCC_C01_JUDGED[${pkg%%:*}]=1
     [[ ${pkg%%:*} == libbrotli1 && -z $BCC_C01_LIB_STATUS ]] && BCC_C01_LIB_STATUS=$BCC_J_STATUS
-  done < <(bcc_sys dpkg-query -W -f "$fmt" $BCC_C01_PACKAGES)
+  done <<<"$out"
   ((any)) || bcc_add_info C01 "$(bcc_msg i_c01_none)"
 }
 
 # C02: installed packages that depend on libbrotli1 are fixed by C01's update plus a restart.
 bcc_check_c02() {
   bcc_have dpkg-query || return 0
-  local line name re='(^|[ ,|])libbrotli1([ :(,]|$)'
+  local line name re='(^|[ ,|])libbrotli1([ :(,]|$)' out rc=0
   local -a deps=()
   # shellcheck disable=SC2016
   local fmt='${db:Status-Abbrev}\t${binary:Package}\t${Depends}, ${Pre-Depends}\n'
+  out=$(bcc_sys dpkg-query -W -f "$fmt") || rc=$?
+  if ((rc > 1)); then
+    bcc_skip C02 "$(bcc_msg skip_dpkg_failed "$rc")"
+    return 0
+  fi
   while IFS= read -r line; do
+    [[ -n $line ]] || continue
     bcc_split_tab "$line"
     [[ ${BCC_F[0]} == [ih]i* ]] || continue
     name=${BCC_F[1]%%:*}
     case " $BCC_C01_PACKAGES " in *" $name "*) continue ;; esac
     [[ ${BCC_F[2]:-} =~ $re ]] || continue
     deps+=("$name")
-  done < <(bcc_sys dpkg-query -W -f "$fmt")
+  done <<<"$out"
   ((${#deps[@]})) || return 0
   local list
   list=$(printf '%s\n' "${deps[@]}" | sort -u | paste -sd, - | sed 's/,/, /g')

@@ -15,6 +15,8 @@ removed or renamed field changes the major part of `tool_version`.
   "data_age_days": 0,                   // days between the snapshot and today
   "data_stale": false,                  // true when data_age_days >= 30
   "data_source": "embedded",            // "embedded" or the path given with --data
+  "data_writable_by_others": false,     // the --data file (or a directory on its path) can be
+                                        // changed by users other than root (or you); warned about
 
   "host": {
     "os_id": "ubuntu",                  // /etc/os-release ID
@@ -29,10 +31,22 @@ removed or renamed field changes the major part of `tool_version`.
 
   "options": {
     "deep": false, "projects": false, "containers": false, "inspect_containers": false,
-    "exposure": false, "no_exec": false, "include_remote": false, "lang": "en"
+    "exposure": false,
+    "no_exec": false,                   // --no-exec: found programs were not run
+    "yes": false,                       // --yes: the listed programs were run without asking
+    "include_remote": false, "lang": "en"
   },
 
   "scanned_roots": ["/opt", "/usr/local", "/srv", "/var/www", "/home", "/root"],
+
+  "execution": [                        // programs the checks asked to run, in the order listed
+    { "path": "/usr/local/bin/bun", "argument": "--version", "check": "C05 bun",
+      "ran": true, "exit_status": 0, "output": "1.4.4",            // output: at most 4096 chars
+      "facts": ["as far as examined, only root can change it and what it loads"] },
+    { "path": "/home/alice/.bun/bin/bun", "argument": "--version", "check": "C05 bun",
+      "ran": false, "not_run_because": "not-chosen",               // or "no-exec"
+      "facts": ["/home/alice/.bun/bin/bun belongs to alice"] }
+  ],
 
   "skipped": [                          // ranges NOT scanned, always listed
     { "scope": "C09 --deep", "reason": "generic search of ELF files ... (use --deep)" }

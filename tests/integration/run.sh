@@ -35,6 +35,12 @@ common=(
   "C06|/srv/venv-old/|EXPOSURE"
 )
 
+# The fixed script that --inspect-containers runs inside containers (C14), taken from the
+# single-file build: it must work with the image's own /bin/sh (dash), not only with bash.
+probe=$(bash -c 'eval "$(sed -n "/^BCC_C14_PROBE='"'"'/,/^'"'"'\$/p" "$1")"; printf "%s" "$BCC_C14_PROBE"' _ "$root/dist/brotli-cve-check")
+[[ $probe == *'echo END'* ]] || { echo "FAIL: could not extract BCC_C14_PROBE from dist/brotli-cve-check"; exit 1; }
+node_path=/opt/node-v22.23.3-linux-x64/bin:/opt/node-v22.23.4-linux-x64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 failed=0
 for row in "${matrix[@]}"; do
   IFS='|' read -r base lib py <<<"$row"
@@ -45,27 +51,43 @@ for row in "${matrix[@]}"; do
     failed=1
     continue
   fi
-  for who in root tester; do
-    report="$out/${tag#bcc-it:}-$who.json"
+  # Found programs run only with consent; without a terminal that is --yes or --no-exec.
+  # Both, as root and as an ordinary user: the verdicts must not depend on it.
+  for run in "root|no-exec|--no-exec" "root|yes|--yes" "tester|no-exec|--no-exec" "tester|yes|--yes"; do
+    IFS='|' read -r who label extra <<<"$run"
+    report="$out/${tag#bcc-it:}-$who-$label.json"
     args=(--json --roots '/opt,/srv')
-    [[ $who == tester ]] && args+=(--no-exec)
+    [[ -n $extra ]] && args+=("$extra")
     set +e
     "$engine" run --rm --user "$who" "$tag" brotli-cve-check "${args[@]}" >"$report"
     rc=$?
     set -e
     if ((rc == 3)); then
-      echo "FAIL $base ($who): the tool exited with an error"
+      echo "FAIL $base ($who, $label): the tool exited with an error"
       failed=1
       continue
     fi
     if python3 -I "$root/tests/integration/assert.py" "$report" \
       "C01|libbrotli1|$lib" "C01|python3-brotli|$py" "${common[@]}"; then
-      echo "ok   $base ($who), exit $rc"
+      echo "ok   $base ($who, $label), exit $rc"
     else
       echo "     report: $report"
       failed=1
     fi
   done
+  # C14's probe in this image's /bin/sh, with both Node.js copies on PATH.
+  set +e
+  probe_out=$("$engine" run --rm -e "PATH=$node_path" "$tag" sh -c "$probe" 2>&1)
+  set -e
+  printf '%s\n' "$probe_out" >"$out/${tag#bcc-it:}-probe.txt"
+  if grep -q $'^NODE\t/opt/node-v22.23.3-linux-x64/bin/node\tv22.23.3$' <<<"$probe_out" &&
+    grep -q $'^NODE\t/opt/node-v22.23.4-linux-x64/bin/node\tv22.23.4$' <<<"$probe_out" &&
+    grep -q $'^PKG\tii \tlibbrotli1' <<<"$probe_out" && [[ $(tail -n 1 <<<"$probe_out") == END ]]; then
+    echo "ok   $base (C14 probe in /bin/sh: both Node.js copies, packages, END)"
+  else
+    echo "FAIL $base: C14 probe output: $out/${tag#bcc-it:}-probe.txt"
+    failed=1
+  fi
 done
 
 if [[ -n ${SKIP_BASH42:-} ]]; then
@@ -80,7 +102,7 @@ set +e
   apk add -q --no-cache coreutils findutils grep sed gawk binutils >/dev/null &&
   mkdir -p /srv/venv/lib/python3.12/site-packages/Brotli-1.2.0.dist-info &&
   printf "Name: Brotli\nVersion: 1.2.0\n" >/srv/venv/lib/python3.12/site-packages/Brotli-1.2.0.dist-info/METADATA &&
-  bash /bcc --json --roots /srv,/usr --timeout 60' >"$out/bash42.json"
+  bash /bcc --json --roots /srv,/usr --timeout 60 --yes' >"$out/bash42.json"
 rc=$?
 set -e
 if ((rc == 1)) && python3 -I "$root/tests/integration/assert.py" "$out/bash42.json" "C06|/srv/venv/|VULNERABLE"; then

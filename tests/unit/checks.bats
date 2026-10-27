@@ -141,7 +141,18 @@ fake_proc() {
   [[ ${BCC_FINDINGS[*]} == *"version via header"* ]]
 }
 
-@test "C04: --no-exec without a header falls back to the version in the path" {
+@test "C04: --no-exec without a header falls back to the version in the path (confirmed by strings)" {
+  BCC_NO_EXEC=1
+  make_fake_elf "$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node" "$FIXTURES/c09/node-v24.22.1.txt"
+  BCC_HOMES=("$T/home/u")
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
+  run findings_brief
+  [[ $output == *"FIXED|C04|node|$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node|24.22.1"* ]]
+}
+
+@test "C04: a version from the path that the file's strings cannot confirm is UNKNOWN, saying so" {
   BCC_NO_EXEC=1
   make_fake_elf "$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node"
   BCC_HOMES=("$T/home/u")
@@ -149,7 +160,8 @@ fake_proc() {
   mkdir -p "$BCC_PROC_ROOT"
   PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
   run findings_brief
-  [[ $output == *"FIXED|C04|node|$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node|24.22.1"* ]]
+  [[ $output == *"UNKNOWN|C04|node|$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node|24.22.1"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"Not confirmed by the file"* ]]
 }
 
 @test "C04: an end-of-life line is VULNERABLE with the 'move to a supported line' advice" {
@@ -197,36 +209,36 @@ fake_proc() {
   [[ ${BCC_FINDINGS[*]:-} != *"$T/shims/node"* ]]
 }
 
-@test "C04: a real node --version is used when the file is safe to run" {
+@test "C04: a node chosen to run gives its version through --version" {
   command -v cc >/dev/null || skip "no C compiler to build a stand-in node"
-  # Under the repository (owned by the test user), not under /tmp (world-writable).
-  SAFE="$REPO_ROOT/tests/tmp/$BATS_TEST_NUMBER-$$"
-  mkdir -p "$SAFE/n/bin"
-  chmod 755 "$REPO_ROOT/tests/tmp" "$SAFE" "$SAFE/n" "$SAFE/n/bin"
-  printf '#include <stdio.h>\nint main(void){puts("v24.22.0");return 0;}\n' >"$SAFE/stub.c"
-  cc -o "$SAFE/n/bin/node" "$SAFE/stub.c"
-  bcc_safe_to_exec "$SAFE/n/bin/node" >/dev/null || { rm -rf "$SAFE"; skip "repository path is writable by others"; }
+  mkdir -p "$T/n/bin"
+  printf '#include <stdio.h>\nint main(void){puts("v24.22.0");return 0;}\n' >"$T/stub.c"
+  cc -o "$T/n/bin/node" "$T/stub.c"
   BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
   mkdir -p "$BCC_PROC_ROOT"
-  BCC_IDX_NODE=("$SAFE/n/bin/node")
+  BCC_IDX_NODE=("$T/n/bin/node")
+  bcc_plan_add "$T/n/bin/node" --version "C04 node"
+  BCC_PLAN_OK["$T/n/bin/node"$'\t'--version]=1
+  bcc_exec_run
   PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
   run findings_brief
-  rm -rf "$SAFE"
-  [[ $output == *"VULNERABLE|C04|node|$SAFE/n/bin/node|24.22.0"* ]]
+  [[ $output == *"VULNERABLE|C04|node|$T/n/bin/node|24.22.0"* ]]
   [[ ${BCC_FINDINGS[*]} == *"version via exec"* ]]
 }
 
-@test "C04: a program under a world-writable directory is never run" {
+@test "C04: a program under a world-writable directory is named so, and is not run without consent" {
   command -v cc >/dev/null || skip "no C compiler"
   mkdir -p "$T/opt/n/bin"
   printf '#include <stdio.h>\nint main(void){puts("v24.22.1");return 0;}\n' >"$T/stub.c"
   cc -o "$T/opt/n/bin/node" "$T/stub.c"
   chmod 777 "$T/opt"
+  bcc_exec_facts "$T/opt/n/bin/node"
+  [[ " ${BCC_FACTS[*]} " == *"$T/opt can be written by anyone"* ]]
+  bcc_plan_add "$T/opt/n/bin/node" --version "C04 node"
+  bcc_exec_run
   run bcc_probe "$T/opt/n/bin/node" --version
-  [ "$status" -eq 126 ]
+  [ "$status" -eq 125 ]
   [ -z "$output" ]
-  run bcc_safe_to_exec "$T/opt/n/bin/node"
-  [ "$status" -eq 1 ]
 }
 
 @test "exec safety: a directory writable only by your own private group is fine" {

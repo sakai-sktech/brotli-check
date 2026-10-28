@@ -20,6 +20,16 @@ reproduction you can. Do not attach exploit data for Brotli.
 
 ## Design rules this tool keeps
 
-Read-only; no network; no attack data; found programs run only for their version, with an empty
-environment, a timeout, and only when nobody but root (or the invoking user) could have replaced
-them; command lines are not shown unless `--show-cmdline`; `--output` never overwrites a file.
+- The tool itself installs, updates, stops and reconfigures nothing. It writes only to standard
+  output and to a new file named with `--output`, which never overwrites a file and is only
+  created in a directory that nobody but root (or the invoking user, when not root) can change.
+- It does not connect to the network itself, and does not generate, download or contain attack
+  data.
+- Programs it finds are run only to read their version, with one argument, from `/`, with an
+  empty environment, stdin closed, a time limit and a cap on their output. Before anything runs
+  it lists them, each with who besides root or the invoking user could change the program, a
+  directory above it, or a library it loads, and runs only those chosen (all of them with
+  `--yes`, none with `--no-exec`). Nothing keeps a program allowed to run from writing files or
+  using the network.
+- With `--containers`, docker or podman are used with their current connection settings.
+- Command lines of processes are not shown unless `--show-cmdline`.

@@ -80,7 +80,7 @@ English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/fo
 ### 入手
 
 v0.1.0 はまだ Release していません（予定は [issue #4](https://github.com/sakai-sktech/brotli-check/issues/4)）。
-いまはリポジトリを clone し、その中の `bin/brotli-cve-check` を動かします。`bin/brotli-cve-check` は同じ木の
+いまはリポジトリを clone し、その中の `bin/brotli-cve-check` を動かします。`bin/brotli-cve-check` は同じツリーの
 `lib/` と `data/` を読むので、このファイルだけを取ってきても動きません。`curl | bash` はしないでください。
 
 ```sh
@@ -89,7 +89,7 @@ cd brotli-check &&
 git log -1 --format='%H %cd'     # どのコミットで点検したかを控えておく
 ```
 
-動かす前に、`bin/`・`lib/`・`data/` の中身を読んでください。以下のコマンドは、clone した木の中で動かす形で
+動かす前に、`bin/`・`lib/`・`data/` の中身を読んでください。以下のコマンドは、clone したツリーの中で動かす形で
 書いています。
 
 ### まず一般ユーザーで、何も起動せずに
@@ -104,7 +104,7 @@ bash bin/brotli-cve-check --lang ja --no-exec
 
 ### 必要なら範囲を広げる
 
-**root で動かす。** 他のユーザーのホームとプロセスも見られます。clone した木は一般ユーザー（あなた）が
+**root で動かす。** 他のユーザーのホームとプロセスも見られます。clone したツリーは一般ユーザー（あなた）が
 書き換えられるので、そのまま `sudo` で動かすと、root があなたの書けるコードを動かすことになり、結果の冒頭に
 既知データについての警告が出ます。root で動かすときは、1 ファイル版を作り、root だけが書ける場所に置いてから
 動かします。

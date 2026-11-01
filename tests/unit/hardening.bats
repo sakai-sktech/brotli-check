@@ -766,6 +766,17 @@ EOS
   [[ $output == *"UNKNOWN|C12|"*"|$lib|1.2.1"* ]]
 }
 
+@test "C12: a flatpak runtime's libbrotlidec before the range is UNKNOWN, with flatpak's own command" {
+  lib="$T/flatpak/runtime/org.x.Platform/x86_64/24/active/files/lib/libbrotlidec.so.1.0.2"
+  mkdir -p "${lib%/*}"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.0-nostrip.txt" >"$lib"
+  bcc_c12_runtime_lib "$lib"
+  run findings_brief
+  [[ $output == *"UNKNOWN|C12|"*"|$lib|1.0.2"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"GHSA-9v8h-qqgm-4m35"* ]]
+  [[ ${BCC_FINDINGS[0]} == *$'\tflatpak update\t'* ]]
+}
+
 @test "round 6: a conda record saying fixed is confirmed against the environment's library" {
   mkdir -p "$T/env/conda-meta" "$T/env/lib"
   printf '{}\n' >"$T/env/conda-meta/libbrotlidec-1.2.1-h0_0.json"

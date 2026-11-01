@@ -26,7 +26,13 @@ bcc_check_c10() {
     series=$(cut -d. -f1-2 <<<"$ver")
     bcc_judge envoy "$series" semver "$ver"
     next=$BCC_J_NEXT
-    [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_update_runtime "$BCC_J_FIXED")
+    if [[ $BCC_J_STATUS == VULNERABLE ]]; then
+      if [[ $BCC_J_FIXED == - ]]; then
+        next=$(bcc_msg n_envoy_move_line)
+      else
+        next=$(bcc_msg n_update_runtime "$BCC_J_FIXED")
+      fi
+    fi
     bcc_add_finding C10 "$BCC_J_STATUS" envoy "$bin" "$ver" "$BCC_J_REASON $(bcc_msg r_c10_decompressor)" "$next" "$BCC_J_EVIDENCE" ""
   done
   if [[ -n $BCC_ENVOY_CONFIG ]]; then
@@ -251,7 +257,7 @@ bcc_c12_runtime_lib() {
   bcc_judge brotli "$series" semver "$ver"
   bcc_crosscheck_fixed "$f"
   bcc_add_finding C12 "$BCC_J_STATUS" "flatpak-runtime:$rt" "$f" "$ver" "$BCC_J_REASON" \
-    "$([[ $BCC_J_STATUS == VULNERABLE ]] && bcc_msg n_flatpak_update || printf '%s' "$BCC_J_NEXT")" "$BCC_J_EVIDENCE" ""
+    "$(bcc_judge_advises_update && bcc_msg n_flatpak_update || printf '%s' "$BCC_J_NEXT")" "$BCC_J_EVIDENCE" ""
 }
 
 # bcc_browser_judge chromium|firefox VERSION  (sets BCC_J_*)

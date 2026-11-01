@@ -27,7 +27,7 @@ instructions of 2026-10-26. All retrieved on 2026-10-26 (JST). Every row of
 | 2 | PyPI Brotli / brotlicffi | 1.2.1 / 1.2.1.0, PYSEC-2026-4322 / 4323 | Agrees (4322 = brotli, 4323 = brotlicffi) | `pypa/advisory-database`: `vulns/brotli/PYSEC-2026-4322.yaml`, `vulns/brotlicffi/PYSEC-2026-4323.yaml` (raw) |
 | 3 | Bun | 1.4.4 | Agrees, but the basis is the **source**, not the release notes: tag `bun-v1.4.4` pins `db24a98a` (v1.2.1) in `scripts/build/deps/brotli.ts`, `bun-v1.4.3` pins `028fb5a2` (v1.2.0) | raw.githubusercontent.com/oven-sh/bun/bun-v1.4.4/scripts/build/deps/brotli.ts |
 | 4 | Node.js fixed releases | 22.23.4 / 24.22.1 / 26.12.1 | Agrees | nodejs.org/en/blog/vulnerability/october-2026-security-releases |
-| 5 | Node.js end-of-life lines | 20 and earlier, 21, 23, 25 get no fix | The advisory names no lines. **Derived** from "end-of-life versions are always affected" plus "no fixed release exists": `status=derived` with the reasoning in the note | same |
+| 5 | Node.js end-of-life lines | 20 and earlier, 21, 23, 25 get no fix | The advisory names no lines. **Derived** from "end-of-life versions are always affected" plus "no fixed release exists": `status=derived` (`derived_eol` since 10.16) with the reasoning in the note | same |
 | 6 | `process.versions.brotli` | stays "1.1.0" even when fixed | Agrees. At nodejs/node tag v22.23.4, `deps/brotli/c/common/version.h` says 1.1.0 and `decode.h` has `BROTLI_ERROR_CODE(_ERROR_FORMAT_, BLOCK_SWITCH, -17)`; at v22.23.3 `decode.h` says `/* -17 code is reserved */`. (v24.22.1's version.h says 1.2.0: the value differs per line and cannot be used.) | raw.githubusercontent.com/nodejs/node/v22.23.{3,4}/deps/brotli/… |
 | 7 | Debian bookworm / trixie | +deb12u1 (DLA-4855-1) / +deb13u1 (DSA-6582-1) | Agrees | security-tracker.debian.org/tracker/CVE-2026-111497 |
 | 8 | Debian sid / forky | 1.2.0-4 unfixed | The tracker's "Fixed Version" table has `brotli source (unstable) 1.2.0-4.1` (bug 1151690) (retrieved 2026-10-25T21:40Z), but the archive (sources.debian.org/api/src/brotli/) has only 1.2.0-4 for forky and sid. **Unfixed until it reaches the archive** (`unreleased` in 5.1) | same tracker, sources.debian.org |
@@ -63,7 +63,7 @@ Changes:
 |---|---|---|---|
 | 10 Ubuntu | "Needs evaluation", no USN → `no_fix` | **Fixed** by USN-8956-1 (2026-10-26) in jammy 1.0.9-2ubuntu0.1, noble 1.1.0-2ubuntu0.1, resolute 1.2.0-3ubuntu0.1, stonking 1.2.0-4ubuntu0.1 (brotli, libbrotli1, python3-brotli) → `fixed`. These are the versions that were candidates in the ubuntu-security-proposed PPA on 10-25. Ubuntu's nodejs is "Not affected" in those releases (it uses the system library, which C01 judges) | ubuntu.com/security/notices/USN-8956-1, ubuntu.com/security/CVE-2026-111497 |
 | 8 Debian sid / forky | 1.2.0-4.1 not in the archive → `unreleased` | sid has 1.2.0-4.1 in the archive → `fixed`; forky still has 1.2.0-4 → stays `unreleased` | security-tracker.debian.org, sources.debian.org/api/src/brotli/ |
-| 3 Bun | source analysis → `analysis` | Bun's advisory GHSA-663w-cv8g-jj2p (published 2026-10-23; affected >= 1.0.21, < 1.4.4; `bun build --compile` executables stay affected until rebuilt) → `fixed`. It was missed on 10-26, when the release notes were read instead; the source analysis agrees with it. Versions before 1.0.21 are outside its range but, as the data is per series, are reported like the others before 1.4.4 | github.com/oven-sh/bun/security/advisories/GHSA-663w-cv8g-jj2p |
+| 3 Bun | source analysis → `analysis` | Bun's advisory GHSA-663w-cv8g-jj2p (published 2026-10-23; affected >= 1.0.21, < 1.4.4; `bun build --compile` executables stay affected until rebuilt) → `fixed`. It was missed on 10-26, when the release notes were read instead; the source analysis agrees with it. Versions before 1.0.21 are outside its range; as the data was per series, they were reported like the others before 1.4.4 until 10.16 | github.com/oven-sh/bun/security/advisories/GHSA-663w-cv8g-jj2p |
 | 18 Background paper | 404 | Published (quick report, 2026-10-27); linked from the README. Its versions agree with the data after this update | jmedic.co.jp/pubdoc/http2shell_report_20261027.html |
 
 Unchanged on re-check: Google Brotli tags (v1.0.10 / v1.1.1 / v1.2.1, published 2026-10-21),
@@ -122,30 +122,36 @@ item and separate text and JSON output files.)
 ### 5.1 Columns
 
 The request's six columns (component, line, fixed version, status, primary source URL, retrieval
-date) plus a **note** column, because `derived` and similar statuses need a place for their
-reasoning.
+date) plus a **note** column, because `derived_*` and similar statuses need a place for their
+reasoning, and an **affected** column for the range an advisory states (10.16).
 
 | Column | Example |
 |---|---|
 | component | `node` / `bun` / `pypi:brotli` / `deb-src:brotli` / `envoy` / `chromium` … |
 | branch | `22`, `debian:trixie`, `ubuntu:noble`, `*` |
 | fixed | `22.23.4`, `1.1.0-2+deb13u1`, `-` (no fix) |
-| status | `fixed` / `no_fix` / `unreleased` / `derived` / `analysis` |
+| status | `fixed` / `no_fix` / `unreleased` / `derived_eol` / `derived_bundled` / `analysis` / `unknown` |
+| affected | `GHSA-663w-cv8g-jj2p:1.0.21:1.4.3` (`ADVISORY:FIRST:LAST`), `-` (none stated); `fixed` rows only |
 | source_url | primary source URL |
 | retrieved | `2026-10-26` |
 | note | short reasoning |
 
 Meaning of `status`:
-- `fixed` — the primary source names the fixed version
+- `fixed` — the primary source names the fixed version. With `affected`, a version below `FIRST`
+  is UNKNOWN (the advisory does not say whether it is affected) and an update is recommended
 - `no_fix` — the distributor has not released a fix (all Ubuntu releases until 2026-10-26; none
   as of 2026-10-27) → NO_FIX_AVAILABLE
 - `unreleased` — a fixed version is named but has not reached the archive (Debian forky
   1.2.0-4.1; sid until 2026-10-27). Installed version at or above `fixed` → FIXED, below → NO_FIX_AVAILABLE
-- `derived` — derived from a general statement of the primary source (Node.js end-of-life lines);
-  the note is shown as the reason
+- `derived_eol` — the primary source says end-of-life versions are always affected, and the line
+  gets no fix (Node.js) → VULNERABLE; the reason states that ground
+- `derived_bundled` — the line bundles a Brotli in the affected range, and gets no fix (Envoy 1.35
+  and earlier; the advisory does not name them) → VULNERABLE; the reason states that ground
 - `analysis` — from the product's source tree, not a vendor advisory (Chromium / Firefox; Bun
   until 2026-10-27);
   the result says so
+- `unknown` — the data cannot decide (Node.js 10 and earlier, which may predate the bundled
+  Brotli) → UNKNOWN
 
 ### 5.2 Freshness
 
@@ -194,7 +200,7 @@ verification; if the verification fails, the heuristic is not implemented and on
 is reported.
 
 **C10 Envoy** — judged by the advisory's fixed versions (2.13: no disagreement). 1.35 and earlier
-are `derived` (older Envoy bundles Brotli 1.0.9 / 1.1.0).
+are `derived_bundled` (older Envoy bundles Brotli 1.0.9 / 1.1.0).
 
 **C11 compression-only products** — primary sources confirmed ngx_brotli (libbrotlienc only),
 mod_brotli (compression filter only) and Traefik (Go implementation, andybalholm/brotli). HAProxy
@@ -570,6 +576,41 @@ rejected alternative.
        and such a line adds to exit code 2. Why now: UNKNOWN says only what was seen, can be
        tightened later without taking anything back, and issue #6 is still deciding what `docker
        exec` may do and where. Streaming is the option to weigh after #6.
+16. **What an advisory's range leaves out is UNKNOWN, not VULNERABLE (2026-11-01, issue #2).**
+    `bcc_judge` had no lower bound and `derived` rows were VULNERABLE whatever their ground, so a
+    version confirmed in the range and one that was merely old had the same verdict, reason and
+    exit status. The difference was only in the English note, which the text report does not show.
+    1. **A new column `affected` (`ADVISORY:FIRST:LAST`), not more rows.** Rows are chosen by line,
+       and Brotli 1.0.2 and 1.0.3 are the same line. It is allowed on `fixed` rows only. The loader
+       refuses a malformed, misplaced or reversed range, since one would silently turn VULNERABLE
+       into UNKNOWN. A `--data` file with the old 7 columns is refused (no release has used them).
+    2. **Below FIRST: UNKNOWN, with no new verdict.** The advisory says neither that the version is
+       affected nor that it is not. A new verdict such as `OUT_OF_RANGE` was the alternative; it
+       would ask every reader to learn it for what UNKNOWN and a reason can say. The reason names
+       the advisory and the range and recommends an update, and the caller's own way of updating
+       still applies (`bcc_judge_advises_update`), because the next step does not change. Accepted
+       cost: such a version adds to exit status 2, not 1, and is not counted under "Needs update".
+       When a part's old versions turn out to be affected or not, its row changes.
+    3. **Brotli 0.x is a `fixed` row with `fixed` 1.0.10 and the same range,** so it takes the path
+       of 2 with no status of its own, and its update target is a real version. Accepted cost: on
+       this row `fixed` is the oldest fixed release to move to, not a fix of the 0.x line (the note
+       says so).
+    4. **`derived` became `derived_eol` (Node.js) and `derived_bundled` (Envoy),** so that the reason
+       can state the ground in both languages. Alternatives: print the note (English in a Japanese
+       report, and free text), or add a column naming a message (one more thing to validate, where
+       the loader already validates statuses). Accepted cost: another kind of ground needs a status
+       and messages.
+    5. **Envoy's next step named a version again.** A `derived` Envoy row said "Update to - or later";
+       it now names the lines to move to, as Node.js already did.
+    6. **PyPI went beyond the issue, which named only Bun and Brotli.** GHSA-9v8h-qqgm-4m35 says
+       >= 1.0.3 for PyPI Brotli and brotlicffi, while PYSEC-2026-4322 and 4323 have `introduced: 0`
+       and list older versions. CONTRIBUTING says to prefer unknown while sources disagree, so these
+       rows carry the GHSA's range and the note records both. Accepted cost: the reason cites only
+       the GHSA; the disagreement is in the evidence.
+    7. **The snapshot stays 2026-10-27,** against the letter of CONTRIBUTING: the README says every
+       row's source was checked on that date, and moving it for a few rows would overstate that.
+       What was read on 2026-11-01 is dated in the PyPI notes; the re-check of all rows before the
+       release moves the snapshot.
 17. **Only packages whose build was checked are NOT_APPLICABLE (2026-11-02, issue #3).** 10.9.5 gave
     "the build of a package is public" as the reason, but the code took any dpkg owner, so an
     in-house `.deb` read "whose build does not decode Brotli". It keeps the decision of 10.9.5 not

@@ -278,6 +278,21 @@ fake_proc() {
   [ "$status" -eq 1 ]
 }
 
+@test "C05: Bun 1.0.20 is before the advisory's range: UNKNOWN, with the same advice to update" {
+  BCC_NO_EXEC=1
+  make_fake_elf "$T/home/u/.local/share/mise/installs/bun/1.0.20/bin/bun"
+  BCC_HOMES=("$T/home/u")
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c05
+  run findings_brief
+  [[ $output == *"UNKNOWN|C05|bun|$T/home/u/.local/share/mise/installs/bun/1.0.20/bin/bun|1.0.20"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"GHSA-663w-cv8g-jj2p"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"Update to 1.4.4 or later."* ]]
+  # The data's note mentions "bun build --compile" too: look for the words of the next step.
+  [[ ${BCC_FINDINGS[*]} == *"keep the Bun they were built with"* ]]
+}
+
 @test "C05: Bun 1.4.3 is VULNERABLE and the advice mentions compiled executables" {
   BCC_NO_EXEC=1
   make_fake_elf "$T/home/u/.local/share/mise/installs/bun/1.4.3/bin/bun"
@@ -322,6 +337,45 @@ make_dist_info() { # site name version
   BCC_IDX_CONDA=()
   bcc_check_c06
   [[ ${BCC_FINDINGS[0]} == *VULNERABLE* ]]
+}
+
+@test "C06: PyPI Brotli before the range is UNKNOWN for that reason, and gets the pip command" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.0.1
+  BCC_IDX_PY=("$site/Brotli-1.0.1.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|Brotli|$site/Brotli-1.0.1.dist-info|1.0.1"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"GHSA-9v8h-qqgm-4m35"* ]]
+  [[ ${BCC_FINDINGS[*]} == *'pip install -U "brotli>=1.2.1"'* ]]
+  # It is not the missing-module case: there the version is at or above the fix.
+  [[ ${BCC_FINDINGS[*]} != *"no extension module"* ]]
+}
+
+@test "C06: PyPI Brotli before the range in a vendor's package is sent to that package, not pip" {
+  site="$T/opt/agent/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.0.1
+  bcc_dpkg_owner() { printf 'vendor-agent'; }
+  bcc_covered_by_c01() { return 1; }
+  BCC_IDX_PY=("$site/Brotli-1.0.1.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|Brotli|$site/Brotli-1.0.1.dist-info|1.0.1"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"belongs to the package vendor-agent"* ]]
+  [[ ${BCC_FINDINGS[*]} != *"pip install"* ]]
+}
+
+@test "C06: conda libbrotlidec before the range is UNKNOWN, and gets the conda command" {
+  mkdir -p "$T/opt/conda/conda-meta"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.0.2-h0_0.json"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.0.2-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|conda:libbrotlidec|"*"|1.0.2"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"conda update -p"* ]]
 }
 
 @test "C06: conda libbrotlidec is judged by its series" {
@@ -375,6 +429,21 @@ make_dist_info() { # site name version
   BCC_IDX_LIB=("$f")
   bcc_check_c09_libs
   [[ ${BCC_FINDINGS[0]} == C09$'\t'FIXED* ]]
+}
+
+@test "C09: libbrotlidec before the range is UNKNOWN, and says what to replace it with" {
+  local v
+  for v in 1.0.2 0.6.0; do
+    f="$T/opt/app-$v/lib/libbrotlidec.so.$v"
+    mkdir -p "${f%/*}"
+    tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.0-nostrip.txt" >"$f"
+    BCC_IDX_LIB=("$f")
+    bcc_init_findings
+    bcc_check_c09_libs
+    [[ ${BCC_FINDINGS[0]} == C09$'\t'UNKNOWN* ]]
+    [[ ${BCC_FINDINGS[0]} == *"GHSA-9v8h-qqgm-4m35"* ]]
+    [[ ${BCC_FINDINGS[0]} == *"with Brotli 1.0.10 or later"* ]]
+  done
 }
 
 @test "C09: file name and strings disagree -> UNKNOWN (possibly a patched build)" {
@@ -709,6 +778,18 @@ EOF
 }
 
 # --- C10 / C13 ----------------------------------------------------------------------
+
+@test "C10: Envoy 1.35 is VULNERABLE, says why, and names lines to move to" {
+  # bcc_probe is the only way to the version; what it runs is covered by the exec tests.
+  bcc_probe() { printf '%s\n' "envoy  version: 0123456789abcdef0123456789abcdef01234567/1.35.0/Clean/RELEASE/BoringSSL"; }
+  BCC_C10_CANDS=("$T/envoy") BCC_C10_DONE=1
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c10
+  run findings_brief
+  [[ $output == *"VULNERABLE|C10|envoy|$T/envoy|1.35.0"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"affected range"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"move to Envoy 1.36.12"* ]]
+  [[ ${BCC_FINDINGS[*]} != *"Update to - or later"* ]]
+}
 
 @test "C10: an Envoy configuration with a Brotli decompressor is EXPOSURE" {
   printf 'name: envoy.filters.http.decompressor\ntyped_config:\n  decompressor_library:\n    name: envoy.compression.brotli.decompressor\n' >"$T/envoy.yaml"

@@ -86,8 +86,13 @@ never `FIXED`.
 
 - Distribution packages are compared by the distributor's fixed version; a fix released after
   the data snapshot is not known (`NO_FIX_AVAILABLE` may be outdated). Watch the data date.
-- The data is per release line. Bun before 1.0.21 is outside the range of its advisory
-  (GHSA-663w-cv8g-jj2p: 1.0.21 to 1.4.3) but is reported like the other versions before 1.4.4.
+- The data is per release line, with the affected range an advisory states where there is one.
+  A version before that range is `UNKNOWN`, with an update recommended: Bun before 1.0.21
+  (GHSA-663w-cv8g-jj2p: 1.0.21 to 1.4.3), Brotli 1.0.2 and earlier and 0.x (GHSA-9v8h-qqgm-4m35:
+  1.0.3 to 1.2.0), PyPI Brotli and brotlicffi before 1.0.3 (the same advisory; PYSEC-2026-4322 and
+  PYSEC-2026-4323 list those versions as affected, so the sources disagree there). The advisory
+  does not say whether such a version is affected, so it is not reported as vulnerable and not
+  as safe either. It leads to exit status 2, not 1, and is not counted under "Needs update".
 - Debian's `nodejs` uses the system libbrotli (judged through `libbrotli1`); a statically
   linked distribution build is judged by strings because its version may not show backports.
 - Chromium and Firefox thresholds come from the source trees (third_party/brotli,

@@ -26,7 +26,7 @@ Brotli デコーダーのコピーを**読み取り専用で**洗い出す。
 | 2 | PyPI Brotli / brotlicffi | 1.2.1 / 1.2.1.0、PYSEC-2026-4322 / 4323 | 一致（4322=brotli、4323=brotlicffi） | `pypa/advisory-database` の `vulns/brotli/PYSEC-2026-4322.yaml`、`vulns/brotlicffi/PYSEC-2026-4323.yaml`（raw） |
 | 3 | Bun | 1.4.4 | 一致。ただし根拠はリリースノートではなく**ソース**: タグ `bun-v1.4.4` の `scripts/build/deps/brotli.ts` が `db24a98a`（v1.2.1）、`bun-v1.4.3` が `028fb5a2`（v1.2.0） | raw.githubusercontent.com/oven-sh/bun/bun-v1.4.4/scripts/build/deps/brotli.ts |
 | 4 | Node.js 修正版 | 22.23.4 / 24.22.1 / 26.12.1 | 一致 | nodejs.org/en/blog/vulnerability/october-2026-security-releases |
-| 5 | Node.js の EOL 系列 | 20 以前・21・23・25 は修正なし | 告知に系列の名指しは無い。「EOL は常に影響」＋修正版が出ていない、からの**導出**として `status=derived` と根拠を明記 | 同上 |
+| 5 | Node.js の EOL 系列 | 20 以前・21・23・25 は修正なし | 告知に系列の名指しは無い。「EOL は常に影響」＋修正版が出ていない、からの**導出**として `status=derived`（10 章 16 から `derived_eol`）と根拠を明記 | 同上 |
 | 6 | `process.versions.brotli` | 修正版でも "1.1.0" | 一致。nodejs/node タグ v22.23.4 の `deps/brotli/c/common/version.h` が 1.1.0、`decode.h` に `BROTLI_ERROR_CODE(_ERROR_FORMAT_, BLOCK_SWITCH, -17)`。v22.23.3 の `decode.h` は `/* -17 code is reserved */`。（v24.22.1 の version.h は 1.2.0。系列ごとに値が違うので判定に使えない） | raw.githubusercontent.com/nodejs/node/v22.23.{3,4}/deps/brotli/… |
 | 7 | Debian bookworm / trixie | +deb12u1（DLA-4855-1）／+deb13u1（DSA-6582-1） | 一致 | security-tracker.debian.org/tracker/CVE-2026-111497 |
 | 8 | Debian sid / forky | 1.2.0-4 は未修正 | tracker の「Fixed Version」表に `brotli source (unstable) 1.2.0-4.1`（bug 1151690）の行がある（2026-10-25T21:40Z 取得）。一方、アーカイブ（sources.debian.org/api/src/brotli/）は forky / sid とも 1.2.0-4 のみ。**アーカイブに入るまで未修正扱い**（→ 5.1 の `unreleased`） | 同 tracker、sources.debian.org |
@@ -58,7 +58,7 @@ HAProxy・Caddy が C 実装のデコーダーを含まないことの一次資�
 |---|---|---|---|
 | 10 Ubuntu | 「Needs evaluation」、USN なし → `no_fix` | USN-8956-1（2026-10-26）で**修正**: jammy 1.0.9-2ubuntu0.1、noble 1.1.0-2ubuntu0.1、resolute 1.2.0-3ubuntu0.1、stonking 1.2.0-4ubuntu0.1（brotli・libbrotli1・python3-brotli）→ `fixed`。10/25 に ubuntu-security-proposed PPA にあった候補と同じ版。これらのリリースの Ubuntu の nodejs は「Not affected」（システムのライブラリを使い、それは C01 が判定する） | ubuntu.com/security/notices/USN-8956-1、ubuntu.com/security/CVE-2026-111497 |
 | 8 Debian sid / forky | 1.2.0-4.1 はアーカイブ未着 → `unreleased` | sid はアーカイブに 1.2.0-4.1 → `fixed`。forky はまだ 1.2.0-4 → `unreleased` のまま | security-tracker.debian.org、sources.debian.org/api/src/brotli/ |
-| 3 Bun | ソースの分析 → `analysis` | Bun の告知 GHSA-663w-cv8g-jj2p（2026-10-23 公開。影響 1.0.21 以上 1.4.4 未満。`bun build --compile` の実行ファイルは作り直すまで影響が残る）→ `fixed`。10/26 はリリースノートを読んでいて見落とした。ソースの分析とも一致。1.0.21 より前は範囲外だが、データが系列単位なので 1.4.4 より前のほかの版と同じに出る | github.com/oven-sh/bun/security/advisories/GHSA-663w-cv8g-jj2p |
+| 3 Bun | ソースの分析 → `analysis` | Bun の告知 GHSA-663w-cv8g-jj2p（2026-10-23 公開。影響 1.0.21 以上 1.4.4 未満。`bun build --compile` の実行ファイルは作り直すまで影響が残る）→ `fixed`。10/26 はリリースノートを読んでいて見落とした。ソースの分析とも一致。1.0.21 より前は範囲外で、データが系列単位だったので、10 章 16 までは 1.4.4 より前のほかの版と同じに出ていた | github.com/oven-sh/bun/security/advisories/GHSA-663w-cv8g-jj2p |
 | 18 背景資料 | 404 | 公開（速報版、2026-10-27）。README からリンク。この更新の後の既知データと版は一致 | jmedic.co.jp/pubdoc/http2shell_report_20261027.html |
 
 確かめ直して変わらなかったもの: Google Brotli のタグ（v1.0.10／v1.1.1／v1.2.1、2026-10-21 公開）、GHSA-9v8h-qqgm-4m35、
@@ -112,25 +112,30 @@ Makefile                      lint（shellcheck）、test（bats）、dist、int
 ### 5.1 列
 
 依頼文の 6 列（部品、系列、修正版、状態、一次資料 URL、取得日）に、**根拠（note）** を 1 列足す
-（`derived` などの判定根拠を書く場所が要るため）。
+（`derived_*` などの判定根拠を書く場所が要るため）。告知の示す影響範囲を持つ **affected** の列も足す（10 章 16）。
 
 | 列 | 例 |
 |---|---|
 | component | `node` / `bun` / `pypi:brotli` / `deb-src:brotli` / `envoy` / `chromium` … |
 | branch | `22`、`debian:trixie`、`ubuntu:noble`、`*` |
 | fixed | `22.23.4`、`1.1.0-2+deb13u1`、`-`（修正なし） |
-| status | `fixed` / `no_fix` / `unreleased` / `derived` / `analysis` |
+| status | `fixed` / `no_fix` / `unreleased` / `derived_eol` / `derived_bundled` / `analysis` / `unknown` |
+| affected | `GHSA-663w-cv8g-jj2p:1.0.21:1.4.3`（`ADVISORY:FIRST:LAST`）、`-`（告知に範囲なし）。`fixed` の行だけ |
 | source_url | 一次資料の URL |
 | retrieved | `2026-10-26` |
 | note | 根拠の短文 |
 
 `status` の意味:
-- `fixed` — 一次資料が修正版を示している
+- `fixed` — 一次資料が修正版を示している。`affected` があれば、`FIRST` より前の版は UNKNOWN とし（影響を受けるかは告知からは
+  分からない）、更新を勧める
 - `no_fix` — 配布元が修正版を出していない（2026-10-26 までの Ubuntu 全版。2026-10-27 時点では該当なし）→ NO_FIX_AVAILABLE
 - `unreleased` — 修正版の番号は示されているがアーカイブ未着（Debian forky の 1.2.0-4.1。sid は 2026-10-27 まで）。
   インストール済みの版が `fixed` 以上なら FIXED、それ未満なら NO_FIX_AVAILABLE
-- `derived` — 一次資料の一般的な記述からの導出（Node.js の EOL 系列）。結果の理由欄に note を出す
+- `derived_eol` — 一次資料が EOL の版を常に影響ありとしていて、修正版が出ない（Node.js）→ VULNERABLE。理由にこの根拠を書く
+- `derived_bundled` — 同梱の Brotli が影響範囲の版で、修正版が出ない（Envoy 1.35 以前。告知は名指ししていない）→ VULNERABLE。
+  理由にこの根拠を書く
 - `analysis` — ベンダーの告知ではなくソースツリーの分析（Chromium / Firefox。Bun は 2026-10-27 まで）。結果にその旨を明記
+- `unknown` — データからは決められない（Node.js 10 以前。Brotli を同梱する前の版がありうる）→ UNKNOWN
 
 ### 5.2 データの鮮度
 
@@ -172,7 +177,7 @@ dpkg 管理下のものは除外（3 章の 2）。PEP 440 は、リリース番
 `_ERROR_FORMAT_BLOCK_SWITCH` がある → LIKELY_FIXED。`_ERROR_FORMAT_` 系が無い（8 個未満）→ VENDORED_COPY（関数ごと削られている。10 章の 5）。
 確度は検証結果に応じて書く。検証が崩れたら推定は実装せず VENDORED_COPY だけを出す。
 
-**C10 Envoy** — 2 章 13 のとおり、勧告の修正版で判定（食い違いは無かった）。1.35 以前は `derived`（Envoy の旧版は 1.0.9 / 1.1.0 を同梱）。
+**C10 Envoy** — 2 章 13 のとおり、勧告の修正版で判定（食い違いは無かった）。1.35 以前は `derived_bundled`（Envoy の旧版は 1.0.9 / 1.1.0 を同梱）。
 
 **C11 圧縮専用の製品** — 一次資料で確認できたのは ngx_brotli（libbrotlienc のみ）と mod_brotli（圧縮フィルタのみ）、
 Traefik（Go 実装の andybalholm/brotli）。HAProxy と Caddy は実装時に上流ソースで確認し、確認できなければ
@@ -447,6 +452,29 @@ NOT_APPLICABLE ではなく「情報」として版だけ出す。さらに配�
        代償: 修正済みでもコンテナの中の Python は FIXED にならず、その行は終了コード 2 につながる。いまこれを選ぶ理由: UNKNOWN は
        見たことだけを言い、後から確かめる形に強めても前の言い分を取り消さずに済む。`docker exec` で何をどこまでしてよいかは
        #6 でこれから決める。流す案は #6 の後に検討する。
+16. **告知の影響範囲の外は VULNERABLE にせず UNKNOWN にする（2026-11-01、issue #2）。** `bcc_judge` は下限を持たず、`derived` の行は
+    根拠によらず VULNERABLE だった。そのため、範囲の中と確かめた版と、古いだけの版が、同じ判定・理由・終了コードで出ていた。
+    違いは英語の note にしかなく、テキストの結果には出ない。
+    1. **行を増やさず、`affected` の列（`ADVISORY:FIRST:LAST`）を足した。** 行は系列で選ぶので、Brotli 1.0.2 と 1.0.3 は同じ行に
+       なる。書けるのは `fixed` の行だけ。書式の誤り、別の status への記入、逆順の範囲は、読み込みで止める（VULNERABLE が黙って
+       UNKNOWN に変わるため）。古い 7 列の `--data` のファイルも止める（まだリリースしていない）。
+    2. **FIRST より前は UNKNOWN。新しい判定は足さない。** 告知は影響ありとも無しとも言っていない。代わりの案は `OUT_OF_RANGE` などの
+       新しい判定だが、UNKNOWN と理由の文で言えることのために、読む人全員に新しい名前を覚えてもらうことになる。理由には告知と範囲を
+       書いて更新を勧める。次の一手は変わらないので、呼び出し側の更新のやり方はそのまま使う（`bcc_judge_advises_update`）。受け入れた
+       代償: こうした版は終了コード 1 ではなく 2 につながり、「更新が必要なもの」に数えない。部品の古い版の影響が分かったら、その行を直す。
+    3. **Brotli 0.x は、`fixed` を 1.0.10、範囲を同じにした `fixed` の行にした。** 2 の経路を通るので専用の status が要らず、更新先も
+       実在の版になる。受け入れた代償: この行の `fixed` は移る先のいちばん古い修正版で、0.x の修正ではない（note に書いた）。
+    4. **`derived` を `derived_eol`（Node.js）と `derived_bundled`（Envoy）に分けた。** 根拠を両方の言語で理由に書くため。代わりの案は、
+       note をそのまま出す（日本語の結果に英語の自由文が混ざる）、文のキーを持つ列を足す（検査するものが増える。status は読み込みで
+       検査済み）。受け入れた代償: 根拠の種類が増えたら status と文を足す。
+    5. **Envoy の次にやることを直した。** `derived` の Envoy の行は「- 以上に更新する」と出ていた。Node.js と同じく、移る先の系列を書く。
+    6. **PyPI は issue の範囲を広げた（issue が挙げたのは Bun と Brotli）。** GHSA-9v8h-qqgm-4m35 は PyPI の Brotli・brotlicffi を
+       1.0.3 以上とし、PYSEC-2026-4322・4323 は `introduced: 0` でそれより前の版も挙げている。CONTRIBUTING は資料が食い違うあいだは
+       unknown を選ぶとしているので、これらの行に GHSA の範囲を持たせ、note に両方を書いた。受け入れた代償: 理由の文が挙げるのは GHSA
+       だけで、食い違いは evidence にある。
+    7. **スナップショットは 2026-10-27 のまま。** CONTRIBUTING の文面とは異なる。README が「この日にすべての行の一次資料を確かめた」と
+       書いており、数行のために動かすと言い過ぎになる。2026-11-01 に読んだことは PyPI の note に日付つきで書いた。リリース前に全行を
+       確かめ直すときに動かす。
 17. **NOT_APPLICABLE にするのはビルドを確かめたパッケージだけ（2026-11-02、issue #3）。** 10 章 9 の 5 は「パッケージのビルドは公開
     されている」を理由にしたが、コードはどの dpkg の所有者でも通すので、社内の `.deb` にも「そのビルドは Brotli を展開しません」と
     出していた。「サーバーをすべて UNKNOWN にはしない」という 10 章 9 の 5 の判断は保ち、「パッケージ」を狭める。

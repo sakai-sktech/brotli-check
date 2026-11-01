@@ -105,7 +105,7 @@ modules where the archive has them. Versions as installed from the archives on t
 - **Tried by hand, once each:** nginx.org's `nginx` 1.26.0-1~noble on Ubuntu 24.04 was `UNKNOWN`, exit
   `2`. Debian's `caddy` 2.6.2-12+deb13u1 was `NOT_APPLICABLE` as a Go program, exit `0`. `nginx-extras`
   on Ubuntu 22.04 was `NOT_APPLICABLE`, exit `0`.
-- **Unit tests:** 198 / 198 on this branch, with zero ShellCheck warnings. Fifteen mutations of the new
+- **Unit tests:** 218 / 218 on this branch, merged with #2, with zero ShellCheck warnings. Fifteen mutations of the new
   code (each check removed or loosened in a copy of the tree) each made a test fail.
 
 What this does not show: no package holding a real stripped static decoder was built, so the

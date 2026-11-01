@@ -128,7 +128,7 @@ bcc_c09_lib_entry() {
     return 0
   fi
   local next=$BCC_J_NEXT
-  [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_update_lib "$f" "$BCC_J_FIXED")
+  bcc_judge_advises_update && next=$(bcc_msg n_update_lib "$f" "$BCC_J_FIXED")
   bcc_add_finding C09 "$BCC_J_STATUS" "libbrotlidec ($kind)" "$f" "$ver" "$BCC_J_REASON" "$next" \
     "$(bcc_msg e_heur "$count" "$([[ $hstatus == LIKELY_FIXED ]] && echo yes || echo no)"); $BCC_J_EVIDENCE" ""
 }

@@ -301,6 +301,7 @@ make_dist_info() { # site name version
   site="$T/srv/venv/lib/python3.12/site-packages"
   make_dist_info "$site" Brotli 1.2.0
   make_dist_info "$T/srv/venv2/lib/python3.12/site-packages" brotlicffi 1.2.1.0
+  make_fake_elf "$T/srv/venv2/lib/python3.12/site-packages/brotlicffi/_brotlicffi.abi3.so" "$FIXTURES/c09/pypi-brotlicffi-1.2.1.0.txt"
   make_dist_info "$site" urllib3 2.2.0
   make_dist_info "$site" aiohttp 3.9.0
   BCC_IDX_PY=("$site/Brotli-1.2.0.dist-info" "$T/srv/venv2/lib/python3.12/site-packages/brotlicffi-1.2.1.0.dist-info")
@@ -327,6 +328,7 @@ make_dist_info() { # site name version
   mkdir -p "$T/opt/conda/conda-meta"
   : >"$T/opt/conda/conda-meta/libbrotlidec-1.1.1-hb9d3cd8_0.json"
   : >"$T/opt/conda/conda-meta/libbrotlidec-1.0.9-h166bdaf_9.json"
+  make_fake_elf "$T/opt/conda/lib/libbrotlidec.so.1.1.1" "$FIXTURES/c09/shared-1.2.1-nostrip.txt"
   BCC_IDX_PY=()
   BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.1.1-hb9d3cd8_0.json" "$T/opt/conda/conda-meta/libbrotlidec-1.0.9-h166bdaf_9.json")
   bcc_check_c06
@@ -467,6 +469,243 @@ EOF
   run findings_brief
   [[ $output == *"UNKNOWN|C06|Brotli|"* ]]
   [[ $output != *"FIXED|C06|Brotli|"* ]]
+}
+
+# One finding's reason and next step, for assertions on the wording.
+finding_reason() { bcc_split_tab "${BCC_FINDINGS[0]}"; printf '%s' "${BCC_F[5]}"; }
+finding_next() { bcc_split_tab "${BCC_FINDINGS[0]}"; printf '%s' "${BCC_F[6]}"; }
+
+@test "C06: Brotli metadata saying 1.2.1 with no extension module is UNKNOWN, and says so" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.1
+  BCC_IDX_PY=("$site/Brotli-1.2.1.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [ "$output" = "UNKNOWN|C06|Brotli|$site/Brotli-1.2.1.dist-info|1.2.1" ]
+  [[ $(finding_reason) == *"the metadata says version 1.2.1, but no extension module was found to compare (_brotli.*so)"* ]]
+  [[ $(finding_next) == *"reinstall the package"* ]]
+}
+
+@test "C06: brotlicffi metadata saying 1.2.1.0 with no extension module is UNKNOWN, and says so" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" brotlicffi 1.2.1.0
+  BCC_IDX_PY=("$site/brotlicffi-1.2.1.0.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [ "$output" = "UNKNOWN|C06|brotlicffi|$site/brotlicffi-1.2.1.0.dist-info|1.2.1.0" ]
+  [[ $(finding_reason) == *"no extension module was found to compare (brotlicffi/_brotlicffi*.so)"* ]]
+}
+
+@test "C06: an extension module that is a dangling symlink is not a file to compare" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.1
+  ln -s nowhere.so "$site/_brotli.cpython-312-x86_64-linux-gnu.so"
+  BCC_IDX_PY=("$site/Brotli-1.2.1.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|Brotli|"* ]]
+  [[ $(finding_reason) == *"no extension module was found"* ]]
+}
+
+@test "C06: another package's module in the same site confirms nothing" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" brotlicffi 1.2.1.0
+  make_fake_elf "$site/_brotli.cpython-312-x86_64-linux-gnu.so" "$FIXTURES/c09/pypi-Brotli-1.2.1.txt"
+  BCC_IDX_PY=("$site/brotlicffi-1.2.1.0.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|brotlicffi|"* ]]
+  [[ $(finding_reason) == *"no extension module was found"* ]]
+}
+
+@test "C06: another package's unfixed module does not cast doubt on a confirmed one" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" brotlicffi 1.2.1.0
+  make_fake_elf "$site/brotlicffi/_brotlicffi.abi3.so" "$FIXTURES/c09/pypi-brotlicffi-1.2.1.0.txt"
+  make_fake_elf "$site/_brotli.cpython-312-x86_64-linux-gnu.so" "$FIXTURES/c09/pypi-Brotli-1.2.0.txt"
+  BCC_IDX_PY=("$site/brotlicffi-1.2.1.0.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"FIXED|C06|brotlicffi|"* ]]
+}
+
+@test "C09 --deep: a module of a package C06 did not judge in that site is still looked at" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" brotlicffi 1.2.1.0
+  make_fake_elf "$site/brotlicffi/_brotlicffi.abi3.so" "$FIXTURES/c09/pypi-brotlicffi-1.2.1.0.txt"
+  make_fake_elf "$site/_brotli.cpython-312-x86_64-linux-gnu.so" "$FIXTURES/c09/pypi-Brotli-1.2.0.txt"
+  printf 'BrotliDecoderDecompressStream\0' >>"$site/_brotli.cpython-312-x86_64-linux-gnu.so"
+  BCC_IDX_PY=("$site/brotlicffi-1.2.1.0.dist-info")
+  BCC_IDX_CONDA=()
+  BCC_ROOTS=("$T/srv")
+  bcc_check_c06
+  bcc_check_c09_deep
+  run findings_brief
+  [[ $output == *"LIKELY_VULNERABLE|C09|"*"_brotli.cpython-312-x86_64-linux-gnu.so"* ]]
+  [[ $output != *"|C09|"*"_brotlicffi.abi3.so"* ]]
+}
+
+@test "C06: Brotli and brotlicffi metadata with their fixed modules stay FIXED" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.1
+  make_dist_info "$site" brotlicffi 1.2.1.0
+  make_fake_elf "$site/_brotli.cpython-312-x86_64-linux-gnu.so" "$FIXTURES/c09/pypi-Brotli-1.2.1.txt"
+  make_fake_elf "$site/brotlicffi/_brotlicffi.abi3.so" "$FIXTURES/c09/pypi-brotlicffi-1.2.1.0.txt"
+  BCC_IDX_PY=("$site/Brotli-1.2.1.dist-info" "$site/brotlicffi-1.2.1.0.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"FIXED|C06|Brotli|$site/Brotli-1.2.1.dist-info|1.2.1"* ]]
+  [[ $output == *"FIXED|C06|brotlicffi|$site/brotlicffi-1.2.1.0.dist-info|1.2.1.0"* ]]
+}
+
+@test "C06: a site path holding glob characters is taken literally" {
+  site="$T/srv/ve[n]v/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.1
+  make_fake_elf "$site/_brotli.cpython-312-x86_64-linux-gnu.so" "$FIXTURES/c09/pypi-Brotli-1.2.1.txt"
+  BCC_IDX_PY=("$site/Brotli-1.2.1.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"FIXED|C06|Brotli|"* ]]
+}
+
+@test "C06: Brotli metadata below the fix with no extension module stays VULNERABLE" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.0
+  BCC_IDX_PY=("$site/Brotli-1.2.0.dist-info")
+  BCC_IDX_CONDA=()
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"VULNERABLE|C06|Brotli|"* ]]
+  [[ $(finding_reason) != *"no extension module"* ]]
+  [[ $(finding_next) == *"pip install -U"* ]]
+}
+
+@test "C06: a conda record saying 1.2.1 with no lib/ is UNKNOWN, and says so" {
+  mkdir -p "$T/opt/conda/conda-meta"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|conda:libbrotlidec|"*"|1.2.1"* ]]
+  [[ $(finding_reason) == *"the conda record says version 1.2.1, but no shared library was found to compare (lib/libbrotlidec.so.*, not counting symbolic links)"* ]]
+  [[ $(finding_next) == *"reinstall the package"* ]]
+}
+
+@test "C06: a conda record with only a dangling symlink in lib/ is UNKNOWN, and says so" {
+  mkdir -p "$T/opt/conda/conda-meta" "$T/opt/conda/lib"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  ln -s libbrotlidec.so.1.2.1 "$T/opt/conda/lib/libbrotlidec.so.1"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|conda:libbrotlidec|"*"|1.2.1"* ]]
+  [[ $(finding_reason) == *"no shared library was found to compare"* ]]
+}
+
+@test "C06: a conda record with only a symlink to a real library outside the glob is UNKNOWN" {
+  mkdir -p "$T/opt/conda/conda-meta" "$T/opt/conda/lib"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  make_fake_elf "$T/opt/conda/pkgs/libbrotlidec.so.1.2.1" "$FIXTURES/c09/shared-1.2.1-nostrip.txt"
+  ln -s ../pkgs/libbrotlidec.so.1.2.1 "$T/opt/conda/lib/libbrotlidec.so.1"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|conda:libbrotlidec|"*"|1.2.1"* ]]
+}
+
+@test "C06: a conda record with an unfixed library stays UNKNOWN, for that reason" {
+  mkdir -p "$T/opt/conda/conda-meta"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  make_fake_elf "$T/opt/conda/lib/libbrotlidec.so.1.2.1" "$FIXTURES/c09/shared-1.2.0-nostrip.txt"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"UNKNOWN|C06|conda:libbrotlidec|"*"|1.2.1"* ]]
+  [[ $(finding_reason) == *"lacks the fix's error name"* ]]
+  [[ $(finding_reason) != *"no shared library"* ]]
+}
+
+@test "C06: a conda record with a fixed library and its symlink stays FIXED" {
+  mkdir -p "$T/opt/conda/conda-meta"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  make_fake_elf "$T/opt/conda/lib/libbrotlidec.so.1.2.1" "$FIXTURES/c09/shared-1.2.1-nostrip.txt"
+  ln -s libbrotlidec.so.1.2.1 "$T/opt/conda/lib/libbrotlidec.so.1"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"FIXED|C06|conda:libbrotlidec|"*"|1.2.1"* ]]
+}
+
+@test "C06: a conda environment path holding glob characters is taken literally" {
+  mkdir -p "$T/opt/con[d]a/conda-meta"
+  : >"$T/opt/con[d]a/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  make_fake_elf "$T/opt/con[d]a/lib/libbrotlidec.so.1.2.1" "$FIXTURES/c09/shared-1.2.1-nostrip.txt"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/con[d]a/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"FIXED|C06|conda:libbrotlidec|"*"|1.2.1"* ]]
+}
+
+@test "C06: a conda record below the fix with no lib/ stays VULNERABLE" {
+  mkdir -p "$T/opt/conda/conda-meta"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.2.0-h0_0.json"
+  BCC_IDX_PY=()
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.2.0-h0_0.json")
+  bcc_check_c06
+  run findings_brief
+  [[ $output == *"VULNERABLE|C06|conda:libbrotlidec|"*"|1.2.0"* ]]
+  [[ $(finding_next) == *"conda update"* ]]
+}
+
+@test "C14: Python metadata saying 1.2.1 inside a container is UNKNOWN, and says so" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\ttrixie\t\nPKGRC\t1\nPY\t/usr/local/lib/python3.12/site-packages/Brotli-1.2.1.dist-info/METADATA\tBrotli\t1.2.1\nEND\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [ "$output" = "UNKNOWN|C14|Brotli|container web (img:1) /usr/local/lib/python3.12/site-packages/Brotli-1.2.1.dist-info|1.2.1" ]
+  [[ $(finding_reason) == *"the metadata inside the container says version 1.2.1; the check inside containers does not compare the strings"* ]]
+  [[ $(finding_next) == *"Ask the vendor or maintainer"* ]]
+}
+
+@test "C14: Python metadata below the fix inside a container stays VULNERABLE, with its next step" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\ttrixie\t\nPKGRC\t1\nPY\t/usr/local/lib/python3.12/site-packages/brotlicffi-1.2.0.2.dist-info/METADATA\tbrotlicffi\t1.2.0.2\nEND\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [[ $output == *"VULNERABLE|C14|brotlicffi|"* ]]
+  [[ $(finding_next) == *"rebuild the image"* ]]
+}
+
+@test "the reasons for a missing file are in Japanese too" {
+  BCC_LANG=ja
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  make_dist_info "$site" Brotli 1.2.1
+  mkdir -p "$T/opt/conda/conda-meta"
+  : >"$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  BCC_IDX_PY=("$site/Brotli-1.2.1.dist-info")
+  BCC_IDX_CONDA=("$T/opt/conda/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  bcc_check_c06
+  [[ ${BCC_FINDINGS[*]} == *"メタデータの版は 1.2.1 だが、照合する拡張モジュールが見つからなかった"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"conda の記録の版は 1.2.1 だが、照合する共有ライブラリが見つからなかった"* ]]
 }
 
 # --- C10 / C13 ----------------------------------------------------------------------

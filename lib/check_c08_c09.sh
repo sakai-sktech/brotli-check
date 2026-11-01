@@ -140,15 +140,16 @@ bcc_check_c09_libs() {
   done
 }
 
-# The extension module of a PyPI Brotli/brotlicffi that C06 already judged by its metadata.
+# The extension module of a PyPI Brotli/brotlicffi that C06 already judged by its metadata:
+# the same files C06 compares, and only for the package C06 judged in that site.
 bcc_c09_judged_by_c06() {
-  local f=$1 site
+  local f=$1 key
   case $f in
-    */_brotli*.so) site=${f%/*} ;;
-    */brotlicffi/*.so) site=${f%/brotlicffi/*} ;;
+    */_brotli.*so) key=brotli:${f%/*} ;;
+    */brotlicffi/_brotlicffi*.so) key=brotlicffi:${f%/brotlicffi/*} ;;
     *) return 1 ;;
   esac
-  [[ -n ${BCC_C06_SITES[$site]:-} ]]
+  [[ -n ${BCC_C06_SITES[$key]:-} ]]
 }
 
 # Files above the size limit come back from find as "__BCC_BIG=<path>" records (paths from

@@ -40,3 +40,8 @@ First version.
   findings too); the facts stay whole and correct; the program that runs is always the one listed
   (a tab in a path used to make the tool run another file); libraries searched through `$ORIGIN`,
   directories with `[` in their names and long symlink chains are reported as they are.
+- A version read from package metadata with no file to confirm it is no longer FIXED
+  (docs/design.md 10.15): PyPI Brotli and brotlicffi without their extension module, and conda's
+  libbrotlidec without a shared library (not counting symbolic links), are UNKNOWN and say so.
+  Python inside containers is UNKNOWN at or above the fix, since the strings are not compared
+  there. Each PyPI package is now compared only with its own extension module.

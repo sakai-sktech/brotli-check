@@ -68,7 +68,14 @@ is `UNKNOWN` and is listed under "Not scanned".
 
 A version read from a file rather than from the program (a directory name, `node_version.h`,
 package metadata, a library's file name) gives `FIXED` only when the file's strings confirm the
-fix in a single copy of Brotli; otherwise the result is `UNKNOWN` and says what was missing.
+fix in a single copy of Brotli; otherwise the result is `UNKNOWN` and says what was missing. The
+same goes when there is no file to compare (Python's extension module `_brotli.*so` or
+`brotlicffi/_brotlicffi*.so`; conda's `lib/libbrotlidec.so.*`, not counting symbolic links). A
+distribution whose file names or places differ from these is `UNKNOWN` even when it is fixed.
+
+Python inside a container (`--inspect-containers`) is read from its metadata only; the strings of
+its extension module are not compared. So it is `UNKNOWN` even at or above the fixed version, and
+never `FIXED`.
 
 ## Version numbers
 

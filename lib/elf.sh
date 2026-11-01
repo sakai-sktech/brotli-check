@@ -72,6 +72,17 @@ bcc_crosscheck_fixed() {
   return 0
 }
 
+# The same rule when there is no file to look at: a "fixed" version stays unconfirmed, so the
+# result is UNKNOWN. Acts on BCC_J_* from bcc_judge, in the main shell.
+# Usage: bcc_crosscheck_no_file REASON NEXT
+bcc_crosscheck_no_file() {
+  [[ $BCC_J_STATUS == FIXED ]] || return 0
+  BCC_J_REASON="$BCC_J_REASON $1"
+  BCC_J_STATUS=UNKNOWN
+  BCC_J_NEXT=$2
+  return 0
+}
+
 # A file whose strings could not be read to the end is listed as not scanned (once).
 bcc_note_incomplete() {
   bcc_skip "$1" "$(bcc_msg skip_incomplete "$BCC_MAX_ELF_MB")"

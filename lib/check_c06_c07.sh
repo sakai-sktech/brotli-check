@@ -62,11 +62,19 @@ bcc_c06_entry() {
     return 0
   fi
   bcc_judge "$comp" '*' pep440 "$ver"
-  local ext
-  while IFS= read -r ext; do
+  # The metadata's "fixed" is confirmed against this package's own extension module (another
+  # package's module in the same site says nothing about this one). $site is taken literally:
+  # a "[" or "*" in a path is part of a name, not a pattern.
+  local ext pattern='_brotli.*so' checked=0
+  [[ $lname == brotli ]] || pattern='brotlicffi/_brotlicffi*.so'
+  for ext in "$site"/$pattern; do
+    [[ -f $ext ]] || continue
+    checked=1
     bcc_crosscheck_fixed "$ext"
-  done < <(compgen -G "$site/_brotli*.so" || true; compgen -G "$site/brotlicffi/_brotlicffi*.so" || true)
-  BCC_C06_SITES[$site]=1
+  done
+  ((checked)) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_ext "$ver" "$pattern")" "$(bcc_msg n_missing_file)"
+  # C09 leaves this package's extension module to this finding.
+  BCC_C06_SITES[$lname:$site]=1
   local next=$BCC_J_NEXT
   if [[ $BCC_J_STATUS == VULNERABLE && -n $owner ]]; then
     next=$(bcc_msg n_update_owner_pkg "$(printf '%q' "${owner%%,*}")")
@@ -111,12 +119,15 @@ bcc_c06_conda() {
   bcc_judge brotli "$series" semver "$ver"
   # The record is a file name in the environment; its "fixed" is confirmed against the
   # library it describes (lib/libbrotlidec.so.*).
-  local env lib
+  local env lib checked=0
   env=$(dirname -- "$(dirname -- "$f")")
-  bcc_glob "$env/lib/libbrotlidec.so.*"
-  for lib in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do
-    [[ -f $lib && ! -L $lib ]] && bcc_crosscheck_fixed "$lib"
+  # $env is taken literally: a "[" or "*" in a path is part of a name, not a pattern.
+  for lib in "$env"/lib/libbrotlidec.so.*; do
+    [[ -f $lib && ! -L $lib ]] || continue
+    checked=1
+    bcc_crosscheck_fixed "$lib"
   done
+  ((checked)) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_lib "$ver" 'lib/libbrotlidec.so.*')" "$(bcc_msg n_missing_file)"
   # C09 leaves this environment's lib/libbrotlidec* to this finding.
   BCC_C06_CONDA_ENVS[$env]=1
   local next=$BCC_J_NEXT

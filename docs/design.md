@@ -541,3 +541,29 @@ rejected alternative.
     code changes came with them: `/etc/ld.so.preload` can be replaced by `BCC_LD_PRELOAD_FILE` in
     tests (as `BCC_PROC_ROOT` replaces `/proc`), and the plan's ignored `bcc_dpkg_owner` status is
     written `|| true` (no change in behaviour; it lets the function run under bats' `set -e`).
+15. **No file to compare means no FIXED (2026-11-01, issue #1).** 10.10-3 said a version from a
+    file needs the strings to confirm it, but when C06 found no file to look at, its loop did not
+    run and the FIXED from `bcc_judge` stood.
+    1. **No file: UNKNOWN**, with a reason saying which file was looked for, and a next step that
+       fits (the installation may be broken), since "ask the vendor which Brotli it bundles" does
+       not. A version below the fix stays VULNERABLE: nothing confirms it either, but an update is
+       the next step whichever is true.
+    2. **Each PyPI package is compared with its own module** (Brotli: `_brotli.*so`; brotlicffi:
+       `brotlicffi/_brotlicffi*.so`, the names in the wheels of 1.2.0, 1.2.1, 1.2.0.2 and 1.2.1.0).
+       The old glob took both for either package, so a fixed `_brotli` module could confirm a
+       brotlicffi that had none, and an unfixed one made a confirmed brotlicffi UNKNOWN. C09
+       defers only those same files, and only for the package C06 judged in that site; otherwise
+       narrowing the glob would have left a stray `_brotli` module next to brotlicffi unread.
+    3. **conda still does not count symbolic links** (the request of the issue), so an environment
+       whose `lib/` holds only links, as with conda's `always_softlink`, is UNKNOWN even when
+       fixed. The reason says that links are not counted.
+    4. **Paths are taken literally.** `compgen -G` and `bcc_glob` read a `[` or `*` in the site or
+       environment path as a pattern; with this rule that would have turned into "no file found".
+    5. **C14: Python in a container is UNKNOWN at or above the fix; the probe was not extended.**
+       Alternatives: compare the strings in the probe (a second implementation of the heuristic in
+       POSIX sh, where `sort` may write to the container's `/tmp` and no pipeline status is
+       available), or stream each module through `docker exec` to `bcc_brotli_scan` (one heuristic,
+       more reads through the engine). Accepted cost: a fixed Python in a container is never FIXED,
+       and such a line adds to exit code 2. Why now: UNKNOWN says only what was seen, can be
+       tightened later without taking anything back, and issue #6 is still deciding what `docker
+       exec` may do and where. Streaming is the option to weigh after #6.

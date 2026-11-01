@@ -161,10 +161,10 @@ Each finding is one line:
 | `NO_FIX_AVAILABLE` | As of the advisory data's date, the distributor had not released a fix | Look at the vendor's latest information; meanwhile update the products that bundle their own copy |
 | `VENDORED_COPY` | Carries its own decoder; neither its version nor whether it is fixed could be determined | Ask the vendor which Brotli it bundles |
 | `LIKELY_VULNERABLE` / `LIKELY_FIXED` | Judged from the decoder's strings; the reason says what was found and what was not (see "[What a verdict rests on](#what-a-verdict-rests-on)") | Confirm with the vendor |
-| `UNKNOWN` | Could not be judged; the reason is always given | Read the reason |
+| `UNKNOWN` | Could not be judged. A version at or above the fix ends up here too when a file could not confirm it. The reason is always given | Read the reason |
 | `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (a related package, a setting, a listening socket). Whether an application uses it, or whether it can be reached from outside, is not checked. Not a vulnerability by itself | Prioritize the updates it points to |
 | `NOT_APPLICABLE` | The file has no decoder markers and does not load libbrotlidec, and it belongs to a package or is a Go program that does not build in the C Brotli. A build of your own that merely shows no markers is `UNKNOWN` | None for that file |
-| `FIXED` | The version obtained meets the fixed-version condition of the advisory data. How strong that is depends on where the version came from (see "[What a verdict rests on](#what-a-verdict-rests-on)") | No update needed for this line |
+| `FIXED` | The version obtained meets the fixed-version condition of the advisory data. A version read from a file counts only when the decoder's strings confirm the fix too. How strong that is depends on where the version came from (see "[What a verdict rests on](#what-a-verdict-rests-on)") | No update needed for this line |
 
 The summary at the end is four lines for non-specialists and the intrusion disclaimer:
 
@@ -271,9 +271,11 @@ A `FIXED` rests on one of three kinds of evidence:
 | A file plus strings | A version from a path or package metadata, and the strings of the decoder in the file | The version read from files is at or above the fixed one, and the decoder's strings show the fix too |
 
 A version read from a file (a directory name, a header, package metadata) gives `FIXED` only
-when the decoder's strings confirm the fix. In the text report today, the reason reads "At or
-above the fixed version X." whatever the evidence; where the version came from is in the JSON
-`evidence`.
+when the decoder's strings confirm the fix. With no file to compare (Python's extension module,
+conda's shared library) the result is `UNKNOWN`. Python inside a container is `UNKNOWN` even at
+or above the fix, because the strings are not compared there. In the text report today, the
+reason reads "At or above the fixed version X." whatever the evidence; where the version came
+from is in the JSON `evidence`.
 
 **The string heuristic.** For a bundled copy whose version is unknown, the decoder's error-name
 strings are used: the fix added `_ERROR_FORMAT_BLOCK_SWITCH` (error -17). This was checked on
@@ -321,7 +323,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- Python and conda: with no extension module or shared library present, the metadata version alone gives `FIXED` ([#1](https://github.com/sakai-sktech/brotli-check/issues/1))
 - Versions before an advisory's affected range (Bun before 1.0.21, Brotli 1.0.2 and earlier, 0.x) are also `VULNERABLE` ([#2](https://github.com/sakai-sktech/brotli-check/issues/2))
 - A file without markers is `NOT_APPLICABLE` whatever package it belongs to ([#3](https://github.com/sakai-sktech/brotli-check/issues/3))
 - A `RESTART_REQUIRED` line advises only a restart even when the disk is still unfixed ([#5](https://github.com/sakai-sktech/brotli-check/issues/5))

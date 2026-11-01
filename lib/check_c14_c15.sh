@@ -130,7 +130,14 @@ bcc_c14_inspect() {
         # anything else here (pip --target) is judged by its own version.
         [[ $meta == /usr/lib/python3/dist-packages/* ]] && ((deb_py)) && continue
         bcc_judge "pypi:$lname" '*' pep440 "$pver"
-        bcc_add_finding C14 "$BCC_J_STATUS" "$pname" "$where ${meta%/*}" "$pver" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
+        # The probe reads the metadata only, so "fixed" stays unconfirmed (see bcc_crosscheck_fixed).
+        local pnext
+        pnext=$(bcc_msg n_rebuild_image)
+        if [[ $BCC_J_STATUS == FIXED ]]; then
+          bcc_crosscheck_no_file "$(bcc_msg r_c14_py_unconfirmed "$pver")" "$(bcc_msg n_check_vendor)"
+          pnext=$BCC_J_NEXT
+        fi
+        bcc_add_finding C14 "$BCC_J_STATUS" "$pname" "$where ${meta%/*}" "$pver" "$BCC_J_REASON" "$pnext" "$BCC_J_EVIDENCE" ""
         ;;
     esac
   done <<<"$out"

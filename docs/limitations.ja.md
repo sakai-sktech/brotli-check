@@ -61,7 +61,12 @@ English: [limitations.md](limitations.md)
 
 プログラムからではなくファイルから読んだ版（ディレクトリ名・`node_version.h`・パッケージのメタデータ・
 ライブラリのファイル名）で `FIXED` とするのは、ファイルの文字列が 1 つのコピーで修正を確かめられたときだけです。
-それ以外は `UNKNOWN` とし、何が足りなかったかを書きます。
+それ以外は `UNKNOWN` とし、何が足りなかったかを書きます。照合するファイルが無い場合も同じです（Python の拡張モジュール
+`_brotli.*so`・`brotlicffi/_brotlicffi*.so`、conda の `lib/libbrotlidec.so.*`。conda ではシンボリックリンクを数えません）。
+ファイル名や置き場所がこれと合わない配布形態は、修正済みでも `UNKNOWN` になります。
+
+コンテナの中（`--inspect-containers`）の Python は、メタデータの版だけを読み、拡張モジュールの文字列を照合しません。
+そのため版が修正版以上でも `UNKNOWN` で、コンテナの中の Python が `FIXED` になることはありません。
 
 ## 版番号
 

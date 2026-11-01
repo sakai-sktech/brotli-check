@@ -162,7 +162,7 @@ bcc_check_c04() {
     [[ $method == exec ]] || bcc_crosscheck_fixed "$bin"
     next=$BCC_J_NEXT
     if [[ $BCC_J_STATUS == VULNERABLE ]]; then
-      if [[ $BCC_D_STATUS == derived ]]; then
+      if [[ $BCC_D_STATUS == derived_eol ]]; then
         next=$(bcc_msg n_node_move_line)
       else
         next=$(bcc_msg n_update_runtime "$BCC_J_FIXED")
@@ -214,7 +214,7 @@ bcc_check_c05() {
     bcc_judge bun '*' semver "$ver"
     [[ $method == exec ]] || bcc_crosscheck_fixed "$bin"
     next=$BCC_J_NEXT
-    if [[ $BCC_J_STATUS == VULNERABLE ]]; then
+    if bcc_judge_advises_update; then
       next=$(bcc_msg n_update_runtime "$BCC_J_FIXED")
       [[ -n $pids ]] && next+=" $(bcc_msg n_restart_pids "$pids")"
       next+=" $(bcc_msg n_bun_compiled)"

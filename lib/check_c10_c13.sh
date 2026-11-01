@@ -52,11 +52,46 @@ bcc_check_c10() {
 # C11: decide from the files, not from the product name: a module or binary either
 # carries decoder code, loads libbrotlidec, or neither. "Neither" rests on the absence of
 # markers, and a stripped static copy without BrotliDecoderErrorString has none, so it is
-# NOT_APPLICABLE only where the build is known: a file from a package (whose build is
-# public), or a Go program that does not name the cgo binding (Go's Brotli is a separate
-# implementation). Anything else built by hand is UNKNOWN (docs/design.md, Codex round 4).
+# NOT_APPLICABLE only where something else speaks for the build: a distribution package whose
+# sources were read (bcc_c11_package_status), or a Go program that does not name the cgo binding
+# (Go's Brotli is a separate implementation). Any other package, or anything built by hand, is
+# UNKNOWN (docs/design.md 10.9.5 and 10.17).
+
+# Binary packages from the source packages nginx, libnginx-mod-http-brotli, apache2 and haproxy,
+# whose sources in Debian 12, 13 and Ubuntu 22.04, 24.04, 26.04 hold no Brotli decoder.
+BCC_C11_CHECKED_PACKAGES=" nginx nginx-core nginx-full nginx-light nginx-extras libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static apache2-bin haproxy "
+# A distribution's version: upstream, then only the revision forms Debian and Ubuntu use
+# (1.22.1-9+deb12u10, 2.4.68-1~deb12u1, 1.24.0-2ubuntu7.19, 1.0.0~rc-5build1, 2.8.30-0ubuntu0.24.04.1,
+# with ~bpo12+1, +esm1, ~22.04.1). A suffix of anyone else's (+acme1, ~noble, +deb.sury.org+1) fails.
+BCC_C11_DISTRO_VERSION='^([0-9]+:)?[0-9][0-9A-Za-z.~]*(\+(dfsg|ds)[0-9]*)?-[0-9]+(\.[0-9]+)*((build|ubuntu)[0-9]+(\.[0-9]+)*)*([~+](deb[0-9]+u[0-9]+|bpo[0-9]+\+[0-9]+|esm[0-9]+|[0-9][0-9]\.[0-9][0-9](\.[0-9]+)*))*$'
+
+# Does OWNER (bcc_dpkg_owner's words) speak for FILE? Status: 0 a checked distribution package and
+# the file as it installed it; 1 not such a package; 2 the file differs from what it installed;
+# 3 the comparison failed. dpkg records are not a security boundary (root could write anything):
+# this keeps an honest in-house or third-party build from being taken for the distribution's.
+# dpkg --verify exits 0 with differences too; they are lines ending in the path.
+bcc_c11_package_status() {
+  local owner=$1 f=$2 pkg ver maint out
+  while IFS= read -r pkg; do
+    case $BCC_C11_CHECKED_PACKAGES in
+      *" ${pkg%%:*} "*) ;;
+      *) return 1 ;;
+    esac
+    # shellcheck disable=SC2016  # dpkg-query format
+    IFS=$'\t' read -r ver maint < <(bcc_sys dpkg-query -W -f '${Version}\t${Maintainer}\n' "$pkg") || return 1
+    [[ $ver =~ $BCC_C11_DISTRO_VERSION ]] || return 1
+    case $maint in
+      *'<ubuntu-devel-discuss@lists.ubuntu.com>' | *'@lists.debian.org>' | *'@alioth-lists.debian.net>' | *'@lists.alioth.debian.org>' | *'@tracker.debian.org>') ;;
+      *) return 1 ;;
+    esac
+    out=$(bcc_sys dpkg --verify "$pkg") || return 3
+    [[ $'\n'$out$'\n' != *" $f"$'\n'* ]] || return 2
+  done <<<"${owner//, /$'\n'}"
+  return 0
+}
+
 bcc_c11_file() {
-  local prod=$1 f=$2 link rc res owner
+  local prod=$1 f=$2 link rc res owner pkg_st detail reason next
   BCC_JUDGED[$f]=1
   res=$(bcc_brotli_scan "$f")
   bcc_split_tab "$res"
@@ -75,10 +110,32 @@ bcc_c11_file() {
     bcc_add_finding C11 UNKNOWN "$prod" "$f" "" "$(bcc_msg r_heur_incomplete "$BCC_MAX_ELF_MB")" "$(bcc_msg n_check_vendor)" "" ""
     bcc_note_incomplete "$f"
   elif ((rc == 1)); then
+    pkg_st=1
     if owner=$(bcc_dpkg_owner "$f"); then
+      pkg_st=0
+      bcc_c11_package_status "$owner" "$f" || pkg_st=$?
+    else
+      owner=""
+    fi
+    if [[ -n $owner ]] && ((pkg_st == 0)); then
       bcc_add_finding C11 NOT_APPLICABLE "$prod" "$f" "" "$(bcc_msg r_c11_no_decoder_pkg "$owner")" "$(bcc_msg n_c11_other)" "" ""
     elif [[ $go == 1 && $cbrotli != 1 ]]; then
       bcc_add_finding C11 NOT_APPLICABLE "$prod" "$f" "" "$(bcc_msg r_c11_go)" "$(bcc_msg n_c11_other)" "" ""
+    elif [[ -n $owner ]]; then
+      # What the decision rested on, for the reader (a "diversion by ..." owner has none).
+      # shellcheck disable=SC2016  # dpkg-query format
+      detail=$(bcc_sys dpkg-query -W -f '${Version}, ${Maintainer}' "${owner%%,*}") || detail=""
+      [[ -z $detail ]] || owner+=" ($detail)"
+      next=$(bcc_msg n_c11_package)
+      case $pkg_st in
+        2)
+          reason=$(bcc_msg r_c11_pkg_changed "$owner")
+          next=$(bcc_msg n_c11_custom)
+          ;;
+        3) reason=$(bcc_msg r_c11_pkg_not_compared "$owner") ;;
+        *) reason=$(bcc_msg r_c11_pkg_unchecked "$owner") ;;
+      esac
+      bcc_add_finding C11 UNKNOWN "$prod" "$f" "" "$reason" "$next" "" ""
     else
       bcc_add_finding C11 UNKNOWN "$prod" "$f" "" "$(bcc_msg r_c11_no_marker_custom)" "$(bcc_msg n_c11_custom)" "" ""
     fi

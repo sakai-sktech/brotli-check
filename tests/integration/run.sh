@@ -34,6 +34,12 @@ common=(
   "C06|/srv/venv-new/|FIXED"
   "C06|/srv/venv-old/|EXPOSURE"
 )
+servers=(
+  "C11|/usr/sbin/nginx|NOT_APPLICABLE"
+  "C11|/usr/sbin/apache2|NOT_APPLICABLE"
+  "C11|/usr/lib/apache2/modules/mod_brotli.so|NOT_APPLICABLE"
+  "C11|/usr/sbin/haproxy|NOT_APPLICABLE"
+)
 
 # The fixed script that --inspect-containers runs inside containers (C14), taken from the
 # single-file build: it must work with the image's own /bin/sh (dash), not only with bash.
@@ -44,6 +50,12 @@ node_path=/opt/node-v22.23.3-linux-x64/bin:/opt/node-v22.23.4-linux-x64/bin:/usr
 failed=0
 for row in "${matrix[@]}"; do
   IFS='|' read -r base lib py <<<"$row"
+  # The ngx_brotli modules are not in Ubuntu 22.04's archive.
+  modules=()
+  if [[ $base != ubuntu:22.04 ]]; then
+    modules=("C11|/usr/lib/nginx/modules/ngx_http_brotli_filter_module.so|NOT_APPLICABLE"
+      "C11|/usr/lib/nginx/modules/ngx_http_brotli_static_module.so|NOT_APPLICABLE")
+  fi
   tag="bcc-it:${base//[:.]/-}"
   echo "== $base"
   if ! "$engine" build -q --build-arg "BASE=$base" -t "$tag" "$ctx" >"$out/${tag#bcc-it:}-build.log" 2>&1; then
@@ -68,13 +80,43 @@ for row in "${matrix[@]}"; do
       continue
     fi
     if python3 -I "$root/tests/integration/assert.py" "$report" \
-      "C01|libbrotli1|$lib" "C01|python3-brotli|$py" "${common[@]}"; then
+      "C01|libbrotli1|$lib" "C01|python3-brotli|$py" "${common[@]}" "${servers[@]}" ${modules[@]+"${modules[@]}"}; then
       echo "ok   $base ($who, $label), exit $rc"
     else
       echo "     report: $report"
       failed=1
     fi
   done
+  # C11 on a host that has only the distribution's servers: nothing to review because of them.
+  # The copies placed in /opt and /srv on purpose are removed first (in this throw-away container).
+  report="$out/${tag#bcc-it:}-servers.json"
+  set +e
+  "$engine" run --rm "$tag" sh -c 'rm -rf /opt/node-* /srv/venv-* &&
+    brotli-cve-check --json --no-exec --roots /var/www' >"$report"
+  rc=$?
+  set -e
+  if ((rc == 0)) && python3 -I "$root/tests/integration/assert.py" "$report" "${servers[@]}" ${modules[@]+"${modules[@]}"}; then
+    echo "ok   $base (distribution servers only), exit $rc"
+  else
+    echo "FAIL $base: distribution servers only, exit $rc, report: $report"
+    failed=1
+  fi
+  # C11 with the real dpkg: an in-house package, and a packaged path overwritten after installation.
+  report="$out/${tag#bcc-it:}-unchecked.json"
+  set +e
+  "$engine" run --rm "$tag" sh -c 'rm -rf /opt/node-* /srv/venv-* &&
+    dpkg -i /usr/local/share/acme-internal-nginx.deb >/dev/null &&
+    cp /bin/true /usr/sbin/haproxy &&
+    brotli-cve-check --json --no-exec --roots /var/www' >"$report"
+  rc=$?
+  set -e
+  if ((rc == 2)) && python3 -I "$root/tests/integration/assert.py" "$report" \
+    "C11|/usr/local/sbin/nginx|UNKNOWN" "C11|/usr/sbin/haproxy|UNKNOWN" "C11|/usr/sbin/nginx|NOT_APPLICABLE"; then
+    echo "ok   $base (in-house package and overwritten file are UNKNOWN), exit $rc"
+  else
+    echo "FAIL $base: in-house package, exit $rc, report: $report"
+    failed=1
+  fi
   # C14's probe in this image's /bin/sh, with both Node.js copies on PATH.
   set +e
   probe_out=$("$engine" run --rm -e "PATH=$node_path" "$tag" sh -c "$probe" 2>&1)

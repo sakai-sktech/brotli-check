@@ -14,8 +14,13 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   symbol names (`BrotliDecoderDecompressStream`, ...) or its error-name strings. A fully
   stripped, link-time-optimized binary that does not use `BrotliDecoderErrorString` can carry
   neither and is then invisible. For the web servers of C11 this is why "no markers" is
-  `NOT_APPLICABLE` only for a packaged file or a Go program without the cgo binding; a server
-  you built yourself is `UNKNOWN`. A static curl that was not run is `UNKNOWN` for the same reason.
+  `NOT_APPLICABLE` only for a distribution package whose sources were read (nginx, Apache, HAProxy)
+  or a Go program without the cgo binding; any other package, a file changed after installation
+  and a server you built yourself are `UNKNOWN`. Two gaps remain: distribution packages are told
+  by name, maintainer and version form, so a rebuild that keeps all three looks the same (and
+  dpkg's records are only as honest as whoever wrote them); and of the cgo bindings only `cbrotli`
+  is looked for, so a Go program with a C Brotli through another binding, stripped, is not seen.
+  A static curl that was not run is `UNKNOWN` for the same reason.
 - **Network file systems** (NFS, CIFS, sshfs, ...) unless `--include-remote`.
 - **Search roots that are symbolic links** are searched at their targets (the report says so);
   other symbolic links are never followed.

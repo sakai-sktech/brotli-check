@@ -176,34 +176,184 @@ walk_records() {
 
 # --- 5: absent markers are not proof; several copies are not all fixed --------------------
 
-@test "C11: no markers in a hand-built server is UNKNOWN; from a package it is NOT_APPLICABLE" {
+# Fake dpkg-query -W and dpkg --verify for C11. (bcc_dpkg_owner is replaced in the tests: it does
+# not ask about /tmp, where the test files are. The integration tests use the real dpkg.)
+fake_dpkg_c11() {
+  local ver=$1 maint=$2 verify_out=${3:-} verify_rc=${4:-0}
+  cat >"$FAKEBIN/dpkg-query" <<EOF
+#!/bin/sh
+case \$3 in
+  *'\\t'*) printf '%s\t%s\n' '$ver' '$maint' ;;
+  *) printf '%s, %s' '$ver' '$maint' ;;
+esac
+EOF
+  cat >"$FAKEBIN/dpkg" <<EOF
+#!/bin/sh
+printf '%s\n' '$verify_out'
+exit $verify_rc
+EOF
+  chmod +x "$FAKEBIN/dpkg-query" "$FAKEBIN/dpkg"
+}
+
+UBUNTU_MAINT='Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>'
+
+@test "C11: no markers in a hand-built server is UNKNOWN; from a checked package it is NOT_APPLICABLE" {
   command -v readelf >/dev/null || skip "readelf not available"
   BCC_NO_EXEC=1
   mkdir -p "$T/custom" "$T/pkg"
   cp /bin/true "$T/custom/nginx"
   cp /bin/true "$T/pkg/nginx"
   bcc_dpkg_owner() { case $1 in */pkg/*) echo nginx-core ;; *) return 1 ;; esac; }
+  fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT"
   bcc_c11_file nginx "$T/custom/nginx"
   bcc_c11_file nginx "$T/pkg/nginx"
   run findings_brief
   [[ $output == *"UNKNOWN|C11|nginx|$T/custom/nginx|"* ]]
   [[ $output == *"NOT_APPLICABLE|C11|nginx|$T/pkg/nginx|"* ]]
-  [[ ${BCC_FINDINGS[*]} == *"From the package nginx-core"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"From the distribution package nginx-core"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"cannot be told apart"* ]]
 }
 
-@test "C11: a Go server without the cgo binding is NOT_APPLICABLE; with it, UNKNOWN" {
+@test "C11: no markers in any other package is UNKNOWN, naming it and saying its build was not checked" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1 BCC_LANG=ja
+  mkdir -p "$T/b"
+  cp /bin/true "$T/b/nginx"
+  bcc_dpkg_owner() { echo acme-internal-nginx; }
+  fake_dpkg_c11 1.2.3-1 'Acme <ops@acme.example>'
+  bcc_c11_file nginx "$T/b/nginx"
+  run findings_brief
+  [[ $output == "UNKNOWN|C11|nginx|$T/b/nginx|"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"パッケージ acme-internal-nginx (1.2.3-1, Acme <ops@acme.example>) のファイル"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"このパッケージのビルドは確かめていません"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"パッケージの提供元に"* ]]
+}
+
+@test "C11: versions and maintainers measured on the distributions pass, as do the backport and ESM forms" {
+  local ver maint
+  while IFS='|' read -r ver maint; do
+    fake_dpkg_c11 "$ver" "$maint"
+    bcc_c11_package_status nginx "$T/x" || { echo "rejected: $ver | $maint"; return 1; }
+  done <<'EOF'
+1.18.0-6ubuntu14.22|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+2.4.52-1ubuntu4.25|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+2.8.30-0ubuntu0.24.04.1|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+1.0.0~rc-5build1|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+1.0.0~rc-7build3|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+1.22.1-9+deb12u10|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
+2.4.68-1~deb12u1|Debian Apache Maintainers <debian-apache@lists.debian.org>
+2.6.12-1+deb12u4|Debian HAProxy Maintainers <team+haproxy@tracker.debian.org>
+1.0.0~rc-6|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
+1.18.0-0ubuntu1.7+esm1|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+1.26.0-1~bpo12+1|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
+EOF
+}
+
+@test "C11: a checked name with someone else's maintainer or version form is not a checked package" {
+  local ver maint st
+  while IFS='|' read -r ver maint; do
+    fake_dpkg_c11 "$ver" "$maint"
+    st=0
+    bcc_c11_package_status nginx "$T/x" || st=$?
+    [ "$st" -eq 1 ] || { echo "status $st: $ver | $maint"; return 1; }
+  done <<'EOF'
+1.26.0-1~noble|NGINX Packaging <nginx-packaging@f5.com>
+1.26.0-1~noble|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+2.4.69-1+ubuntu24.04.1+deb.sury.org+1|Debian Apache Maintainers <debian-apache@lists.debian.org>
+1.24.0-2ubuntu7.19+acme1|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+1.24.0+acme1-2ubuntu7.19|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+1.24.0|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+1.24.0-1|Acme <ops@acme.example>
+1.24.0-1|<ops@lists.debian.org.acme.example>
+EOF
+}
+
+@test "C11: an owner's name that is not a checked one is not asked about further" {
+  fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT"
+  local st=0
+  bcc_c11_package_status acme-internal-nginx "$T/x" || st=$?
+  [ "$st" -eq 1 ]
+  # Every owner of a path has to be a checked one; an architecture is not part of the name.
+  st=0
+  bcc_c11_package_status "nginx-core, acme-internal-nginx" "$T/x" || st=$?
+  [ "$st" -eq 1 ]
+  bcc_c11_package_status "nginx-core:amd64, nginx-extras:amd64" "$T/x"
+  # dpkg-query that gives nothing is no evidence.
+  printf '#!/bin/sh\nexit 1\n' >"$FAKEBIN/dpkg-query"
+  st=0
+  bcc_c11_package_status nginx-core "$T/x" || st=$?
+  [ "$st" -eq 1 ]
+}
+
+@test "C11: a file changed since the package installed it is UNKNOWN, and only that file counts" {
   command -v readelf >/dev/null || skip "readelf not available"
   BCC_NO_EXEC=1
-  mkdir -p "$T/go" "$T/cgo"
+  mkdir -p "$T/pkg"
+  cp /bin/true "$T/pkg/nginx"
+  bcc_dpkg_owner() { echo nginx-core; }
+  # Other files of the package (docs removed in an image, a copy next to it) say nothing about it.
+  fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT" "missing     /usr/share/man/man8/nginx.8.gz
+??5??????   $T/pkg/nginx.bak"
+  bcc_c11_file nginx "$T/pkg/nginx"
+  run findings_brief
+  [[ $output == "NOT_APPLICABLE|C11|nginx|$T/pkg/nginx|"* ]]
+
+  bcc_init_findings
+  fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT" "??5??????   $T/pkg/nginx"
+  bcc_c11_file nginx "$T/pkg/nginx"
+  run findings_brief
+  [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"differs from what the package installed"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"Check which modules were compiled in"* ]]
+}
+
+@test "C11: dpkg --verify failing is UNKNOWN and says the file could not be compared" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  mkdir -p "$T/pkg"
+  cp /bin/true "$T/pkg/nginx"
+  bcc_dpkg_owner() { echo nginx-core; }
+  fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT" "" 1
+  bcc_c11_file nginx "$T/pkg/nginx"
+  run findings_brief
+  [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"could not be compared"* ]]
+}
+
+@test "C11: a diverted path is not taken for the package that lost it" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  mkdir -p "$T/pkg"
+  cp /bin/true "$T/pkg/nginx"
+  # dpkg-query -S /usr/sbin/nginx starts with "diversion by X from: /usr/sbin/nginx".
+  bcc_dpkg_owner() { echo "diversion by acme-internal-nginx from"; }
+  printf '#!/bin/sh\nexit 1\n' >"$FAKEBIN/dpkg-query"
+  bcc_c11_file nginx "$T/pkg/nginx"
+  run findings_brief
+  [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"diversion by acme-internal-nginx from"* ]]
+}
+
+@test "C11: a Go server without the cgo binding is NOT_APPLICABLE and says what was looked for; with it, UNKNOWN" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  mkdir -p "$T/go" "$T/cgo" "$T/godeb"
   cp /bin/true "$T/go/caddy"
   printf '\377 Go buildinf:\010\000' >>"$T/go/caddy"
   cp "$T/go/caddy" "$T/cgo/caddy"
   printf 'dep\tgithub.com/google/brotli/go/cbrotli\tv1.1.0\000' >>"$T/cgo/caddy"
+  cp "$T/go/caddy" "$T/godeb/caddy"
+  bcc_dpkg_owner() { case $1 in */godeb/*) echo caddy ;; *) return 1 ;; esac; }
+  fake_dpkg_c11 2.6.2-12+deb13u1 'Debian Go Packaging Team <team+pkg-go@tracker.debian.org>'
   bcc_c11_file caddy "$T/go/caddy"
   bcc_c11_file caddy "$T/cgo/caddy"
+  bcc_c11_file caddy "$T/godeb/caddy"
   run findings_brief
   [[ $output == *"NOT_APPLICABLE|C11|caddy|$T/go/caddy|"* ]]
   [[ $output == *"UNKNOWN|C11|caddy|$T/cgo/caddy|"* ]]
+  # A packaged Go program is judged as a Go program, not as an unchecked package.
+  [[ $output == *"NOT_APPLICABLE|C11|caddy|$T/godeb/caddy|"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"Only cbrotli is looked for"* ]]
 }
 
 @test "C08: a curl that was not run and shows no markers is UNKNOWN, not NOT_APPLICABLE" {

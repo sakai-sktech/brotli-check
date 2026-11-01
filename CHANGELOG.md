@@ -45,3 +45,8 @@ First version.
   libbrotlidec without a shared library (not counting symbolic links), are UNKNOWN and say so.
   Python inside containers is UNKNOWN at or above the fix, since the strings are not compared
   there. Each PyPI package is now compared only with its own extension module.
+- A web server without decoder markers is no longer `NOT_APPLICABLE` just for belonging to a
+  package (docs/design.md 10.17): only the distribution's nginx, Apache and HAProxy packages, whose
+  sources were read, with the file as installed. Other packages, files changed after installation
+  and packages that cannot be compared are `UNKNOWN` and say so. The reason of a Go program says
+  that only `cbrotli` is looked for.

@@ -74,6 +74,35 @@ Brotli 1.2.0 と urllib3、`/srv/venv-new` に Brotli 1.2.1。2026-10-27 から�
 期待値の誤り（`EXPOSURE` には Brotli の隣に HTTP クライアントが要るが、最初のイメージには無かった）／
 bash 4.2 の確認が判定の経路を通っていなかった／英語のメッセージ 2 つが件数 1 のとき文法が崩れていた。
 
+## C11: 配布元の Web サーバー（2026-11-02、設計メモ 10 章 17）
+
+統合テストの全イメージに、配布元の nginx・Apache・HAProxy と、アーカイブにあれば ngx_brotli のモジュールを足しました。
+その日にアーカイブから入った版は次のとおりです。
+
+| イメージ | nginx | `apache2-bin` | `haproxy` | ngx_brotli のモジュール |
+|---|---|---|---|---|
+| Ubuntu 22.04 | `nginx-core` 1.18.0-6ubuntu14.22 | 2.4.52-1ubuntu4.25 | 2.4.30-0ubuntu0.22.04.2 | アーカイブに無い |
+| Ubuntu 24.04 | `nginx` 1.24.0-2ubuntu7.19 | 2.4.58-1ubuntu8.17 | 2.8.30-0ubuntu0.24.04.1 | 1.0.0~rc-5build1 |
+| Ubuntu 26.04 | `nginx` 1.28.3-2ubuntu1.12 | 2.4.66-2ubuntu2.6 | 3.2.25-0ubuntu0.26.04.1 | 1.0.0~rc-7build3 |
+| Debian 12 | `nginx` 1.22.1-9+deb12u10 | 2.4.68-1~deb12u1 | 2.6.12-1+deb12u4 | 1.0.0~rc-3 |
+| Debian 13 | `nginx` 1.26.3-3+deb13u10 | 2.4.69-1~deb13u1 | 3.0.11-1+deb13u4 | 1.0.0~rc-6 |
+
+- **サーバーのファイルはどれも `NOT_APPLICABLE`** でした（root と一般ユーザー、`--no-exec` と `--yes` の 4 回とも）。わざと置いたコピーを
+  消すと、5 つとも終了コードは `0` でした。
+- **これらのパッケージのソース**（`apt-get source`）に、`BrotliDecoder`・`brotli/decode.h`・`_ERROR_FORMAT_` はありません。`mod_brotli.c` と
+  ngx_brotli が読むのは `brotli/encode.h` だけです。HAProxy のソースには「brotli」という語がありません。Brotli のコピーを持つものも
+  ありません（ngx_brotli の `deps/brotli` にファイルは無く、数えたのは Ubuntu 26.04 です）。
+- **本物の `dpkg` で**、5 つとも: `/usr/local/sbin/nginx` にファイルを置く社内の `.deb` と、インストール後に上書きした `/usr/sbin/haproxy` は
+  `UNKNOWN` で、終了コードは `2` でした。
+- **手で 1 回ずつ試したもの:** nginx.org の `nginx` 1.26.0-1~noble（Ubuntu 24.04）は `UNKNOWN`、終了コード `2`。Debian の `caddy`
+  2.6.2-12+deb13u1 は Go のプログラムとして `NOT_APPLICABLE`、終了コード `0`。Ubuntu 22.04 の `nginx-extras` は `NOT_APPLICABLE`、終了コード `0`。
+- **単体テスト:** このブランチで 198 / 198 成功、ShellCheck の警告ゼロ。新しいコードへの変異 15 個（写しの中で確認を 1 つずつ外すか緩める）は、
+  それぞれ試験が落ちました。
+
+これが示さないこと: 本物の strip 済み静的デコーダーを持つパッケージは作っていません（ここの社内パッケージの中身は名前を変えた `/bin/true`）。
+これらのパッケージの新しい版は読んでいません。名前・Maintainer・版の形を保った作り直しは、ツールには同じに見えます。`cbrotli` 以外の cgo
+バインディングで C の Brotli を組み込んだ Go のプログラムでは試していません。
+
 ## Codex の敵対的レビュー 4 回目
 
 指摘 10 件（P1 × 6、P2 × 4）。すべて確認して直した。判断は [design.ja.md 10 章 9](design.ja.md#10-実装時に加えた判断2026-10-26)。

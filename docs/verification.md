@@ -81,6 +81,38 @@ was not executable; one expectation was wrong (`EXPOSURE` needs an HTTP client n
 the first image had none); the bash 4.2 step did not exercise any verdict; two English messages
 broke grammar with a count of one.
 
+## C11: the distributions' web servers (2026-11-02, design 10.17)
+
+Added to every integration image: the distribution's nginx, Apache and HAProxy, and the ngx_brotli
+modules where the archive has them. Versions as installed from the archives on that date:
+
+| Image | nginx | `apache2-bin` | `haproxy` | ngx_brotli modules |
+|---|---|---|---|---|
+| Ubuntu 22.04 | `nginx-core` 1.18.0-6ubuntu14.22 | 2.4.52-1ubuntu4.25 | 2.4.30-0ubuntu0.22.04.2 | not in the archive |
+| Ubuntu 24.04 | `nginx` 1.24.0-2ubuntu7.19 | 2.4.58-1ubuntu8.17 | 2.8.30-0ubuntu0.24.04.1 | 1.0.0~rc-5build1 |
+| Ubuntu 26.04 | `nginx` 1.28.3-2ubuntu1.12 | 2.4.66-2ubuntu2.6 | 3.2.25-0ubuntu0.26.04.1 | 1.0.0~rc-7build3 |
+| Debian 12 | `nginx` 1.22.1-9+deb12u10 | 2.4.68-1~deb12u1 | 2.6.12-1+deb12u4 | 1.0.0~rc-3 |
+| Debian 13 | `nginx` 1.26.3-3+deb13u10 | 2.4.69-1~deb13u1 | 3.0.11-1+deb13u4 | 1.0.0~rc-6 |
+
+- **Each server file was `NOT_APPLICABLE`** in all four scans (root and ordinary user, `--no-exec`
+  and `--yes`). With the copies placed on purpose removed, the exit status was `0` on all five.
+- **The sources of those packages** (`apt-get source`) hold none of `BrotliDecoder`,
+  `brotli/decode.h`, `_ERROR_FORMAT_`. `mod_brotli.c` and ngx_brotli include only `brotli/encode.h`.
+  HAProxy's sources do not contain the word "brotli". None of them ships a copy of Brotli
+  (ngx_brotli's `deps/brotli` holds no files in Ubuntu 26.04, the one where that was counted).
+- **With the real `dpkg`**, on all five: an in-house `.deb` with a file at `/usr/local/sbin/nginx`,
+  and `/usr/sbin/haproxy` overwritten after installation, were `UNKNOWN` with exit status `2`.
+- **Tried by hand, once each:** nginx.org's `nginx` 1.26.0-1~noble on Ubuntu 24.04 was `UNKNOWN`, exit
+  `2`. Debian's `caddy` 2.6.2-12+deb13u1 was `NOT_APPLICABLE` as a Go program, exit `0`. `nginx-extras`
+  on Ubuntu 22.04 was `NOT_APPLICABLE`, exit `0`.
+- **Unit tests:** 198 / 198 on this branch, with zero ShellCheck warnings. Fifteen mutations of the new
+  code (each check removed or loosened in a copy of the tree) each made a test fail.
+
+What this does not show: no package holding a real stripped static decoder was built, so the
+in-house package here is `/bin/true` under another name. Later versions of these packages were not
+read. Rebuilds that keep the name, maintainer and version form look the same to the tool. Go
+programs with a C Brotli through a cgo binding other than `cbrotli` were not tried.
+
 ## Codex adversarial review, round 4
 
 Ten findings (P1 × 6, P2 × 4), all confirmed and fixed; the decisions are in

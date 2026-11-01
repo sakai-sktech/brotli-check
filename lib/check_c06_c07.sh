@@ -76,9 +76,9 @@ bcc_c06_entry() {
   # C09 leaves this package's extension module to this finding.
   BCC_C06_SITES[$lname:$site]=1
   local next=$BCC_J_NEXT
-  if [[ $BCC_J_STATUS == VULNERABLE && -n $owner ]]; then
+  if bcc_judge_advises_update && [[ -n $owner ]]; then
     next=$(bcc_msg n_update_owner_pkg "$(printf '%q' "${owner%%,*}")")
-  elif [[ $BCC_J_STATUS == VULNERABLE ]]; then
+  elif bcc_judge_advises_update; then
     next=$(bcc_msg n_pip_upgrade "$(printf '%q' "$site")" "$lname" "$BCC_J_FIXED")
   fi
   bcc_add_finding C06 "$BCC_J_STATUS" "$name" "$p" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE${owner:+; dpkg: $owner}" ""
@@ -131,7 +131,7 @@ bcc_c06_conda() {
   # C09 leaves this environment's lib/libbrotlidec* to this finding.
   BCC_C06_CONDA_ENVS[$env]=1
   local next=$BCC_J_NEXT
-  [[ $BCC_J_STATUS == VULNERABLE ]] && next=$(bcc_msg n_conda_update "$(printf '%q' "$(dirname -- "$(dirname -- "$f")")")")
+  bcc_judge_advises_update && next=$(bcc_msg n_conda_update "$(printf '%q' "$(dirname -- "$(dirname -- "$f")")")")
   bcc_add_finding C06 "$BCC_J_STATUS" "conda:libbrotlidec" "$f" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
 }
 

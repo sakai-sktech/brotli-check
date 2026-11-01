@@ -45,3 +45,9 @@ First version.
   libbrotlidec without a shared library (not counting symbolic links), are UNKNOWN and say so.
   Python inside containers is UNKNOWN at or above the fix, since the strings are not compared
   there. Each PyPI package is now compared only with its own extension module.
+- A version before the affected range an advisory states is no longer VULNERABLE (docs/design.md
+  10.16): Bun before 1.0.21, Brotli 1.0.2 and earlier and 0.x, and PyPI Brotli and brotlicffi before
+  1.0.3 are UNKNOWN, and the reason names the advisory and the range and recommends an update.
+  Node.js end-of-life lines and Envoy 1.35 and earlier stay VULNERABLE, and the reason now gives the
+  ground in the text report. The data has a new column, `affected`, and `derived` is now
+  `derived_eol` and `derived_bundled`, so a `--data` file in the old form is refused.

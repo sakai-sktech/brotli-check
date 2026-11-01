@@ -156,12 +156,12 @@ Each finding is one line:
 
 | Status | Meaning | Next step |
 |---|---|---|
-| `VULNERABLE` | Older than the fixed version in the advisory data, or a version of a line that gets no fixed release | Update it (the line says to what) |
+| `VULNERABLE` | Older than the fixed version in the advisory data and not before the affected range an advisory states, or a version of a line that gets no fixed release (the reason says on what ground) | Update it (the line says to what) |
 | `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). Whether the file now on disk is fixed is told by the other lines of the same report | If the disk has the fixed version, restart that process or service; if not, update first |
 | `NO_FIX_AVAILABLE` | As of the advisory data's date, the distributor had not released a fix | Look at the vendor's latest information; meanwhile update the products that bundle their own copy |
 | `VENDORED_COPY` | Carries its own decoder; neither its version nor whether it is fixed could be determined | Ask the vendor which Brotli it bundles |
 | `LIKELY_VULNERABLE` / `LIKELY_FIXED` | Judged from the decoder's strings; the reason says what was found and what was not (see "[What a verdict rests on](#what-a-verdict-rests-on)") | Confirm with the vendor |
-| `UNKNOWN` | Could not be judged. A version at or above the fix ends up here too when a file could not confirm it. The reason is always given | Read the reason |
+| `UNKNOWN` | Could not be judged. A version at or above the fix ends up here too when a file could not confirm it, and so does a version before the affected range an advisory states, because the advisory does not say whether it is affected. The reason is always given | Read the reason. For a version before the range: update it (the line says to what) |
 | `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (a related package, a setting, a listening socket). Whether an application uses it, or whether it can be reached from outside, is not checked. Not a vulnerability by itself | Prioritize the updates it points to |
 | `NOT_APPLICABLE` | The file has no decoder markers and does not load libbrotlidec, and it belongs to a package or is a Go program that does not build in the C Brotli. A build of your own that merely shows no markers is `UNKNOWN` | None for that file |
 | `FIXED` | The version obtained meets the fixed-version condition of the advisory data. A version read from a file counts only when the decoder's strings confirm the fix too. How strong that is depends on where the version came from (see "[What a verdict rests on](#what-a-verdict-rests-on)") | No update needed for this line |
@@ -323,7 +323,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- Versions before an advisory's affected range (Bun before 1.0.21, Brotli 1.0.2 and earlier, 0.x) are also `VULNERABLE` ([#2](https://github.com/sakai-sktech/brotli-check/issues/2))
 - A file without markers is `NOT_APPLICABLE` whatever package it belongs to ([#3](https://github.com/sakai-sktech/brotli-check/issues/3))
 - A `RESTART_REQUIRED` line advises only a restart even when the disk is still unfixed ([#5](https://github.com/sakai-sktech/brotli-check/issues/5))
 - The container connection is neither checked nor shown in the report ([#6](https://github.com/sakai-sktech/brotli-check/issues/6))

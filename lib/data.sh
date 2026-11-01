@@ -1,11 +1,28 @@
 # shellcheck shell=bash
 # data.sh - load data/advisories.tsv (read-only) and judge a version against it.
 
-BCC_DATA_STATUSES="fixed no_fix unreleased derived analysis unknown"
+BCC_DATA_STATUSES="fixed no_fix unreleased derived_eol derived_bundled analysis unknown"
+
+# bcc_data_check_affected CELL STATUS FIXED  (prints what is wrong; empty when it is fine)
+# A misplaced or reversed range would silently turn VULNERABLE into UNKNOWN, so it is refused.
+bcc_data_check_affected() {
+  local cell=$1 first last
+  [[ $cell == - ]] && return 0
+  if [[ ! $cell =~ ^[A-Za-z0-9-]+:[0-9]+(\.[0-9]+)*:[0-9]+(\.[0-9]+)*$ ]]; then
+    bcc_msg err_data_affected "$cell"
+    return 0
+  fi
+  [[ $2 == fixed ]] || { bcc_msg err_data_affected_status "$2"; return 0; }
+  first=${cell#*:}
+  last=${first#*:}
+  first=${first%%:*}
+  [[ $(bcc_semver_cmp "$first" "$3") == -1 && $(bcc_semver_cmp "$first" "$last") != 1 ]] ||
+    bcc_msg err_data_affected_order "$cell" "$3"
+}
 
 # bcc_load_data LABEL < data   (LABEL names the source in error messages)
 bcc_load_data() {
-  local label=$1 line n=0 tabs
+  local label=$1 line n=0 tabs problem
   BCC_DATA_ROWS=()
   BCC_DATA_SNAPSHOT=""
   while IFS= read -r line || [[ -n $line ]]; do
@@ -17,7 +34,7 @@ bcc_load_data() {
     fi
     [[ -z $line || $line == '#'* ]] && continue
     tabs=${line//[!$'\t']/}
-    ((${#tabs} == 6)) || bcc_die "$(bcc_msg err_data_line "$label" "$n" "$(bcc_msg err_data_columns)")"
+    ((${#tabs} == 7)) || bcc_die "$(bcc_msg err_data_line "$label" "$n" "$(bcc_msg err_data_columns)")"
     bcc_split_tab "$line"
     [[ -n ${BCC_F[0]} && -n ${BCC_F[1]} && -n ${BCC_F[2]} ]] ||
       bcc_die "$(bcc_msg err_data_line "$label" "$n" "$(bcc_msg err_data_empty)")"
@@ -25,9 +42,11 @@ bcc_load_data() {
       *" ${BCC_F[3]} "*) ;;
       *) bcc_die "$(bcc_msg err_data_line "$label" "$n" "$(bcc_msg err_data_status "${BCC_F[3]}")")" ;;
     esac
-    [[ ${BCC_F[4]} == https://* ]] ||
+    problem=$(bcc_data_check_affected "${BCC_F[4]}" "${BCC_F[3]}" "${BCC_F[2]}")
+    [[ -z $problem ]] || bcc_die "$(bcc_msg err_data_line "$label" "$n" "$problem")"
+    [[ ${BCC_F[5]} == https://* ]] ||
       bcc_die "$(bcc_msg err_data_line "$label" "$n" "$(bcc_msg err_data_url)")"
-    [[ ${BCC_F[5]} =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] ||
+    [[ ${BCC_F[6]} =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] ||
       bcc_die "$(bcc_msg err_data_line "$label" "$n" "$(bcc_msg err_data_date)")"
     BCC_DATA_ROWS+=("$line")
   done
@@ -39,7 +58,7 @@ bcc_load_data() {
 
 # bcc_data_lookup COMPONENT SERIES
 # Exact branch rows first; then "*" and "<=X" rows in file order.
-# Sets BCC_D_BRANCH BCC_D_FIXED BCC_D_STATUS BCC_D_URL BCC_D_RETRIEVED BCC_D_NOTE.
+# Sets BCC_D_BRANCH BCC_D_FIXED BCC_D_STATUS BCC_D_AFFECTED BCC_D_URL BCC_D_RETRIEVED BCC_D_NOTE.
 bcc_data_lookup() {
   local comp=$1 series=$2 row pass br c
   # Callers hold their own fields in BCC_F; restore them on return.
@@ -62,9 +81,10 @@ bcc_data_lookup() {
       BCC_D_BRANCH=$br
       BCC_D_FIXED=${BCC_F[2]}
       BCC_D_STATUS=${BCC_F[3]}
-      BCC_D_URL=${BCC_F[4]}
-      BCC_D_RETRIEVED=${BCC_F[5]}
-      BCC_D_NOTE=${BCC_F[6]}
+      BCC_D_AFFECTED=${BCC_F[4]}
+      BCC_D_URL=${BCC_F[5]}
+      BCC_D_RETRIEVED=${BCC_F[6]}
+      BCC_D_NOTE=${BCC_F[7]}
       BCC_F=(${saved[@]+"${saved[@]}"})
       return 0
     done
@@ -73,16 +93,33 @@ bcc_data_lookup() {
   return 1
 }
 
+# bcc_below_affected KIND VERSION
+# True when the row found by bcc_data_lookup states an affected range and VERSION is before it.
+bcc_below_affected() {
+  local first=${BCC_D_AFFECTED#*:} rc=0
+  [[ $BCC_D_AFFECTED != - ]] || return 1
+  first=${first%%:*}
+  bcc_version_ge "$1" "$2" "$first" || rc=$?
+  ((rc == 1))
+}
+
+# bcc_judge_advises_update: what the bcc_judge just before it said calls for an update, so the
+# caller's own way of updating applies: VULNERABLE, or before the advisory's range (UNKNOWN).
+bcc_judge_advises_update() {
+  [[ $BCC_J_STATUS == VULNERABLE ]] || ((BCC_J_OUT_OF_RANGE))
+}
+
 # bcc_judge COMPONENT SERIES KIND VERSION
 # Sets BCC_J_STATUS (FIXED | VULNERABLE | NO_FIX_AVAILABLE | UNKNOWN), BCC_J_REASON,
-# BCC_J_NEXT (empty: caller decides), BCC_J_EVIDENCE, BCC_J_FIXED.
+# BCC_J_NEXT (empty: caller decides), BCC_J_EVIDENCE, BCC_J_FIXED, BCC_J_OUT_OF_RANGE.
 bcc_judge() {
-  local comp=$1 series=$2 kind=$3 ver=$4 rc=0
+  local comp=$1 series=$2 kind=$3 ver=$4 rc=0 range
   BCC_J_STATUS=UNKNOWN
   BCC_J_REASON=""
   BCC_J_NEXT=""
   BCC_J_EVIDENCE=""
   BCC_J_FIXED=""
+  BCC_J_OUT_OF_RANGE=0
   if ! bcc_data_lookup "$comp" "$series"; then
     BCC_J_REASON=$(bcc_msg r_no_data "$comp" "${series:-?}")
     BCC_J_NEXT=$(bcc_msg n_check_vendor)
@@ -101,6 +138,14 @@ bcc_judge() {
       elif ((rc == 0)); then
         BCC_J_STATUS=FIXED
         BCC_J_REASON=$(bcc_msg r_fixed_ge "$BCC_D_FIXED")
+      elif ((rc == 1)) && bcc_below_affected "$kind" "$ver"; then
+        # Outside what the advisory states: it does not say this version is affected, nor that
+        # it is not. Old either way, so an update is still the next step.
+        range=${BCC_D_AFFECTED#*:}
+        BCC_J_STATUS=UNKNOWN
+        BCC_J_OUT_OF_RANGE=1
+        BCC_J_REASON=$(bcc_msg r_out_of_range "${BCC_D_AFFECTED%%:*}" "${range%%:*}" "${range#*:}")
+        BCC_J_NEXT=$(bcc_msg n_update_runtime "$BCC_D_FIXED")
       elif ((rc == 1)) && [[ $BCC_D_STATUS == unreleased ]]; then
         BCC_J_STATUS=NO_FIX_AVAILABLE
         BCC_J_REASON=$(bcc_msg r_unreleased "$BCC_D_FIXED")
@@ -119,9 +164,13 @@ bcc_judge() {
       BCC_J_REASON=$(bcc_msg r_no_fix)
       BCC_J_NEXT=$(bcc_msg n_wait_vendor)
       ;;
-    derived)
+    derived_eol)
       BCC_J_STATUS=VULNERABLE
-      BCC_J_REASON=$(bcc_msg r_derived)
+      BCC_J_REASON=$(bcc_msg r_derived_eol)
+      ;;
+    derived_bundled)
+      BCC_J_STATUS=VULNERABLE
+      BCC_J_REASON=$(bcc_msg r_derived_bundled)
       ;;
     unknown)
       BCC_J_STATUS=UNKNOWN

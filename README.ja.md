@@ -302,6 +302,9 @@ testing（forky）は修正の移行を待っていました。
 - `EXPOSURE` の理由の文が、パッケージがあるだけで「展開する構成」と言い切る（[#7](https://github.com/sakai-sktech/brotli-check/issues/7)）
 - テキストの結果に `FIXED` の根拠の種類が出ない（[#9](https://github.com/sakai-sktech/brotli-check/issues/9)）
 - dpkg-query の失敗などで点検の一部ができなくても、終了コードが `0` になる（[#10](https://github.com/sakai-sktech/brotli-check/issues/10)）
+- 既定の実行では、.NET のランタイムの中のデコーダーについて何も出ない（[#17](https://github.com/sakai-sktech/brotli-check/issues/17)）。`--deep --roots /usr/lib/dotnet` で一覧に出る
+- 1 つのプログラムが読む `libbrotlidec*` のうち判定するのは最初の 1 つだけで、`glibc-hwcaps` のディレクトリは名前の順に試す（[#18](https://github.com/sakai-sktech/brotli-check/issues/18)）
+- 別の名前のプログラムへのリンクである `node` が、何も言わずに落ちる（[#19](https://github.com/sakai-sktech/brotli-check/issues/19)）
 
 一覧: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 

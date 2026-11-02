@@ -330,6 +330,9 @@ Problems known in the current version. Each is removed from this list once fixed
 - `EXPOSURE` reasons say "decodes ... automatically" when a package is merely installed ([#7](https://github.com/sakai-sktech/brotli-check/issues/7))
 - The text report does not show which kind of evidence a `FIXED` rests on ([#9](https://github.com/sakai-sktech/brotli-check/issues/9))
 - The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
+- A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it
+- Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))
+- A `node` that is a link to a program of another name is dropped without a mention ([#19](https://github.com/sakai-sktech/brotli-check/issues/19))
 
 All: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 

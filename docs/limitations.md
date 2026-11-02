@@ -36,14 +36,15 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   ([USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)). The tool does not look for it by
   name, and `/usr/lib/dotnet` is not in the default roots, so a default run says nothing about it.
   To list it: `--deep --roots /usr/lib/dotnet` (seen on Ubuntu 24.04, as `VENDORED_COPY`). Check
-  the runtime's version against Microsoft's or your distributor's advisory.
+  the runtime's version against Microsoft's or your distributor's advisory ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)).
 - **A program that loads several libraries named `libbrotlidec*`.** Only the first is judged. The
-  others are found only if they are under the search roots.
+  others are found only if they are under the search roots ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).
 - **A `node`, `bun` or similar that is a link to a program of another name** (`node -> runtime`). It
-  is not taken, so that version-manager shims are not judged as the runtime, and it is not listed.
+  is not taken, so that version-manager shims are not judged as the runtime, and it is not listed
+  ([#19](https://github.com/sakai-sktech/brotli-check/issues/19)).
 - **`glibc-hwcaps` directories in a RUNPATH or RPATH.** They are tried in name order, where glibc
   prefers the highest level the CPU supports. With copies at several levels, the one judged and
-  described may not be the one that loads.
+  described may not be the one that loads ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).
 - **Electron applications** installed outside snap/flatpak are found only with `--deep`.
 - **Containers based on Alpine** (apk) get no package check inside (`--inspect-containers`
   covers Debian/Ubuntu-based images and Node.js / PyPI copies).

@@ -728,7 +728,7 @@ rejected alternative.
        very long one, which let a reversed range through the loader and could turn a version read from a
        file into something else. The caller's PATH is split without `read` and passed NUL-separated,
        as a directory may hold a newline (10.13).
-    7. **Left for later, with an entry in the limitations:** only the first of several differently named
+    7. **Left for later (issues #18 and #19), with an entry in the limitations:** only the first of several differently named
        libbrotlidec libraries of one program is judged (two in one process are rare, and callers take
        one path); a `node` that is a link to a program of another name is not taken, and not listed (the
        filter exists for version-manager shims, 10.12, and telling a shim from a runtime is the real
@@ -742,4 +742,4 @@ rejected alternative.
        (8.0.33, fixed per Ubuntu) holds a decoder in `/usr/lib/dotnet/.../libSystem.IO.Compression.Native.so`,
        and it does not load libbrotli. The default run says nothing about it and `/usr/lib/dotnet` is
        not in the default roots; `--deep --roots /usr/lib/dotnet` gives `VENDORED_COPY`. A fair verdict
-       needs rows for .NET's own versions, so it is a separate issue and did not hold the release.
+       needs rows for .NET's own versions, so it is a separate issue (#17).

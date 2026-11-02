@@ -134,7 +134,7 @@ bcc_c14_inspect() {
         # The distribution's python3-brotli (judged from its PKG line) puts Brotli's metadata
         # here, at its own version; anything else here (brotlicffi, another Brotli by pip
         # --target) is judged by its own version.
-        [[ $lname == brotli && $pver == "$deb_py_ver" && $meta == /usr/lib/python3/dist-packages/* ]] && continue
+        [[ $lname == brotli && -n $deb_py_ver && $pver == "$deb_py_ver" && $meta == /usr/lib/python3/dist-packages/* ]] && continue
         bcc_judge "pypi:$lname" '*' pep440 "$pver"
         # The probe reads the metadata only, so "fixed" stays unconfirmed (see bcc_crosscheck_fixed).
         local pnext

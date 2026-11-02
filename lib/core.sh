@@ -324,16 +324,29 @@ bcc_find_status() {
 # Is PATH owned by a Debian package? Prints the package name(s).
 # dpkg never installs into home directories, so those are not asked (dpkg-query -S
 # reads every file list and takes about a second per call). Results are cached.
-# bcc_dpkg_diverted_owner TEXT: from dpkg-query -S on a diverted path, the diverting package when
-# it is among the path's owners too; otherwise nothing.
+# bcc_dpkg_diverted_owner TEXT PATH: from dpkg-query -S PATH with diversion records, who owns what
+# is at PATH. Both records of a diversion come back whichever path was asked about. PATH is its
+# "from": it was moved away, so only the diverting package, when it is among PATH's owners too.
+# Otherwise PATH is its "to" (where something was moved to): the owners listed. No owner line:
+# nothing.
 bcc_dpkg_diverted_owner() {
-  local text=$1 by owners p
-  [[ $text == 'diversion by '* ]] || return 0
-  by=${text#diversion by }
-  by=${by%% from:*}
-  owners=${text##*$'\n'}
-  [[ $owners != 'diversion by '* ]] || return 0
-  owners=${owners%%: *}
+  local text=$1 path=$2 line by="" from=0 owners="" p
+  while IFS= read -r line; do
+    case $line in
+      'diversion by '*" from: $path")
+        from=1
+        by=${line#diversion by }
+        by=${by%% from: *}
+        ;;
+      "local diversion from: $path") from=1 ;;
+      'diversion by '* | 'local diversion '*) ;;
+      *) owners=${line%%: *} ;;
+    esac
+  done <<<"$text"
+  if ((!from)); then
+    [[ -z $owners ]] || printf '%s\n' "$owners"
+    return 0
+  fi
   for p in ${owners//,/ }; do
     if [[ ${p%%:*} == "$by" ]]; then
       printf '%s\n' "$p"
@@ -357,7 +370,7 @@ bcc_dpkg_owner() {
     # the words of "diversion by X from" are not package names. Only X's own file at that path
     # is not diverted, so it is X's.
     case $out in
-      'diversion by '* | 'local diversion '*) out=$(bcc_dpkg_diverted_owner "$out") ;;
+      'diversion by '* | 'local diversion '*) out=$(bcc_dpkg_diverted_owner "$out" "$path") ;;
       *) out=${out%%: *} ;;
     esac
     BCC_DPKG_CACHE[$path]=$out

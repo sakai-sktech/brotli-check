@@ -1375,6 +1375,44 @@ d41d8cd98f00b204e9800998ecf8427e  x/${T#/}/pkg/nginx" fake_dpkg_c11 1.24.0-2ubun
   [ "$status" -eq 1 ]
 }
 
+@test "round 9: a path that is a diversion's destination keeps the owners listed for it" {
+  # Both records of a diversion come back whichever path is asked about (seen on Ubuntu 24.04).
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/bin/old\\ndiversion by acme to: /usr/bin/h\\nnodejs: /usr/bin/h\\n"\n' >"$FAKEBIN/dpkg-query"
+  chmod +x "$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/bin/h
+  [ "$status" -eq 0 ]
+  [ "$output" = nodejs ]
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/bin/old\\ndiversion by acme to: /usr/bin/i\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/bin/i
+  [ "$status" -eq 1 ]
+  printf '#!/bin/sh\nprintf "local diversion from: /usr/bin/old\\nlocal diversion to: /usr/bin/j\\nnodejs: /usr/bin/j\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/bin/j
+  [ "$status" -eq 0 ]
+  [ "$output" = nodejs ]
+}
+
+@test "round 9: C14: Brotli metadata with no version is reported when there is no python3-brotli" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\tbookworm\t\nPKGRC\t1\nPY\t/usr/lib/python3/dist-packages/Brotli-1.2.0.dist-info/METADATA\tBrotli\t\nEND\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [[ $output == *"|C14|Brotli|"* ]]
+}
+
+@test "round 9: --deep: a library that is gone is not left to C01, even if dpkg still lists it" {
+  fake_readelf
+  dyn "$T/worker" "NEEDED=$T/gone/libbrotlidec.so.1"
+  bcc_links_brotlidec() { printf '%s\treadelf\n' "$T/gone/libbrotlidec.so.1"; }
+  bcc_covered_by_c01() { return 0; }
+  mkdir -p "$T/gone"
+  bcc_c09_linked_decoder "$T/worker"
+  run findings_brief
+  [[ $output == "UNKNOWN|C09|worker|$T/worker|"* ]]
+}
+
 # A readelf that pretends: "-d FILE" prints FILE.dyn (the dynamic section, written by dyn
 # below), "-l" prints nothing. For search paths a compiler will not produce (RPATH and RUNPATH
 # on one object).

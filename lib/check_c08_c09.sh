@@ -184,7 +184,7 @@ bcc_c09_linked_decoder() {
   lib=${BCC_F[0]}
   method=${BCC_F[1]}
   real=$(bcc_realpath "$lib") || real=""
-  [[ -n $real ]] && { bcc_covered_by_c01 "$real" || bcc_covered_by_c01 "$lib"; } && return 0
+  [[ -n $real && -f $real ]] && { bcc_covered_by_c01 "$real" || bcc_covered_by_c01 "$lib"; } && return 0
   bcc_report_linked_lib C09 "${f##*/}" "$f" "$lib" "$method"
 }
 

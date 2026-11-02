@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - unreleased
+## 0.1.0 - 2026-11-02
 
 First version.
 
@@ -59,12 +59,13 @@ First version.
 - Advisory data snapshot 2026-11-02 (docs/design.md 2.2): every primary source checked again. New
   rows for Ubuntu 20.04, 18.04 and 16.04 (USN-8956-2, Ubuntu Pro) and Firefox ESR 153 and 115; Envoy
   1.17 and earlier, which have no Brotli in their source, are UNKNOWN instead of VULNERABLE.
-- Round 7 of the review (docs/design.md 10.18): an old static archive next to a fixed conda library
-  and a brotlicffi next to `python3-brotli` in a container are no longer lost; a web server that
-  loads libbrotlidec is checked for its own copy too; own copies not read to the end are listed; a
-  real `libbrotlidec.so.1` in a Flatpak runtime is judged by strings; a NEEDED entry that is a path
-  is recognized; `NOT_APPLICABLE` needs a recorded checksum of the file, and no vendor text in the
-  upstream version; dpkg's answer counts only for the very path asked about (it reads paths as patterns); what is at a diverted path counts as unpackaged everywhere; very long version
+- Rounds 7 to 11 of the review (docs/design.md 10.18): an old static archive next to a fixed conda
+  library and a brotlicffi next to `python3-brotli` in a container are no longer lost; a web server
+  that loads libbrotlidec is checked for its own copy too; own copies not read to the end are
+  listed; a real `libbrotlidec.so.1` in a Flatpak runtime is judged by strings; a NEEDED entry that
+  is a path is recognized; `NOT_APPLICABLE` needs a recorded checksum of the file, and no vendor
+  text in the upstream version; dpkg's answer counts only for the very path asked about (it reads
+  paths as patterns); what is at a diverted path counts as unpackaged everywhere; very long version
   components no longer wrap; a directory in `PATH` may hold a newline.
 - `docs/limitations.md` no longer calls .NET a separate code base: it contains Google's decoder, and
   a default run says nothing about it. Three more cases were added.

@@ -330,17 +330,21 @@ bcc_find_status() {
 # asked about. PATH is its "from": it was moved away, so only the diverting package, when it is
 # among PATH's owners too. Otherwise (no diversion, or PATH is its "to"): the owners listed.
 bcc_dpkg_parse_owner() {
-  local text=$1 path=$2 line by="" from=0 owners="" p
+  local text=$1 path=$2 line rest by="" from=0 owners="" p
   while IFS= read -r line; do
     case $line in
-      'diversion by '*" from: $path")
-        from=1
-        by=${line#diversion by }
-        by=${by%% from: *}
+      'diversion by '*' from: '*)
+        # A package name has no spaces, so the first " from: " ends it.
+        rest=${line#diversion by }
+        if [[ ${rest#* from: } == "$path" ]]; then
+          from=1
+          by=${rest%% from: *}
+        fi
         ;;
       "local diversion from: $path") from=1 ;;
       'diversion by '* | 'local diversion '*) ;;
-      *": $path") owners=${line%": $path"} ;;
+      # The first ": " ends the owners; a file name may hold one too.
+      *) [[ ${line#*: } != "$path" ]] || owners=${line%%: *} ;;
     esac
   done <<<"$text"
   if ((!from)); then

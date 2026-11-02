@@ -1412,6 +1412,39 @@ d41d8cd98f00b204e9800998ecf8427e  x/${T#/}/pkg/nginx" fake_dpkg_c11 1.24.0-2ubun
   [ "$status" -eq 1 ]
 }
 
+@test "round 11: a file name holding \": \" is not read as owners, and an exact name still counts" {
+  local q='/opt/*/libbrotlidec.so.1.1.0' long='/opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+  cat >"$FAKEBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+echo 'diversion by redirector from: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+echo 'diversion by redirector to: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0.distrib'
+echo 'acme: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+EOF
+  chmod +x "$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner "$q"
+  [ "$status" -eq 1 ]
+  # The file really called that, diverted away: no owner. Not diverted: its owner, and only that.
+  run bcc_dpkg_owner "$long"
+  [ "$status" -eq 1 ]
+  cat >"$FAKEBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+echo 'acme: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+EOF
+  run bcc_dpkg_owner "$long"
+  [ "$status" -eq 0 ]
+  [ "$output" = acme ]
+  # A diversion whose "from" merely ends the same way is not this path's.
+  cat >"$FAKEBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+echo 'diversion by redirector from: /x from: /usr/bin/k'
+echo 'diversion by redirector to: /x.distrib'
+echo 'acme: /usr/bin/k'
+EOF
+  run bcc_dpkg_owner /usr/bin/k
+  [ "$status" -eq 0 ]
+  [ "$output" = acme ]
+}
+
 @test "round 9: C14: Brotli metadata with no version is reported when there is no python3-brotli" {
   cat >"$FAKEBIN/docker" <<'EOF'
 #!/bin/sh

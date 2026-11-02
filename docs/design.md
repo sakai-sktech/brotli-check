@@ -687,7 +687,10 @@ rejected alternative.
     ones were also seen on Ubuntu 24.04). Eleven were fixed, three are listed in
     `docs/limitations.md` and left for later issues, one was declined. The requester chose this split
     and that the gate before releasing is a review of this diff, not of the whole tool again. That
-    review (round 8) gave 5 more, two left over and three caused by the fixes; they are included here.
+    review (round 8) gave 5 more, two left over and three caused by the fixes, and rounds 9 to 11, each
+    of a smaller diff, gave 4, 1 and 1 (one of the 4 repeats 7 below); they are included here. The
+    requester closed the gate at round 11: its one-line fix has tests and mutation checks, and has not
+    been through another review.
     1. **What a check leaves to another must be what that check looked at.** C09 left every decoder
        file of a conda environment to C06, which compares only `lib/libbrotlidec.so.*`, so an old
        `libbrotlidec.a` next to a fixed library was in neither; it now leaves the files C06 compared.

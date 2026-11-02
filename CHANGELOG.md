@@ -51,3 +51,8 @@ First version.
   Node.js end-of-life lines and Envoy 1.35 and earlier stay VULNERABLE, and the reason now gives the
   ground in the text report. The data has a new column, `affected`, and `derived` is now
   `derived_eol` and `derived_bundled`, so a `--data` file in the old form is refused.
+- A web server without decoder markers is no longer `NOT_APPLICABLE` just for belonging to a
+  package (docs/design.md 10.17): only the distribution's nginx, Apache and HAProxy packages, whose
+  sources were read, with the file as installed. Other packages, files changed after installation
+  and packages that cannot be compared are `UNKNOWN` and say so. The reason of a Go program says
+  that only `cbrotli` is looked for.

@@ -45,7 +45,7 @@ instructions of 2026-10-26. All retrieved on 2026-10-26 (JST). Every row of
 Could not be retrieved: the CVE.org / NVD records (JavaScript only); packages.ubuntu.com
 (HTTP 500 — the Ubuntu python3-brotli and nodejs dependencies are therefore measured on the
 host instead); a primary source stating that HAProxy and Caddy contain no C decoder (see C11 in
-section 6).
+section 6; for HAProxy the Debian and Ubuntu source packages were read on 2026-11-02, 10.17).
 
 ### 2.1 Re-checked before release (2026-10-27)
 
@@ -207,7 +207,8 @@ mod_brotli (compression filter only) and Traefik (Go implementation, andybalholm
 and Caddy are to be confirmed in their upstream sources during implementation; if not confirmed,
 they are reported as information with their version, not as NOT_APPLICABLE. Distribution nginx and
 Apache are additionally measured with `ldd` to confirm they do not load libbrotlidec.
-(Implemented as a decision from the files themselves; 10.6.)
+(Implemented as a decision from the files themselves; 10.6. Which packages are NOT_APPLICABLE:
+10.17.)
 
 **C13 browsers** — Chromium threshold 148.0.7778.0 (2.15).
 
@@ -327,8 +328,9 @@ rejected alternative.
    `_ERROR_FORMAT_*` names (every verified build had 16 or 17, or none).
 6. **C11 decides from the files, not the product name**: does a binary or module carry decoder
    markers, or load libbrotlidec? (Measures the request's "compression only, therefore
-   NOT_APPLICABLE".) **Refined by 10.9.5**: no markers is NOT_APPLICABLE only for a packaged file
-   or a Go program without the cgo binding; a hand-built one is UNKNOWN.
+   NOT_APPLICABLE".) **Refined by 10.9.5 and 10.17**: no markers is NOT_APPLICABLE only for a
+   distribution package whose sources were read or a Go program without the cgo binding; any other
+   package and a hand-built one are UNKNOWN.
 7. **Control characters in the text report are shown as `?`**, and paths and package names inside
    suggested commands are quoted with `%q` (same review). JSON uses RFC 8259 escaping.
 8. **The single-file build concatenates `lib/*.sh` and the data** (`scripts/build-dist.sh`).
@@ -361,7 +363,8 @@ rejected alternative.
       libbrotlidec and C06 a PyPI Brotli, so a vendor's `.deb` (an agent with its own Python under
       `/opt/<vendor>/embedded`) was never judged. Such copies are now judged like unpackaged ones,
       and the advice names the package to update. `--deep` no longer skips `libbrotlidec*` by name.
-   5. **Absent markers are not proof.** C11 says NOT_APPLICABLE only where the build is known: a
+   5. **Absent markers are not proof.** (10.17 narrows "a file from a package" to the checked
+      ones.) C11 says NOT_APPLICABLE only where the build is known: a
       file from a package, or a Go program whose build info does not name the cgo binding
       (`github.com/google/brotli/go/cbrotli`); a hand-built server without markers is UNKNOWN.
       Rejected: UNKNOWN for every server (every nginx/Apache host would exit 2, and "needs review"
@@ -608,3 +611,51 @@ rejected alternative.
        row's source was checked on that date, and moving it for a few rows would overstate that.
        What was read on 2026-11-01 is dated in the PyPI notes; the re-check of all rows before the
        release moves the snapshot.
+17. **Only packages whose build was checked are NOT_APPLICABLE (2026-11-02, issue #3).** 10.9.5 gave
+    "the build of a package is public" as the reason, but the code took any dpkg owner, so an
+    in-house `.deb` read "whose build does not decode Brotli". It keeps the decision of 10.9.5 not
+    to make every server UNKNOWN, and narrows "a package".
+    1. **What was checked.** For Debian 12, 13 and Ubuntu 22.04, 24.04, 26.04, the source packages
+       `nginx`, `libnginx-mod-http-brotli` (not in 22.04), `apache2` and `haproxy` were fetched with
+       `apt-get source` and searched for `BrotliDecoder`, `brotli/decode.h` and `_ERROR_FORMAT_`:
+       no hit in any of them, `debian/` and nginx's bundled modules included. `mod_brotli.c` and
+       ngx_brotli include only `brotli/encode.h`. HAProxy's sources do not contain the word
+       "brotli" at all, which is the primary source section 2 could not find, so HAProxy joins the
+       list. The binary packages of those sources are listed in `BCC_C11_CHECKED_PACKAGES`. A later
+       release of the same package is taken on trust until it is added to this check.
+    2. **How the distribution's package is told: name, `Maintainer` and the form of `Version`,
+       from dpkg's own record.** All three, because each alone lets a real case through: the name
+       (nginx.org's package is also `nginx`: `1.26.0-1~noble`, NGINX Packaging), the maintainer
+       (the `apache2-bin` of Ondřej Surý's PPA keeps Debian's Apache Maintainers:
+       `2.4.69-1+ubuntu24.04.1+deb.sury.org+1`; its nginx PPA could not be fetched), the version
+       form (anyone can write `-1`). The accepted forms are those measured on the five releases,
+       plus `~bpo12+1` and `+esm1`, which follow the distributions' conventions but were not seen on
+       these packages. Rejected: `apt-cache policy`. An installed version the archive no longer has
+       shows only `/var/lib/dpkg/status` (tried with `1.26.3-3+deb13u8` on Debian 13, between the
+       release's and the current one), as does a host without lists (the images here remove them),
+       and that host would exit 2 for being behind or tidy. Apt also says what a repository offers,
+       not where the file came from: a rebuild with the same version looks the same there too.
+       Accepted cost: a rebuild that keeps all three looks like the
+       distribution's, and the reason says so. This is not a security boundary, as whoever can
+       install a package can also write dpkg's records; it keeps honest in-house and third-party
+       builds from being taken for the distribution's.
+    3. **The file must be the one the package installed** (`dpkg --verify`, which compares with the
+       recorded MD5 and works without root). `make install` over `/usr/sbin/nginx` leaves dpkg's
+       owner in place, and the issue's premise is the build of that package. Its exit status is 0
+       with differences too, so the output is read, and only the line for this file counts: images
+       remove documentation, and other packages' files say nothing about this one. A failed
+       comparison is UNKNOWN with its own reason. The cost is one read of the package's files per
+       server file, in the branch reached only when nothing else decided.
+    4. **A diverted path is not the package's.** `dpkg-query -S` then begins with `diversion by X
+       from`, which `bcc_dpkg_owner` returns as it is. `dpkg --verify` compares the diverted original,
+       not this file, so skipping those lines would have found the package and an empty comparison.
+       The words are not on the list, so it is UNKNOWN, and they appear in the reason.
+    5. **Go comes before "any other package".** Debian's `caddy` is a package with no source check
+       here, but it is a Go program without `cbrotli`, and that is the better statement about it.
+       The reason now says only `cbrotli` is looked for. Other cgo bindings were not tried.
+    6. **The reason of an unchecked package gives its version and maintainer**, since those decided
+       it and a reader with nginx.org's `nginx` would otherwise see "the build was not checked"
+       next to a familiar name.
+    Accepted: a host with a third-party nginx, or with a Debian `nginx` rebuilt under another
+    version, now exits 2 (the point of the issue). The integration tests install the three servers
+    in every image and expect exit status 0 once the copies placed on purpose are removed.

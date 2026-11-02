@@ -17,7 +17,14 @@ Every image also contains:
 - official Node.js 22.23.3 (expected `VULNERABLE`) and 22.23.4 (`FIXED`) in `/opt`,
   downloaded at build time and verified against the release's `SHASUMS256.txt`;
 - PyPI Brotli 1.2.0 with urllib3 in `/srv/venv-old` (`VULNERABLE`, plus `EXPOSURE` because
-  urllib3 decodes Brotli responses automatically) and 1.2.1 in `/srv/venv-new` (`FIXED`).
+  urllib3 decodes Brotli responses automatically) and 1.2.1 in `/srv/venv-new` (`FIXED`);
+- the distribution's nginx, Apache and HAProxy, and the ngx_brotli modules where the archive has
+  them, all expected `NOT_APPLICABLE` in C11 (docs/design.md 10.17).
+
+Two more runs of each image, after removing those Node.js and Python copies inside the throw-away
+container: with only the distribution's servers the exit status must be `0`; with an in-house
+`.deb` installed (`/usr/local/sbin/nginx`) and `/usr/sbin/haproxy` overwritten, both must be `UNKNOWN`
+through the real `dpkg` and the exit status `2`.
 
 A last step runs the single-file build under `bash:4.2` (the oldest supported version) with
 GNU tools added, places a PyPI Brotli 1.2.0 record, and expects exit status 1 with that

@@ -37,7 +37,7 @@ UTF-8 の JSON オブジェクトを 1 行で出します。フィールドは�
 | `VENDORED_COPY` | デコーダーを同梱している。版を人が確認する必要がある |
 | `LIKELY_FIXED`, `LIKELY_VULNERABLE` | 検証済みの文字列による推定。`confidence` を参照 |
 | `EXPOSURE` | 攻撃者のデータがデコーダーに届く経路の手がかり（脆弱性そのものではない） |
-| `NOT_APPLICABLE` | そのファイルにはデコーダーがない（圧縮専用、または Brotli なし） |
+| `NOT_APPLICABLE` | そのファイルにデコーダーの形跡が無く、ソースを確かめた配布元のパッケージ、`cbrotli` の無い Go のプログラム、`curl -V` が brotli を挙げないこと、のどれかが裏づける。無いことの証明ではなく、何を根拠にしたかは `reason` に書く |
 | `UNKNOWN` | 判定できない。理由は `reason` |
 | `SKIPPED` | 予約。走査しなかった範囲は `skipped` に出す |
 

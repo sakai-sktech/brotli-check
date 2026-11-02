@@ -83,7 +83,7 @@ bcc_check_c14() {
 }
 
 bcc_c14_inspect() {
-  local engine=$1 id=$2 name=$3 image=$4 out line series="" where ended=0 deb_py=0
+  local engine=$1 id=$2 name=$3 image=$4 out line series="" where ended=0 deb_py_ver=""
   if ! out=$(timeout -k 2 "$BCC_TIMEOUT" "$engine" exec "$id" sh -c "$BCC_C14_PROBE" </dev/null 2>/dev/null); then
     bcc_skip "container $name" "$(bcc_msg skip_c14_exec_failed)"
     return
@@ -107,7 +107,12 @@ bcc_c14_inspect() {
       PKG)
         [[ ${BCC_F[1]:-} == [ih]i* && -n $series ]] || continue
         local pkg=${BCC_F[2]%%:*} ver=${BCC_F[3]} src=${BCC_F[4]:-brotli} srcver=${BCC_F[5]:-${BCC_F[3]}}
-        [[ $pkg == python3-brotli ]] && deb_py=1
+        if [[ $pkg == python3-brotli ]]; then
+          # The upstream part of the package's version, as its own metadata states it.
+          deb_py_ver=${ver#*:}
+          deb_py_ver=${deb_py_ver%%-*}
+          deb_py_ver=${deb_py_ver%%[+~]*}
+        fi
         bcc_judge "deb-src:$src" "$series" deb "$srcver"
         bcc_add_finding C14 "$BCC_J_STATUS" "$pkg" "$where" "$ver" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
         ;;
@@ -127,8 +132,9 @@ bcc_c14_inspect() {
         lname=$(tr '[:upper:]' '[:lower:]' <<<"$pname")
         [[ $lname == brotli || $lname == brotlicffi ]] || continue
         # The distribution's python3-brotli (judged from its PKG line) puts Brotli's metadata
-        # here; anything else here (brotlicffi, pip --target) is judged by its own version.
-        [[ $lname == brotli && $meta == /usr/lib/python3/dist-packages/* ]] && ((deb_py)) && continue
+        # here, at its own version; anything else here (brotlicffi, another Brotli by pip
+        # --target) is judged by its own version.
+        [[ $lname == brotli && $pver == "$deb_py_ver" && $meta == /usr/lib/python3/dist-packages/* ]] && continue
         bcc_judge "pypi:$lname" '*' pep440 "$pver"
         # The probe reads the metadata only, so "fixed" stays unconfirmed (see bcc_crosscheck_fixed).
         local pnext

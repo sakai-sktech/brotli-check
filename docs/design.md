@@ -686,12 +686,13 @@ rejected alternative.
     15 P1 findings against the whole tool; each behaviour holds in the code (the checksum and diversion
     ones were also seen on Ubuntu 24.04). Eleven were fixed, three are listed in
     `docs/limitations.md` and left for later issues, one was declined. The requester chose this split
-    and that the gate before releasing is a review of this diff, not of the whole tool again.
+    and that the gate before releasing is a review of this diff, not of the whole tool again. That
+    review (round 8) gave 5 more, two left over and three caused by the fixes; they are included here.
     1. **What a check leaves to another must be what that check looked at.** C09 left every decoder
        file of a conda environment to C06, which compares only `lib/libbrotlidec.so.*`, so an old
        `libbrotlidec.a` next to a fixed library was in neither; it now leaves the files C06 compared.
        C14 treated `python3-brotli` as speaking for everything in `dist-packages`, including a
-       brotlicffi; now only for Brotli's metadata. Accepted: a Debian `python3-brotlicffi`, which uses
+       brotlicffi; now only for Brotli's metadata at the package's own upstream version. Accepted: a Debian `python3-brotlicffi`, which uses
        the system library, is judged by its upstream version in a container, as it already was
        without `python3-brotli`.
     2. **A diversion is decided in `bcc_dpkg_owner`, and there is no owner.** 10.17.4 let the words
@@ -699,21 +700,26 @@ rejected alternative.
        callers: C04 called the replacement a distribution package, C06 advised updating a package with
        that name, C13 left the browser out of the list of programs to run, and C09 split the words, so
        a diversion by a package named `brotli` counted as covered by C01. What is at a diverted path
-       now counts as unpackaged everywhere. Rejected: an extra reason saying "diverted" in C11, as
-       the next step is the same. Accepted: C11's reason says a build of its own, where the file could
-       belong to the diverting package.
+       now counts as unpackaged everywhere, unless the diverting package itself is also listed for the
+       path: its own file is exempt from its diversion. Rejected: an extra reason saying "diverted" in
+       C11, as the next step is the same. Since a package may no longer own a Node.js here, C04 now
+       looks at what the program loads first, whoever installed it; such a program is not listed to run.
     3. **Silence is an answer only from what was asked.** `dpkg --verify` says nothing about a file
        with no recorded checksum, so with `md5sums` gone a replaced `/usr/sbin/nginx` was
        `NOT_APPLICABLE` and "as installed". The file must now be in `dpkg-query --control-show PKG
-       md5sums`, or it was not compared. A dpkg without `--control-show` gives UNKNOWN.
+       md5sums`; otherwise it is UNKNOWN, with its own reason, also with a dpkg without that option.
+       A file recorded as `sbin/x` and found as `/usr/sbin/x` counts as not recorded; the reason is
+       then still true, and the servers checked here are recorded under `usr/`.
     4. **A checked version form keeps only forms that were seen.** The upstream part of
        `BCC_C11_DISTRO_VERSION` took any letters, so `1.26.3~acme1-1` passed. It now takes digits and
        dots with `~rc`, `~alpha`, `~beta`, `~pre` or `~dev`, and `+dfsg` or `+ds` as before.
     5. **Own copies.** C11 now looks for one next to a linked libbrotlidec, as C04 and C08 do, and
        one not read to its end is listed as not scanned instead of being dropped when too few names
-       were read. A real file named `libbrotlidec.so.1` in a Flatpak runtime is judged by its strings
-       instead of returning silently. A NEEDED entry may be a path (a library linked without a
-       SONAME), and is recognized by its last component.
+       were read. A Flatpak runtime is searched for the index's names, without debug symbols, and a
+       real file without a full version in its name is judged by its strings. A NEEDED entry may be a
+       path (a library linked without a SONAME), and is recognized by its last component. With
+       `--deep`, a program's library that C01 did not judge is reported through the program: its file
+       need not be under the roots, nor look like a library.
     6. **Numbers and paths.** `bcc_numcmp` compares components as digits, since arithmetic wrapped a
        very long one, which let a reversed range through the loader and could turn a version read from a
        file into something else. The caller's PATH is split without `read` and passed NUL-separated,

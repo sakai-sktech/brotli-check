@@ -95,8 +95,8 @@ bcc_c11_package_status() {
     [[ $'\n'$out$'\n' != *" $f"$'\n'* ]] || return 2
     # dpkg --verify is silent about a file it has no checksum for, so its silence counts only
     # when the package does record one for this file.
-    sums=$(bcc_sys dpkg-query --control-show "$pkg" md5sums) || return 3
-    [[ $'\n'$sums$'\n' == *"  ${f#/}"$'\n'* ]] || return 3
+    sums=$(bcc_sys dpkg-query --control-show "$pkg" md5sums) || return 4
+    [[ $'\n'$sums$'\n' == *"  ${f#/}"$'\n'* ]] || return 4
   done <<<"${owner//, /$'\n'}"
   return 0
 }
@@ -145,6 +145,7 @@ bcc_c11_file() {
           next=$(bcc_msg n_c11_custom)
           ;;
         3) reason=$(bcc_msg r_c11_pkg_not_compared "$owner") ;;
+        4) reason=$(bcc_msg r_c11_pkg_no_sum "$owner") ;;
         *) reason=$(bcc_msg r_c11_pkg_unchecked "$owner") ;;
       esac
       bcc_add_finding C11 UNKNOWN "$prod" "$f" "" "$reason" "$next" "" ""
@@ -249,8 +250,14 @@ bcc_check_c12() {
     local f
     while IFS= read -r -d '' f; do
       bcc_c12_runtime_lib "$f"
-    done < <(find -P /var/lib/flatpak/runtime -maxdepth 8 -type f -name 'libbrotlidec.so.*' -print0 2>/dev/null)
+    done < <(bcc_c12_runtime_libs /var/lib/flatpak/runtime)
   fi
+}
+
+# The same names as the index (a real libbrotlidec.so is a copy too), but not the debug symbols
+# of a .Debug runtime, which hold no decoder.
+bcc_c12_runtime_libs() {
+  find -P "$1" -maxdepth 8 -type f \( -name 'libbrotlidec*.so*' -o -name 'libbrotlidec*.a' \) ! -name '*.debug' -print0 2>/dev/null
 }
 
 bcc_c12_runtime_lib() {

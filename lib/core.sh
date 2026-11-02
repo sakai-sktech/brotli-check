@@ -324,6 +324,24 @@ bcc_find_status() {
 # Is PATH owned by a Debian package? Prints the package name(s).
 # dpkg never installs into home directories, so those are not asked (dpkg-query -S
 # reads every file list and takes about a second per call). Results are cached.
+# bcc_dpkg_diverted_owner TEXT: from dpkg-query -S on a diverted path, the diverting package when
+# it is among the path's owners too; otherwise nothing.
+bcc_dpkg_diverted_owner() {
+  local text=$1 by owners p
+  [[ $text == 'diversion by '* ]] || return 0
+  by=${text#diversion by }
+  by=${by%% from:*}
+  owners=${text##*$'\n'}
+  [[ $owners != 'diversion by '* ]] || return 0
+  owners=${owners%%: *}
+  for p in ${owners//,/ }; do
+    if [[ ${p%%:*} == "$by" ]]; then
+      printf '%s\n' "$p"
+      return 0
+    fi
+  done
+}
+
 bcc_dpkg_owner() {
   local path=$1 out h
   bcc_have dpkg-query || return 1
@@ -336,11 +354,12 @@ bcc_dpkg_owner() {
   else
     out=$(bcc_sys dpkg-query -S "$path") || out=""
     # A diverted path: what is there now is not what the package listed for it installed, and
-    # the words of "diversion by X from" are not package names.
+    # the words of "diversion by X from" are not package names. Only X's own file at that path
+    # is not diverted, so it is X's.
     case $out in
-      'diversion by '* | 'local diversion '*) out="" ;;
+      'diversion by '* | 'local diversion '*) out=$(bcc_dpkg_diverted_owner "$out") ;;
+      *) out=${out%%: *} ;;
     esac
-    out=${out%%: *}
     BCC_DPKG_CACHE[$path]=$out
   fi
   [[ -n $out ]] || return 1

@@ -170,6 +170,24 @@ bcc_c09_collect() {
   fi
 }
 
+# --deep: the library a program loads, when it is not one C01 judged. Its file need not be under
+# the roots, nor look like a library there (libbrotlidec.so.1 -> decoder.bin). A program that
+# loads the OS's library says nothing new, and there can be many of them, so nothing is added.
+bcc_c09_linked_decoder() {
+  local f=$1 link rc=0 lib method real
+  link=$(bcc_links_brotlidec "$f") || rc=$?
+  if ((rc != 0)); then
+    bcc_add_finding C09 UNKNOWN "${f##*/}" "$f" "" "$(bcc_msg r_link_undetermined)" "$(bcc_msg n_install_binutils)" "" ""
+    return 0
+  fi
+  bcc_split_tab "$link"
+  lib=${BCC_F[0]}
+  method=${BCC_F[1]}
+  real=$(bcc_realpath "$lib") || real=""
+  [[ -n $real ]] && { bcc_covered_by_c01 "$real" || bcc_covered_by_c01 "$lib"; } && return 0
+  bcc_report_linked_lib C09 "${f##*/}" "$f" "$lib" "$method"
+}
+
 # --deep: any ELF under --roots that carries the decoder but does not load libbrotlidec.
 bcc_check_c09_deep() {
   BCC_C09_FILES=()
@@ -202,6 +220,7 @@ bcc_check_c09_deep() {
     needed=$(bcc_elf_needed "$f" 2>/dev/null || true)
     if bcc_needed_has_brotlidec "$needed"; then
       BCC_JUDGED[$f]=1
+      bcc_c09_linked_decoder "$f"
       bcc_report_own_copy C09 "${f##*/}" "$f"
       continue
     fi

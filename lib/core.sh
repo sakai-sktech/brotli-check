@@ -324,12 +324,12 @@ bcc_find_status() {
 # Is PATH owned by a Debian package? Prints the package name(s).
 # dpkg never installs into home directories, so those are not asked (dpkg-query -S
 # reads every file list and takes about a second per call). Results are cached.
-# bcc_dpkg_diverted_owner TEXT PATH: from dpkg-query -S PATH with diversion records, who owns what
-# is at PATH. Both records of a diversion come back whichever path was asked about. PATH is its
-# "from": it was moved away, so only the diverting package, when it is among PATH's owners too.
-# Otherwise PATH is its "to" (where something was moved to): the owners listed. No owner line:
-# nothing.
-bcc_dpkg_diverted_owner() {
+# bcc_dpkg_parse_owner TEXT PATH: from dpkg-query -S PATH, who owns what is at PATH. dpkg reads PATH
+# as a pattern and prints the recorded names, so only a line naming PATH itself counts: a file
+# named "[l]dd" is not the package's ldd. Both records of a diversion come back whichever path was
+# asked about. PATH is its "from": it was moved away, so only the diverting package, when it is
+# among PATH's owners too. Otherwise (no diversion, or PATH is its "to"): the owners listed.
+bcc_dpkg_parse_owner() {
   local text=$1 path=$2 line by="" from=0 owners="" p
   while IFS= read -r line; do
     case $line in
@@ -340,7 +340,7 @@ bcc_dpkg_diverted_owner() {
         ;;
       "local diversion from: $path") from=1 ;;
       'diversion by '* | 'local diversion '*) ;;
-      *) owners=${line%%: *} ;;
+      *": $path") owners=${line%": $path"} ;;
     esac
   done <<<"$text"
   if ((!from)); then
@@ -366,13 +366,7 @@ bcc_dpkg_owner() {
     out=${BCC_DPKG_CACHE[$path]}
   else
     out=$(bcc_sys dpkg-query -S "$path") || out=""
-    # A diverted path: what is there now is not what the package listed for it installed, and
-    # the words of "diversion by X from" are not package names. Only X's own file at that path
-    # is not diverted, so it is X's.
-    case $out in
-      'diversion by '* | 'local diversion '*) out=$(bcc_dpkg_diverted_owner "$out" "$path") ;;
-      *) out=${out%%: *} ;;
-    esac
+    out=$(bcc_dpkg_parse_owner "$out" "$path")
     BCC_DPKG_CACHE[$path]=$out
   fi
   [[ -n $out ]] || return 1

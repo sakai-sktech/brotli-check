@@ -695,7 +695,11 @@ rejected alternative.
        brotlicffi; now only for Brotli's metadata at the package's own upstream version. Accepted: a Debian `python3-brotlicffi`, which uses
        the system library, is judged by its upstream version in a container, as it already was
        without `python3-brotli`.
-    2. **A diversion is decided in `bcc_dpkg_owner`, and there is no owner.** 10.17.4 let the words
+    2. **What dpkg says about a path is read for that path.** `dpkg-query -S` takes a pattern and prints
+       the recorded names, so an unowned file named `/usr/bin/[l]dd` was taken for `libc-bin`'s `ldd`
+       (seen on the five releases; older than this work). Only a line naming the path itself now counts;
+       a literal name comes back as asked on all five, with no `/lib` and `/usr/lib` aliasing.
+       **A diversion is decided in `bcc_dpkg_owner`, and there is no owner.** 10.17.4 let the words
        `diversion by X from` through for C11, where they did no harm, but the function has five other
        callers: C04 called the replacement a distribution package, C06 advised updating a package with
        that name, C13 left the browser out of the list of programs to run, and C09 split the words, so

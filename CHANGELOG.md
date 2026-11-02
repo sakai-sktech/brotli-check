@@ -64,7 +64,7 @@ First version.
   loads libbrotlidec is checked for its own copy too; own copies not read to the end are listed; a
   real `libbrotlidec.so.1` in a Flatpak runtime is judged by strings; a NEEDED entry that is a path
   is recognized; `NOT_APPLICABLE` needs a recorded checksum of the file, and no vendor text in the
-  upstream version; what is at a diverted path counts as unpackaged everywhere; very long version
+  upstream version; dpkg's answer counts only for the very path asked about (it reads paths as patterns); what is at a diverted path counts as unpackaged everywhere; very long version
   components no longer wrap; a directory in `PATH` may hold a newline.
 - `docs/limitations.md` no longer calls .NET a separate code base: it contains Google's decoder, and
   a default run says nothing about it. Three more cases were added.

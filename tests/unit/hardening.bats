@@ -1391,6 +1391,27 @@ d41d8cd98f00b204e9800998ecf8427e  x/${T#/}/pkg/nginx" fake_dpkg_c11 1.24.0-2ubun
   [ "$output" = nodejs ]
 }
 
+@test "round 10: a file whose name dpkg reads as a pattern is not the package of what it matches" {
+  # dpkg-query -S "/usr/bin/[l]dd" answers "libc-bin: /usr/bin/ldd" (seen on the 5 releases).
+  printf '#!/bin/sh\nprintf "libc-bin: /usr/bin/ldd\\n"\n' >"$FAKEBIN/dpkg-query"
+  chmod +x "$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner "/usr/bin/[l]dd"
+  [ "$status" -eq 1 ]
+  run bcc_dpkg_owner /usr/bin/ldd
+  [ "$status" -eq 0 ]
+  [ "$output" = libc-bin ]
+  # A file called exactly so is that package's, its brackets taken literally.
+  printf '#!/bin/sh\nprintf "acme: /usr/bin/[l]dd\\n"\n' >"$FAKEBIN/dpkg-query"
+  BCC_DPKG_CACHE=()
+  run bcc_dpkg_owner "/usr/bin/[l]dd"
+  [ "$status" -eq 0 ]
+  [ "$output" = acme ]
+  # With a diversion of what it matches: no owner either.
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/lib/l.so.1.1.0\\ndiversion by acme to: /usr/lib/l.so.1.1.0.distrib\\nlibbrotli1:amd64: /usr/lib/l.so.1.1.0\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner "/usr/lib/l.so.1.[1].0"
+  [ "$status" -eq 1 ]
+}
+
 @test "round 9: C14: Brotli metadata with no version is reported when there is no python3-brotli" {
   cat >"$FAKEBIN/docker" <<'EOF'
 #!/bin/sh

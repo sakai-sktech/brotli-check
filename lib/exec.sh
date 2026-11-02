@@ -272,11 +272,12 @@ bcc_build_exec_plan() {
   bcc_c04_candidates
   for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
     bcc_dpkg_owner "$bin" >/dev/null || true # (fills BCC_DPKG_CACHE)
-    if [[ -n ${BCC_DPKG_CACHE[$bin]:-} ]]; then
-      bcc_link_prefetch "$bin"
-      rc=${BCC_LINK_RC[$bin]}
-      ((rc == 1)) || continue
-    fi
+    bcc_link_prefetch "$bin"
+    rc=${BCC_LINK_RC[$bin]}
+    # Judged by the library it loads, so its version is not needed; a package's Node.js is
+    # asked only when the links were read and show none.
+    ((rc == 0)) && continue
+    [[ -z ${BCC_DPKG_CACHE[$bin]:-} ]] || ((rc == 1)) || continue
     bcc_plan_add "$bin" --version "C04 node"
   done
   bcc_c05_candidates

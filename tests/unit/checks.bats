@@ -819,4 +819,12 @@ EOF
   [ "$BCC_J_STATUS" = FIXED ]
   bcc_browser_judge firefox "140.9.0esr"
   [ "$BCC_J_STATUS" = VULNERABLE ]
+  bcc_browser_judge firefox "153.0esr"
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_browser_judge firefox "153.6.0esr"
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_browser_judge firefox "115.35.0esr"
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_browser_judge firefox "115.34.0esr"
+  [ "$BCC_J_STATUS" = VULNERABLE ]
 }

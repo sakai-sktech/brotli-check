@@ -258,6 +258,12 @@ bcc_dep_walk_prefetch() {
 # readelf failure, a library not found, the depth limit) is 2, never 1: "not linked" leads
 # to NOT_APPLICABLE. The file is only read: ldd, which hands the file to the loader, is not
 # used.
+# bcc_needed_has_brotlidec TEXT: does this list of NEEDED entries (one per line) name
+# libbrotlidec? An entry may be a path (a library linked without a SONAME).
+bcc_needed_has_brotlidec() {
+  grep -Eq '(^|/)libbrotlidec[^/]*$' <<<"$1"
+}
+
 bcc_links_brotlidec_uncached() {
   local file=$1 rc s c i lib="" open=0
   bcc_dep_walk_prefetch "$file"
@@ -267,7 +273,8 @@ bcc_links_brotlidec_uncached() {
   for ((i = s; i < s + c; i++)); do
     case ${BCC_WALK_K[i]} in
       N)
-        if [[ -z $lib && ${BCC_WALK_A[i]} == libbrotlidec* ]]; then
+        # A NEEDED entry may be a path (a library linked without a SONAME).
+        if [[ -z $lib && ${BCC_WALK_A[i]##*/} == libbrotlidec* ]]; then
           lib=${BCC_WALK_B[i]:-"${BCC_WALK_A[i]} (not found)"}
         fi
         ;;

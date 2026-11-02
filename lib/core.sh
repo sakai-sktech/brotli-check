@@ -324,6 +324,41 @@ bcc_find_status() {
 # Is PATH owned by a Debian package? Prints the package name(s).
 # dpkg never installs into home directories, so those are not asked (dpkg-query -S
 # reads every file list and takes about a second per call). Results are cached.
+# bcc_dpkg_parse_owner TEXT PATH: from dpkg-query -S PATH, who owns what is at PATH. dpkg reads PATH
+# as a pattern and prints the recorded names, so only a line naming PATH itself counts: a file
+# named "[l]dd" is not the package's ldd. Both records of a diversion come back whichever path was
+# asked about. PATH is its "from": it was moved away, so only the diverting package, when it is
+# among PATH's owners too. Otherwise (no diversion, or PATH is its "to"): the owners listed.
+bcc_dpkg_parse_owner() {
+  local text=$1 path=$2 line rest by="" from=0 owners="" p
+  while IFS= read -r line; do
+    case $line in
+      'diversion by '*' from: '*)
+        # A package name has no spaces, so the first " from: " ends it.
+        rest=${line#diversion by }
+        if [[ ${rest#* from: } == "$path" ]]; then
+          from=1
+          by=${rest%% from: *}
+        fi
+        ;;
+      "local diversion from: $path") from=1 ;;
+      'diversion by '* | 'local diversion '*) ;;
+      # The first ": " ends the owners; a file name may hold one too.
+      *) [[ ${line#*: } != "$path" ]] || owners=${line%%: *} ;;
+    esac
+  done <<<"$text"
+  if ((!from)); then
+    [[ -z $owners ]] || printf '%s\n' "$owners"
+    return 0
+  fi
+  for p in ${owners//,/ }; do
+    if [[ ${p%%:*} == "$by" ]]; then
+      printf '%s\n' "$p"
+      return 0
+    fi
+  done
+}
+
 bcc_dpkg_owner() {
   local path=$1 out h
   bcc_have dpkg-query || return 1
@@ -335,7 +370,7 @@ bcc_dpkg_owner() {
     out=${BCC_DPKG_CACHE[$path]}
   else
     out=$(bcc_sys dpkg-query -S "$path") || out=""
-    out=${out%%: *}
+    out=$(bcc_dpkg_parse_owner "$out" "$path")
     BCC_DPKG_CACHE[$path]=$out
   fi
   [[ -n $out ]] || return 1
@@ -348,12 +383,14 @@ bcc_realpath() {
 
 # Print each directory of the scanning user's PATH that exists (where to look, not what runs).
 bcc_path_dirs() {
-  local d
-  local -a dirs=()
-  IFS=: read -r -a dirs <<<"${BCC_USER_PATH:-${PATH:-/usr/bin:/bin}}"
-  for d in "${dirs[@]}"; do
-    [[ -n $d && -d $d ]] && printf '%s\n' "$d"
+  # Split without read, and give them NUL-separated: a directory name can hold a newline.
+  local d rest=${BCC_USER_PATH:-${PATH:-/usr/bin:/bin}}:
+  while [[ -n $rest ]]; do
+    d=${rest%%:*}
+    rest=${rest#*:}
+    [[ -n $d && -d $d ]] && printf '%s\0' "$d"
   done
+  return 0
 }
 
 # Candidate executables named NAME (or another of NAME|ALIAS): in each directory of the
@@ -369,7 +406,7 @@ bcc_candidates() {
   local -A seen=()
   local -a names_a=() list=()
   IFS='|' read -r -a names_a <<<"$names"
-  while IFS= read -r d; do
+  while IFS= read -r -d '' d; do
     for n in "${names_a[@]}"; do list+=("$d/$n"); done
   done < <(bcc_path_dirs)
   while IFS= read -r -d '' rec; do

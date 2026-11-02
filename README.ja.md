@@ -40,7 +40,7 @@ English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/fo
   走査しなかった範囲が一緒に出ます
 
 このツール自身は、ソフトのインストール・更新・停止・設定の変更をしません。書き出すのは標準出力と、`--output`
-で指定した新しいファイルだけです。攻撃データを作らず、取得せず、同梱もしません。ただし、版を読むために実行を
+で指定した新しいファイルだけです（隣に一時ファイルを作ってから消します）。攻撃データを作らず、取得せず、同梱もしません。ただし、版を読むために実行を
 許したプログラムは、あなたの権限で動きます（「[版を読むための実行](#版を読むための実行)」）。
 
 ## 対象と対応環境
@@ -284,9 +284,10 @@ docker・podman）は動きます。
 
 既知の版はすべて [data/advisories.tsv](data/advisories.tsv) にあり、各行に一次資料の URL と取得日が
 付いています。結果には既知データの日付が出て、30 日以上古ければ警告します。30 日未満でも最新とは限りません。
-新しいデータは `--data FILE` で差し替えられます。スナップショット: **2026-10-27**（この日にすべての行の一次資料を
-確かめ直した）。Ubuntu は 2026-10-26 に 22.04・24.04・26.04・26.10 を修正しました
-（[USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)）。Debian は 12・13 と unstable が修正済みで、
+新しいデータは `--data FILE` で差し替えられます。スナップショット: **2026-11-02**（この日にすべての行の一次資料を
+確かめ直した）。Ubuntu は 2026-10-26 に 22.04・24.04・26.04・26.10 を修正し
+（[USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)）、2026-10-27 に Ubuntu Pro で 20.04・18.04・16.04 を
+修正しました（[USN-8956-2](https://ubuntu.com/security/notices/USN-8956-2)）。Debian は 12・13 と unstable が修正済みで、
 testing（forky）は修正の移行を待っていました。
 
 注意: Red Hat の RHSA-2026:2042／2227／2389 は別件（CVE-2025-6176）です。`pip`・`certifi` の更新は
@@ -301,6 +302,9 @@ testing（forky）は修正の移行を待っていました。
 - `EXPOSURE` の理由の文が、パッケージがあるだけで「展開する構成」と言い切る（[#7](https://github.com/sakai-sktech/brotli-check/issues/7)）
 - テキストの結果に `FIXED` の根拠の種類が出ない（[#9](https://github.com/sakai-sktech/brotli-check/issues/9)）
 - dpkg-query の失敗などで点検の一部ができなくても、終了コードが `0` になる（[#10](https://github.com/sakai-sktech/brotli-check/issues/10)）
+- 既定の実行では、.NET のランタイムの中のデコーダーについて何も出ない（[#17](https://github.com/sakai-sktech/brotli-check/issues/17)）。`--deep --roots /usr/lib/dotnet` で一覧に出る
+- 1 つのプログラムが読む `libbrotlidec*` のうち判定するのは最初の 1 つだけで、`glibc-hwcaps` のディレクトリは名前の順に試す（[#18](https://github.com/sakai-sktech/brotli-check/issues/18)）
+- 別の名前のプログラムへのリンクである `node` が、何も言わずに落ちる（[#19](https://github.com/sakai-sktech/brotli-check/issues/19)）
 
 一覧: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 

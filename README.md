@@ -44,7 +44,8 @@ next step: it inventories one host.
   in the scanned ranges", always with the ranges that were not scanned.
 
 The tool itself installs, updates, stops and reconfigures nothing. It writes only to standard
-output and to a new file named with `--output`. It does not generate, download or contain attack
+output and to a new file named with `--output` (through a temporary file beside it, which it then
+removes). It does not generate, download or contain attack
 data. A program you allow it to run to read its version, however, runs with your rights (see
 "[Running programs to read versions](#running-programs-to-read-versions)").
 
@@ -310,10 +311,11 @@ the advisory data is a snapshot.
 All known versions live in [data/advisories.tsv](data/advisories.tsv), with the primary
 source URL and the retrieval date on every row. The report shows the data's snapshot date and
 warns when it is 30 days old or more; less than 30 days old is not necessarily up to date.
-Newer data can be passed with `--data FILE`. Snapshot: **2026-10-27**: every row's primary source
+Newer data can be passed with `--data FILE`. Snapshot: **2026-11-02**: every row's primary source
 was checked again on that date. Ubuntu fixed 22.04, 24.04, 26.04 and 26.10 on 2026-10-26
-([USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)); Debian 12, 13 and unstable are
-fixed, and testing (forky) was still waiting for the fix to migrate.
+([USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)) and, with Ubuntu Pro, 20.04, 18.04
+and 16.04 on 2026-10-27 ([USN-8956-2](https://ubuntu.com/security/notices/USN-8956-2)); Debian 12,
+13 and unstable are fixed, and testing (forky) was still waiting for the fix to migrate.
 
 Note: Red Hat advisories RHSA-2026:2042 / 2227 / 2389 are about a different issue
 (CVE-2025-6176). Updating `pip` or `certifi` is unrelated to this CVE (CPython itself does
@@ -328,6 +330,9 @@ Problems known in the current version. Each is removed from this list once fixed
 - `EXPOSURE` reasons say "decodes ... automatically" when a package is merely installed ([#7](https://github.com/sakai-sktech/brotli-check/issues/7))
 - The text report does not show which kind of evidence a `FIXED` rests on ([#9](https://github.com/sakai-sktech/brotli-check/issues/9))
 - The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
+- A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it
+- Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))
+- A `node` that is a link to a program of another name is dropped without a mention ([#19](https://github.com/sakai-sktech/brotli-check/issues/19))
 
 All: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 

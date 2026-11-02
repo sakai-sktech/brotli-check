@@ -13,6 +13,16 @@ setup() {
   [ "$(bcc_semver_cmp 1.40 1.40.0)" = 0 ]
 }
 
+@test "numbers: a very long component is compared as digits, and does not wrap" {
+  [ "$(bcc_numcmp 18446744073709551617.2.0 1.2.0)" = 1 ]
+  [ "$(bcc_numcmp 1.2.0 18446744073709551617.2.0)" = -1 ]
+  [ "$(bcc_numcmp 99999999999999999999 99999999999999999998)" = 1 ]
+  [ "$(bcc_numcmp 007.1 7.1.0)" = 0 ]
+  [ "$(bcc_numcmp 1.9 1.10)" = -1 ]
+  [ "$(bcc_numcmp 0.0 0)" = 0 ]
+  [ "$(bcc_numcmp 000 0.1)" = -1 ]
+}
+
 @test "semver: a pre-release sorts before the release" {
   [ "$(bcc_semver_cmp 1.4.4-canary.1 1.4.4)" = -1 ]
   [ "$(bcc_semver_cmp 1.4.4 1.4.4-canary.1)" = 1 ]

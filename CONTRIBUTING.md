@@ -20,7 +20,9 @@ The data decides every verdict, so it has the strictest rules.
    `ADVISORY:FIRST:LAST`, for example `GHSA-663w-cv8g-jj2p:1.0.21:1.4.3` (otherwise `-`). A
    version below `FIRST` is `UNKNOWN` with an update recommended, not `VULNERABLE`. When a
    source shows that such versions are or are not affected, change the row.
-5. Update the `# snapshot:` line to the date of the newest retrieval.
+5. The `# snapshot:` line is the date on which **every** row's primary source was last checked
+   (the README says so). When you change some rows, date them in `retrieved` and leave the
+   snapshot; move it only after checking them all.
 6. Run `make test` (the data file is loaded and validated by the tests).
 
 Columns are tab-separated: `component, branch, fixed, status, affected, source_url, retrieved, note`.

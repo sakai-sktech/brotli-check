@@ -176,12 +176,20 @@ walk_records() {
 
 # --- 5: absent markers are not proof; several copies are not all fixed --------------------
 
-# Fake dpkg-query -W and dpkg --verify for C11. (bcc_dpkg_owner is replaced in the tests: it does
-# not ask about /tmp, where the test files are. The integration tests use the real dpkg.)
+# Fake dpkg-query -W and --control-show, and dpkg --verify, for C11. (bcc_dpkg_owner is replaced in
+# the tests: it does not ask about /tmp, where the test files are. The integration tests use the
+# real dpkg.) FAKE_SUMS is the package's md5sums; by default it records the tests' two files.
 fake_dpkg_c11() {
   local ver=$1 maint=$2 verify_out=${3:-} verify_rc=${4:-0}
+  local sums=${FAKE_SUMS-"d41d8cd98f00b204e9800998ecf8427e  ${T#/}/x
+d41d8cd98f00b204e9800998ecf8427e  ${T#/}/pkg/nginx"}
   cat >"$FAKEBIN/dpkg-query" <<EOF
 #!/bin/sh
+if [ "\$1" = --control-show ]; then
+  [ -n '$sums' ] || exit 1
+  printf '%s\n' '$sums'
+  exit 0
+fi
 case \$3 in
   *'\\t'*) printf '%s\t%s\n' '$ver' '$maint' ;;
   *) printf '%s, %s' '$ver' '$maint' ;;
@@ -265,6 +273,9 @@ EOF
 1.24.0|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 1.24.0-1|Acme <ops@acme.example>
 1.24.0-1|<ops@lists.debian.org.acme.example>
+1.26.3~acme1-1|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
+1.26.3acme-1|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
+1.26.3~rcacme-1|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
 EOF
 }
 
@@ -318,20 +329,6 @@ EOF
   run findings_brief
   [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
   [[ ${BCC_FINDINGS[0]} == *"could not be compared"* ]]
-}
-
-@test "C11: a diverted path is not taken for the package that lost it" {
-  command -v readelf >/dev/null || skip "readelf not available"
-  BCC_NO_EXEC=1
-  mkdir -p "$T/pkg"
-  cp /bin/true "$T/pkg/nginx"
-  # dpkg-query -S /usr/sbin/nginx starts with "diversion by X from: /usr/sbin/nginx".
-  bcc_dpkg_owner() { echo "diversion by acme-internal-nginx from"; }
-  printf '#!/bin/sh\nexit 1\n' >"$FAKEBIN/dpkg-query"
-  bcc_c11_file nginx "$T/pkg/nginx"
-  run findings_brief
-  [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
-  [[ ${BCC_FINDINGS[0]} == *"diversion by acme-internal-nginx from"* ]]
 }
 
 @test "C11: a Go server without the cgo binding is NOT_APPLICABLE and says what was looked for; with it, UNKNOWN" {
@@ -1145,6 +1142,329 @@ EOS
   bcc_exec_facts "$T/prog"
   has_fact "$T/etc/ld.so.preload can be written by anyone"
   has_fact "$T/open/libhook.so does not exist (whoever can write in the directory above could create it)"
+}
+
+# --- Codex review, round 7 (2026-11-02) ---------------------------------------------------
+
+@test "round 7: conda: C09 leaves to C06 only the files C06 compared, not a static archive next to them" {
+  mkdir -p "$T/env/conda-meta" "$T/env/lib"
+  printf '{}\n' >"$T/env/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.1-nostrip.txt" >"$T/env/lib/libbrotlidec.so.1.2.1"
+  tr '\n' '\0' <"$FIXTURES/c09/static-1.2.0-O2-p2-strip.txt" >"$T/env/lib/libbrotlidec.a"
+  BCC_IDX_PY=() BCC_IDX_CONDA=("$T/env/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  BCC_IDX_LIB=("$T/env/lib/libbrotlidec.so.1.2.1" "$T/env/lib/libbrotlidec.a")
+  bcc_check_c06
+  bcc_check_c09_libs
+  run findings_brief
+  [[ $output == *"FIXED|C06|conda:libbrotlidec|"* ]]
+  [[ $output == *"C09|libbrotlidec (static)|$T/env/lib/libbrotlidec.a|"* ]]
+  [[ $output != *"C09|libbrotlidec (shared)"* ]]
+}
+
+@test "round 7: C14: python3-brotli defers only Brotli's metadata, not a brotlicffi next to it" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\ttrixie\t\nPKG\tii\tpython3-brotli\t1.1.0-2+deb13u1\tbrotli\t1.1.0-2+deb13u1\nPKGRC\t0\n'
+printf 'PY\t/usr/lib/python3/dist-packages/Brotli-1.1.0.egg-info\tBrotli\t1.1.0\n'
+printf 'PY\t/usr/lib/python3/dist-packages/brotlicffi-1.2.0.2.dist-info/METADATA\tbrotlicffi\t1.2.0.2\nEND\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [[ $output == *"FIXED|C14|python3-brotli|"* ]]
+  [[ $output == *"VULNERABLE|C14|brotlicffi|"*"|1.2.0.2"* ]]
+  [[ $output != *"C14|Brotli|"* ]]
+}
+
+@test "round 8: C14: python3-brotli defers only metadata at its own version, not a Brotli from pip" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\tbookworm\t\nPKG\tii\tpython3-brotli\t1.0.9-2+deb12u1\tbrotli\t1.0.9-2+deb12u1\nPKGRC\t0\n'
+printf 'PY\t/usr/lib/python3/dist-packages/Brotli-1.0.9.egg-info\tBrotli\t1.0.9\n'
+printf 'PY\t/usr/lib/python3/dist-packages/Brotli-1.2.0.dist-info/METADATA\tBrotli\t1.2.0\nEND\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [[ $output == *"VULNERABLE|C14|Brotli|"*"|1.2.0"* ]]
+  [[ $output != *"|C14|Brotli|"*"|1.0.9"* ]]
+}
+
+@test "round 8: --deep: a program's private library is judged even when --deep would not find its file" {
+  fake_readelf
+  mkdir -p "$T/opt/bin" "$T/opt/lib"
+  dyn "$T/opt/bin/worker" "NEEDED=$T/opt/lib/libbrotlidec.so.1"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.0-nostrip.txt" >"$T/opt/lib/decoder.bin"
+  ln -s decoder.bin "$T/opt/lib/libbrotlidec.so.1"
+  printf '\177ELF\002\001\001\000BrotliDecoderDecompressStream\000' >"$T/opt/bin/worker"
+  chmod +x "$T/opt/bin/worker"
+  BCC_ROOTS=("$T/opt")
+  bcc_check_c09_deep
+  run findings_brief
+  [[ $output == *"C09|libbrotlidec (shared)|$T/opt/lib/decoder.bin|"* ]]
+  [[ $output != *"C09|worker|"* ]]
+  # A library C01 judged adds nothing, and one that cannot be read is said to be undetermined.
+  bcc_init_findings
+  bcc_covered_by_c01() { return 0; }
+  bcc_c09_linked_decoder "$T/opt/bin/worker"
+  [ "${#BCC_FINDINGS[@]}" -eq 0 ]
+  [ "${#BCC_INFO[@]}" -eq 0 ]
+  bcc_init_findings
+  bcc_links_brotlidec() { return 2; }
+  bcc_c09_linked_decoder "$T/opt/bin/worker"
+  run findings_brief
+  [[ $output == "UNKNOWN|C09|worker|$T/opt/bin/worker|"* ]]
+}
+
+@test "round 8: flatpak runtimes: real libbrotlidec.so and archives are found, debug symbols are not" {
+  d="$T/flatpak/runtime/org.x.Platform/x86_64/24/active/files/lib"
+  mkdir -p "$d/debug"
+  : >"$d/libbrotlidec.so"
+  : >"$d/libbrotlidec.so.1.1.0"
+  : >"$d/libbrotlidec.a"
+  : >"$d/debug/libbrotlidec.so.1.1.0-1.debug"
+  ln -s libbrotlidec.so.1.1.0 "$d/libbrotlidec.so.1"
+  bcc_collect0 < <(bcc_c12_runtime_libs "$T/flatpak/runtime")
+  [ "${#BCC_LIST[@]}" -eq 3 ]
+  [[ " ${BCC_LIST[*]} " == *"$d/libbrotlidec.so "* ]]
+  [[ " ${BCC_LIST[*]} " == *"$d/libbrotlidec.so.1.1.0 "* ]]
+  [[ " ${BCC_LIST[*]} " == *"$d/libbrotlidec.a "* ]]
+}
+
+@test "round 8: C04: a Node.js that loads libbrotlidec is judged by it, with or without a package" {
+  make_fake_elf "$T/node"
+  : >"$T/libbrotlidec.so.1"
+  BCC_NO_EXEC=1
+  BCC_C04_CANDS=("$T/node") BCC_C04_DONE=1
+  bcc_scan_proc_exes() { :; }
+  bcc_links_brotlidec() { printf '%s\treadelf\n' "$T/libbrotlidec.so.1"; }
+  bcc_covered_by_c01() { return 0; }
+  bcc_realpath() { printf '%s\n' "$1"; }
+  bcc_dpkg_owner() { return 1; }
+  bcc_node_version() { printf '24.22.0\tpath\n'; }
+  bcc_check_c04
+  [ "${#BCC_FINDINGS[@]}" -eq 0 ]
+  [[ ${BCC_INFO[*]} == *"$T/node"* ]]
+  # The links could not be read and no package: judged by its version, as before.
+  bcc_init_findings
+  bcc_links_brotlidec() { return 2; }
+  bcc_check_c04
+  run findings_brief
+  [[ $output == *"VULNERABLE|C04|node|$T/node|24.22.0"* ]]
+}
+
+@test "round 7: C11: a server loading libbrotlidec that carries its own decoder gets that copy judged" {
+  command -v cc >/dev/null || skip "no C compiler"
+  command -v readelf >/dev/null || skip "readelf not available"
+  lib=""
+  for x in /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 /usr/lib/aarch64-linux-gnu/libbrotlidec.so.1; do
+    [ -e "$x" ] && { lib=$x; break; }
+  done
+  [ -n "$lib" ] || skip "no system libbrotlidec to link against"
+  BCC_NO_EXEC=1
+  printf 'int main(void){return 0;}\n' >"$T/m.c"
+  cc -o "$T/nginx" "$T/m.c" -Wl,--no-as-needed "$lib"
+  readelf -d "$T/nginx" | grep -q 'libbrotlidec' || skip "could not make a program that needs libbrotlidec"
+  tr '\n' '\0' <"$FIXTURES/c09/static-1.2.0-O2-p2-strip.txt" >>"$T/nginx"
+  printf 'BrotliDecoderDecompressStream\0' >>"$T/nginx"
+  bcc_c11_file nginx "$T/nginx"
+  run findings_brief
+  [[ $output == *"LIKELY_VULNERABLE|C11|nginx (own copy)|$T/nginx|"* ]]
+}
+
+@test "round 7: a NEEDED entry that is a path to libbrotlidec is recognized" {
+  fake_readelf
+  mkdir -p "$T/private"
+  dyn "$T/private/libbrotlidec.so.1"
+  dyn "$T/app" "NEEDED=$T/private/libbrotlidec.so.1"
+  run bcc_links_brotlidec "$T/app"
+  [ "$status" -eq 0 ]
+  [[ $output == "$T/private/libbrotlidec.so.1"$'\t'readelf ]]
+  bcc_needed_has_brotlidec "/var/lib/acme/libbrotlidec.so.1"
+  bcc_needed_has_brotlidec $'libc.so.6\nlibbrotlidec.so.1'
+  run bcc_needed_has_brotlidec $'libc.so.6\n/opt/libbrotlidec-dir/libz.so.1\nnotlibbrotlidec.so.1'
+  [ "$status" -eq 1 ]
+}
+
+@test "round 7: an own copy not read to the end is listed as not scanned, not dropped" {
+  BCC_MAX_ELF_MB=1
+  make_fake_elf "$T/curl"
+  head -c 2097152 /dev/zero >>"$T/curl"
+  bcc_report_own_copy C08 curl "$T/curl"
+  [ "${#BCC_FINDINGS[@]}" -eq 0 ]
+  [[ ${BCC_SKIPPED[*]} == *"$T/curl"* ]]
+  # Read to the end with too few names: nothing to say.
+  bcc_init_findings
+  BCC_MAX_ELF_MB=64
+  bcc_report_own_copy C08 curl "$T/curl"
+  [ "${#BCC_FINDINGS[@]}" -eq 0 ]
+  [ "${#BCC_SKIPPED[@]}" -eq 0 ]
+}
+
+@test "round 7: a directory in the caller's PATH may hold a newline" {
+  d="$T/a"$'\n'"b/bin"
+  mkdir -p "$d"
+  make_fake_elf "$d/node"
+  BCC_USER_PATH="/nonexistent::$d:"
+  bcc_collect0 < <(bcc_candidates 'node|nodejs' </dev/null)
+  [ "${#BCC_LIST[@]}" -eq 1 ]
+  [ "${BCC_LIST[0]}" = "$d/node" ]
+}
+
+@test "round 7: a flatpak runtime's libbrotlidec without a full version in its name is judged by strings" {
+  lib="$T/flatpak/runtime/org.x.Platform/x86_64/24/active/files/lib/libbrotlidec.so.1"
+  mkdir -p "${lib%/*}"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.0-nostrip.txt" >"$lib"
+  bcc_c12_runtime_lib "$lib"
+  run findings_brief
+  [[ $output == *"LIKELY_VULNERABLE|C12|"*"|$lib|"* ]]
+}
+
+@test "round 7: C11: a file the package records no checksum for has not been compared" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  mkdir -p "$T/pkg"
+  cp /bin/true "$T/pkg/nginx"
+  bcc_dpkg_owner() { echo nginx-core; }
+  # No md5sums at all: dpkg --verify says nothing, and exits 0.
+  FAKE_SUMS='' fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT" "missing     /usr/share/man/man8/nginx.8.gz"
+  bcc_c11_file nginx "$T/pkg/nginx"
+  run findings_brief
+  [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"no checksum of it could be read"* ]]
+  [[ ${BCC_FINDINGS[0]} != *"--verify failed"* ]]
+  # Checksums of other files, even of one whose name begins or ends the same way, do not count.
+  local st=0
+  FAKE_SUMS="d41d8cd98f00b204e9800998ecf8427e  ${T#/}/pkg/nginx.bak
+d41d8cd98f00b204e9800998ecf8427e  x/${T#/}/pkg/nginx" fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT"
+  bcc_c11_package_status nginx-core "$T/pkg/nginx" || st=$?
+  [ "$st" -eq 4 ]
+}
+
+@test "round 7: a diverted path has no package owner, whoever diverted it" {
+  bcc_init_findings
+  printf '#!/bin/sh\nprintf "diversion by brotli from: /usr/sbin/a\\ndiversion by brotli to: /usr/sbin/a.distrib\\nnginx: /usr/sbin/a\\n"\n' >"$FAKEBIN/dpkg-query"
+  chmod +x "$FAKEBIN/dpkg-query"
+  BCC_C01_JUDGED[brotli]=1
+  run bcc_dpkg_owner /usr/sbin/a
+  [ "$status" -eq 1 ]
+  run bcc_covered_by_c01 /usr/sbin/a
+  [ "$status" -eq 1 ]
+  printf '#!/bin/sh\nprintf "local diversion from: /usr/sbin/b\\nlocal diversion to: /usr/sbin/b.distrib\\nnginx: /usr/sbin/b\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/sbin/b
+  [ "$status" -eq 1 ]
+  # An ordinary answer is unchanged.
+  printf '#!/bin/sh\nprintf "nginx-core:amd64, nginx-extras:amd64: /usr/sbin/c\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/sbin/c
+  [ "$status" -eq 0 ]
+  [ "$output" = "nginx-core:amd64, nginx-extras:amd64" ]
+}
+
+@test "round 8: the diverting package's own file at the path is that package's" {
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/sbin/d\\ndiversion by acme to: /usr/sbin/d.distrib\\nacme:amd64, nginx: /usr/sbin/d\\n"\n' >"$FAKEBIN/dpkg-query"
+  chmod +x "$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/sbin/d
+  [ "$status" -eq 0 ]
+  [ "$output" = "acme:amd64" ]
+  # The diverted package alone is still listed: no owner; nor with no owner line at all.
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/sbin/e\\ndiversion by acme to: /usr/sbin/e.distrib\\nnginx: /usr/sbin/e\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/sbin/e
+  [ "$status" -eq 1 ]
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/sbin/g\\ndiversion by acme to: /usr/sbin/g.distrib\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/sbin/g
+  [ "$status" -eq 1 ]
+}
+
+@test "round 9: a path that is a diversion's destination keeps the owners listed for it" {
+  # Both records of a diversion come back whichever path is asked about (seen on Ubuntu 24.04).
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/bin/old\\ndiversion by acme to: /usr/bin/h\\nnodejs: /usr/bin/h\\n"\n' >"$FAKEBIN/dpkg-query"
+  chmod +x "$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/bin/h
+  [ "$status" -eq 0 ]
+  [ "$output" = nodejs ]
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/bin/old\\ndiversion by acme to: /usr/bin/i\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/bin/i
+  [ "$status" -eq 1 ]
+  printf '#!/bin/sh\nprintf "local diversion from: /usr/bin/old\\nlocal diversion to: /usr/bin/j\\nnodejs: /usr/bin/j\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/bin/j
+  [ "$status" -eq 0 ]
+  [ "$output" = nodejs ]
+}
+
+@test "round 10: a file whose name dpkg reads as a pattern is not the package of what it matches" {
+  # dpkg-query -S "/usr/bin/[l]dd" answers "libc-bin: /usr/bin/ldd" (seen on the 5 releases).
+  printf '#!/bin/sh\nprintf "libc-bin: /usr/bin/ldd\\n"\n' >"$FAKEBIN/dpkg-query"
+  chmod +x "$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner "/usr/bin/[l]dd"
+  [ "$status" -eq 1 ]
+  run bcc_dpkg_owner /usr/bin/ldd
+  [ "$status" -eq 0 ]
+  [ "$output" = libc-bin ]
+  # A file called exactly so is that package's, its brackets taken literally.
+  printf '#!/bin/sh\nprintf "acme: /usr/bin/[l]dd\\n"\n' >"$FAKEBIN/dpkg-query"
+  BCC_DPKG_CACHE=()
+  run bcc_dpkg_owner "/usr/bin/[l]dd"
+  [ "$status" -eq 0 ]
+  [ "$output" = acme ]
+  # With a diversion of what it matches: no owner either.
+  printf '#!/bin/sh\nprintf "diversion by acme from: /usr/lib/l.so.1.1.0\\ndiversion by acme to: /usr/lib/l.so.1.1.0.distrib\\nlibbrotli1:amd64: /usr/lib/l.so.1.1.0\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner "/usr/lib/l.so.1.[1].0"
+  [ "$status" -eq 1 ]
+}
+
+@test "round 11: a file name holding \": \" is not read as owners, and an exact name still counts" {
+  local q='/opt/*/libbrotlidec.so.1.1.0' long='/opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+  cat >"$FAKEBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+echo 'diversion by redirector from: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+echo 'diversion by redirector to: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0.distrib'
+echo 'acme: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+EOF
+  chmod +x "$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner "$q"
+  [ "$status" -eq 1 ]
+  # The file really called that, diverted away: no owner. Not diverted: its owner, and only that.
+  run bcc_dpkg_owner "$long"
+  [ "$status" -eq 1 ]
+  cat >"$FAKEBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+echo 'acme: /opt/vendor: libbrotli1: /opt/*/libbrotlidec.so.1.1.0'
+EOF
+  run bcc_dpkg_owner "$long"
+  [ "$status" -eq 0 ]
+  [ "$output" = acme ]
+  # A diversion whose "from" merely ends the same way is not this path's.
+  cat >"$FAKEBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+echo 'diversion by redirector from: /x from: /usr/bin/k'
+echo 'diversion by redirector to: /x.distrib'
+echo 'acme: /usr/bin/k'
+EOF
+  run bcc_dpkg_owner /usr/bin/k
+  [ "$status" -eq 0 ]
+  [ "$output" = acme ]
+}
+
+@test "round 9: C14: Brotli metadata with no version is reported when there is no python3-brotli" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\tbookworm\t\nPKGRC\t1\nPY\t/usr/lib/python3/dist-packages/Brotli-1.2.0.dist-info/METADATA\tBrotli\t\nEND\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [[ $output == *"|C14|Brotli|"* ]]
+}
+
+@test "round 9: --deep: a library that is gone is not left to C01, even if dpkg still lists it" {
+  fake_readelf
+  dyn "$T/worker" "NEEDED=$T/gone/libbrotlidec.so.1"
+  bcc_links_brotlidec() { printf '%s\treadelf\n' "$T/gone/libbrotlidec.so.1"; }
+  bcc_covered_by_c01() { return 0; }
+  mkdir -p "$T/gone"
+  bcc_c09_linked_decoder "$T/worker"
+  run findings_brief
+  [[ $output == "UNKNOWN|C09|worker|$T/worker|"* ]]
 }
 
 # A readelf that pretends: "-d FILE" prints FILE.dyn (the dynamic section, written by dyn

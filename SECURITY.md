@@ -21,8 +21,9 @@ reproduction you can. Do not attach exploit data for Brotli.
 ## Design rules this tool keeps
 
 - The tool itself installs, updates, stops and reconfigures nothing. It writes only to standard
-  output and to a new file named with `--output`, which never overwrites a file and is only
-  created in a directory that nobody but root (or the invoking user, when not root) can change.
+  output and to a new file named with `--output` (through a temporary file beside it, which it
+  then removes), which never overwrites a file and is only created in a directory that nobody but
+  root (or the invoking user, when not root) can change.
 - It does not connect to the network itself, and does not generate, download or contain attack
   data.
 - Programs it finds are run only to read their version, with one argument, from `/`, with an

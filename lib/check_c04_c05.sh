@@ -131,17 +131,21 @@ bcc_check_c04() {
   for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
     BCC_JUDGED[$bin]=1
     pids=$(bcc_pids_of "$bin")
-    if owner=$(bcc_dpkg_owner "$bin"); then
-      rc=0
-      link=$(bcc_links_brotlidec "$bin") || rc=$?
-      if ((rc == 0)); then
-        bcc_split_tab "$link"
-        libpath=${BCC_F[0]}
-        method=${BCC_F[1]}
-        bcc_report_linked_lib C04 "$owner" "$bin" "$libpath" "$method"
-        bcc_report_own_copy C04 "node ($owner)" "$bin"
-        continue
-      elif ((rc == 1)); then
+    owner=$(bcc_dpkg_owner "$bin") || owner=""
+    rc=0
+    link=$(bcc_links_brotlidec "$bin") || rc=$?
+    # A Node.js that loads libbrotlidec is judged by that library, whoever installed it: its own
+    # version says nothing about the decoder then.
+    if ((rc == 0)); then
+      bcc_split_tab "$link"
+      libpath=${BCC_F[0]}
+      method=${BCC_F[1]}
+      bcc_report_linked_lib C04 "${owner:-node}" "$bin" "$libpath" "$method"
+      bcc_report_own_copy C04 "node${owner:+ ($owner)}" "$bin"
+      continue
+    fi
+    if [[ -n $owner ]]; then
+      if ((rc == 1)); then
         vm=$(bcc_node_version "$bin") || vm=""
         bcc_split_tab "$vm"
         bcc_report_by_strings C04 "node ($owner)" "$bin" "${BCC_F[0]:-}" "$(bcc_msg r_distro_static)"

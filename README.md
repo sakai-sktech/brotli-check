@@ -85,24 +85,39 @@ Japanese versions: [Fig. 01](docs/zukai/01_check-method_ja.pdf), [Fig. 02](docs/
 
 ### Getting it
 
-v0.1.0 has not been released yet (planned in [issue #4](https://github.com/sakai-sktech/brotli-check/issues/4)).
-For now, clone the repository and run `bin/brotli-cve-check` inside it. `bin/brotli-cve-check`
-reads `lib/` and `data/` from the same tree, so that file alone does not run. Do not pipe
-anything into a shell.
+Download the single-file build and its checksum from the
+[v0.1.0 release](https://github.com/sakai-sktech/brotli-check/releases/tag/v0.1.0) into a new, empty directory, and check the checksum. The
+commands are joined with `&&`, so when one fails the rest do not run: a failed download is not
+checked, and no older copy left in the directory can pass for the new one. `mkdir` fails when the
+directory already exists; remove it or pick another name. Do not pipe anything into a shell.
 
 ```sh
-git clone https://github.com/sakai-sktech/brotli-check.git &&
-cd brotli-check &&
-git log -1 --format='%H %cd'     # note which commit you checked with
+mkdir ~/brotli-cve-check-0.1.0 &&
+cd ~/brotli-cve-check-0.1.0 &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/brotli-cve-check &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/SHA256SUMS &&
+sha256sum -c SHA256SUMS
 ```
 
-Read what is in `bin/`, `lib/` and `data/` before running it. The commands below are run inside
-the cloned tree.
+`brotli-cve-check: OK` means that the file arrived as it was published. It does not mean that
+the file is genuine: the checksum comes from the same release, so whoever could change one could
+change the other. Read the file before running it. It is one bash script of about 210 KB:
+`lib/*.sh` of [tag v0.1.0](https://github.com/sakai-sktech/brotli-check/tree/v0.1.0) in order, and
+the advisory data at the end.
+
+```sh
+less brotli-cve-check
+```
+
+The commands below are run in this directory. Each that runs the file checks the checksum again
+first, so a file changed since then does not run. To use the source tree instead, see
+"[From the source tree](#from-the-source-tree)".
 
 ### First, as an ordinary user, starting nothing
 
 ```sh
-bash bin/brotli-cve-check --no-exec
+sha256sum -c --quiet SHA256SUMS &&
+bash brotli-cve-check --no-exec
 ```
 
 With `--no-exec`, programs it finds (node and the like) are not started to read their versions;
@@ -112,14 +127,14 @@ with (dpkg-query, readelf, ...) do run. When it is done, look at the summary at 
 
 ### Then, if needed, look further
 
-**Run as root** to see other users' homes and processes as well. The cloned tree can be changed
-by you, an ordinary user, so running it with `sudo` as it is would have root run code you can
-write, and the report starts with a warning about the advisory data. To run as root, build the
-single-file version and put it where only root can write:
+**Run as root** to see other users' homes and processes as well. Your directory can be changed
+by you, an ordinary user, so running the file there with `sudo` would have root run code you can
+write, and the report starts with a warning about the advisory data. To run as root, put a copy
+where only root can write, and run that:
 
 ```sh
-make dist &&
-sudo install -D -m 0644 dist/brotli-cve-check /root/brotli-cve-check/brotli-cve-check &&
+sha256sum -c --quiet SHA256SUMS &&
+sudo install -D -m 0644 brotli-cve-check /root/brotli-cve-check/brotli-cve-check &&
 sudo bash /root/brotli-cve-check/brotli-cve-check --no-exec > report.txt
 ```
 
@@ -135,15 +150,35 @@ by number. `--yes` agrees to all of them without showing the list (see
 (see "[How far it looks](#how-far-it-looks)").
 
 ```sh
-bash bin/brotli-cve-check --json --output report.json   # machine-readable (docs/json-schema.md)
-bash bin/brotli-cve-check --help                        # all options
+bash brotli-cve-check --json --output report.json   # machine-readable (docs/json-schema.md)
+bash brotli-cve-check --help                        # all options
 ```
 
+### From the source tree
+
+To check with the files the single one is built from, clone the repository at the tag. Run
+`bin/brotli-cve-check` inside the tree: it reads `lib/` and `data/` from there, so that file
+alone does not run. Read what is in `bin/`, `lib/` and `data/` first.
+
+```sh
+git clone https://github.com/sakai-sktech/brotli-check.git &&
+cd brotli-check &&
+git checkout v0.1.0
+```
+
+```sh
+bash bin/brotli-cve-check --no-exec
+```
+
+To run as root (the tree, like your directory, is yours to change), build the single file with
+`make dist`, then `cd dist` and use the root commands above: `dist/` holds the file and its
+`SHA256SUMS`.
+
 Requirements: bash 4.2 or later, coreutils, findutils, grep, sed, awk. binutils (`readelf`) is
-optional; without it some linkage checks are less precise and the report says so. git and make
-to get it and build the single file. docker or podman for `--containers`, ss (iproute2) for
-`--exposure`. No Python. The tool itself does not connect to the network (docker or podman used
-by `--containers`, and programs you allow it to run, are another matter).
+optional; without it some linkage checks are less precise and the report says so. curl to
+download it (git and make only for the source tree). docker or podman for `--containers`, ss
+(iproute2) for `--exposure`. No Python. The tool itself does not connect to the network (docker
+or podman used by `--containers`, and programs you allow it to run, are another matter).
 
 ## Reading the result
 

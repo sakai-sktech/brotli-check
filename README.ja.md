@@ -79,23 +79,37 @@ English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/fo
 
 ### 入手
 
-v0.1.0 はまだ Release していません（予定は [issue #4](https://github.com/sakai-sktech/brotli-check/issues/4)）。
-いまはリポジトリを clone し、その中の `bin/brotli-cve-check` を動かします。`bin/brotli-cve-check` は同じツリーの
-`lib/` と `data/` を読むので、このファイルだけを取ってきても動きません。`curl | bash` はしないでください。
+[v0.1.0 の Release](https://github.com/sakai-sktech/brotli-check/releases/tag/v0.1.0) から、1 ファイル版とそのチェックサムを新しい空のディレクトリに取ってきて、
+チェックサムを確かめます。コマンドは `&&` でつないでいるので、どれかが失敗するとそこで止まります。取りそこねた
+ファイルを確かめることはなく、ディレクトリに前のファイルが残っていて新しいものの代わりに通ることもありません。
+ディレクトリがすでにあると `mkdir` が失敗するので、消すか別の名前にしてください。`curl | bash` はしないでください。
 
 ```sh
-git clone https://github.com/sakai-sktech/brotli-check.git &&
-cd brotli-check &&
-git log -1 --format='%H %cd'     # どのコミットで点検したかを控えておく
+mkdir ~/brotli-cve-check-0.1.0 &&
+cd ~/brotli-cve-check-0.1.0 &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/brotli-cve-check &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/SHA256SUMS &&
+sha256sum -c SHA256SUMS
 ```
 
-動かす前に、`bin/`・`lib/`・`data/` の中身を読んでください。以下のコマンドは、clone したツリーの中で動かす形で
-書いています。
+`brotli-cve-check: OK` は、ファイルが公開されたとおりに届いたということです。ファイルが本物であることまでは
+言えません。チェックサムも同じ Release から取るので、片方を書き換えられる人はもう片方も書き換えられます。
+動かす前に中身を読んでください。210 KB ほどの bash のスクリプト 1 つで、[タグ v0.1.0](https://github.com/sakai-sktech/brotli-check/tree/v0.1.0)
+の `lib/*.sh` を順につなぎ、最後に既知データを入れたものです。
+
+```sh
+less brotli-cve-check
+```
+
+以下のコマンドは、このディレクトリの中で動かす形で書いています。ファイルを動かすコマンドは、先にチェックサムを
+もう一度確かめるので、その後に書き換わったファイルは動きません。ソースのツリーで動かすときは
+「[ソースのツリーから](#ソースのツリーから)」を見てください。
 
 ### まず一般ユーザーで、何も起動せずに
 
 ```sh
-bash bin/brotli-cve-check --lang ja --no-exec
+sha256sum -c --quiet SHA256SUMS &&
+bash brotli-cve-check --lang ja --no-exec
 ```
 
 `--no-exec` を付けると、見つけたプログラム（node など）を、版を読むために起動しません。版はファイル（パッケージの
@@ -104,14 +118,13 @@ bash bin/brotli-cve-check --lang ja --no-exec
 
 ### 必要なら範囲を広げる
 
-**root で動かす。** 他のユーザーのホームとプロセスも見られます。clone したツリーは一般ユーザー（あなた）が
-書き換えられるので、そのまま `sudo` で動かすと、root があなたの書けるコードを動かすことになり、結果の冒頭に
-既知データについての警告が出ます。root で動かすときは、1 ファイル版を作り、root だけが書ける場所に置いてから
-動かします。
+**root で動かす。** 他のユーザーのホームとプロセスも見られます。あなたのディレクトリは一般ユーザー（あなた）が
+書き換えられるので、そこにあるファイルを `sudo` で動かすと、root があなたの書けるコードを動かすことになり、結果の
+冒頭に既知データについての警告が出ます。root で動かすときは、root だけが書ける場所に写しを置き、それを動かします。
 
 ```sh
-make dist &&
-sudo install -D -m 0644 dist/brotli-cve-check /root/brotli-cve-check/brotli-cve-check &&
+sha256sum -c --quiet SHA256SUMS &&
+sudo install -D -m 0644 brotli-cve-check /root/brotli-cve-check/brotli-cve-check &&
 sudo bash /root/brotli-cve-check/brotli-cve-check --lang ja --no-exec > report.txt
 ```
 
@@ -125,14 +138,33 @@ sudo bash /root/brotli-cve-check/brotli-cve-check --lang ja --no-exec > report.t
 （「[どこまで探すか](#どこまで探すか)」）。
 
 ```sh
-bash bin/brotli-cve-check --lang ja --json --output report.json   # 機械向け（docs/json-schema.ja.md）
-bash bin/brotli-cve-check --help                                  # すべてのオプション
+bash brotli-cve-check --lang ja --json --output report.json   # 機械向け（docs/json-schema.ja.md）
+bash brotli-cve-check --help                                  # すべてのオプション
 ```
 
+### ソースのツリーから
+
+1 ファイル版の元になったファイルで点検するときは、タグの時点でリポジトリを clone します。ツリーの中で
+`bin/brotli-cve-check` を動かします。これは同じツリーの `lib/` と `data/` を読むので、このファイルだけを取ってきても
+動きません。先に `bin/`・`lib/`・`data/` の中身を読んでください。
+
+```sh
+git clone https://github.com/sakai-sktech/brotli-check.git &&
+cd brotli-check &&
+git checkout v0.1.0
+```
+
+```sh
+bash bin/brotli-cve-check --lang ja --no-exec
+```
+
+root で動かすときは（ツリーも、あなたのディレクトリと同じく、あなたが書き換えられます）、`make dist` で 1 ファイル版を
+作り、`cd dist` してから上の root のコマンドを使います。`dist/` にファイルとその `SHA256SUMS` があります。
+
 必要なもの: bash 4.2 以上、coreutils、findutils、grep、sed、awk。binutils（`readelf`）は任意で、無い場合は
-一部のリンクの判定の精度が落ち、結果にその旨が出ます。入手と 1 ファイル版づくりに git と make。`--containers`
-に docker か podman、`--exposure` に ss（iproute2）。Python は使いません。このツール自身はネットワークに
-つなぎません（`--containers` で使う docker・podman と、実行を許したプログラムは別です）。
+一部のリンクの判定の精度が落ち、結果にその旨が出ます。入手に curl（git と make はソースのツリーのときだけ）。
+`--containers` に docker か podman、`--exposure` に ss（iproute2）。Python は使いません。このツール自身は
+ネットワークにつなぎません（`--containers` で使う docker・podman と、実行を許したプログラムは別です）。
 
 ## 結果の読み方
 

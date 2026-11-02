@@ -25,8 +25,19 @@ English: [limitations.md](limitations.md)
   overlay・squashfs・fuse などは探さず、「走査しなかった範囲」に並べます（`--roots` で指定すると対象になる）。
   マウントポイントではない btrfs のサブボリュームは探さず、並べもしません（`find -xdev` がそこで止まり、
   マウントの一覧にも出ないため）。
-- **ほかの実装。** Go（`andybalholm/brotli`）、Rust（`brotli-decompressor`）、Java・.NET のデコーダーは別の
+- **ほかの実装。** Go（`andybalholm/brotli`）、Rust（`brotli-decompressor`）、Java のデコーダーは別の
   コードで、調べません。それらがこの CVE の影響を受けるかは、ここでは扱いません。
+- **.NET。** .NET のランタイムは別のコードではなく、Google の C のデコーダーを `libSystem.IO.Compression.Native.so` に
+  組み込んでいて、Ubuntu はこの CVE の対象に挙げています（[USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)）。
+  このツールは名前で探さず、`/usr/lib/dotnet` は既定の範囲に無いので、既定の実行では何も出ません。
+  一覧に出すには `--deep --roots /usr/lib/dotnet` です（Ubuntu 24.04 で確かめた。`VENDORED_COPY` になります）。
+  ランタイムの版を、Microsoft か配布元の告知と照らしてください。
+- **`libbrotlidec*` という名前のライブラリを複数読み込むプログラム。** 判定するのは最初の 1 つだけです。ほかのものは、
+  探索の範囲の中にあるときだけ見つかります。
+- **別の名前のプログラムへのリンクである `node`・`bun` など**（`node -> runtime`）。バージョン管理ツールのシムをランタイムとして
+  判定しないよう取らず、一覧にも出ません。
+- **RUNPATH・RPATH の中の `glibc-hwcaps` ディレクトリ。** 名前の順に試します。glibc は CPU が対応するいちばん高いレベルを優先します。
+  複数のレベルにコピーがあると、判定して説明したものと読み込まれるものが違うことがあります。
 - **snap／flatpak 以外で入れた Electron アプリ**は `--deep` のときだけ見つかります。
 - **Alpine ベースのコンテナ**（apk）は、中のパッケージを判定しません（`--inspect-containers` が扱うのは
   Debian/Ubuntu ベースのイメージと、Node.js・PyPI のコピー）。

@@ -176,12 +176,20 @@ walk_records() {
 
 # --- 5: absent markers are not proof; several copies are not all fixed --------------------
 
-# Fake dpkg-query -W and dpkg --verify for C11. (bcc_dpkg_owner is replaced in the tests: it does
-# not ask about /tmp, where the test files are. The integration tests use the real dpkg.)
+# Fake dpkg-query -W and --control-show, and dpkg --verify, for C11. (bcc_dpkg_owner is replaced in
+# the tests: it does not ask about /tmp, where the test files are. The integration tests use the
+# real dpkg.) FAKE_SUMS is the package's md5sums; by default it records the tests' two files.
 fake_dpkg_c11() {
   local ver=$1 maint=$2 verify_out=${3:-} verify_rc=${4:-0}
+  local sums=${FAKE_SUMS-"d41d8cd98f00b204e9800998ecf8427e  ${T#/}/x
+d41d8cd98f00b204e9800998ecf8427e  ${T#/}/pkg/nginx"}
   cat >"$FAKEBIN/dpkg-query" <<EOF
 #!/bin/sh
+if [ "\$1" = --control-show ]; then
+  [ -n '$sums' ] || exit 1
+  printf '%s\n' '$sums'
+  exit 0
+fi
 case \$3 in
   *'\\t'*) printf '%s\t%s\n' '$ver' '$maint' ;;
   *) printf '%s, %s' '$ver' '$maint' ;;
@@ -265,6 +273,9 @@ EOF
 1.24.0|Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 1.24.0-1|Acme <ops@acme.example>
 1.24.0-1|<ops@lists.debian.org.acme.example>
+1.26.3~acme1-1|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
+1.26.3acme-1|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
+1.26.3~rcacme-1|Debian Nginx Maintainers <pkg-nginx-maintainers@alioth-lists.debian.net>
 EOF
 }
 
@@ -318,20 +329,6 @@ EOF
   run findings_brief
   [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
   [[ ${BCC_FINDINGS[0]} == *"could not be compared"* ]]
-}
-
-@test "C11: a diverted path is not taken for the package that lost it" {
-  command -v readelf >/dev/null || skip "readelf not available"
-  BCC_NO_EXEC=1
-  mkdir -p "$T/pkg"
-  cp /bin/true "$T/pkg/nginx"
-  # dpkg-query -S /usr/sbin/nginx starts with "diversion by X from: /usr/sbin/nginx".
-  bcc_dpkg_owner() { echo "diversion by acme-internal-nginx from"; }
-  printf '#!/bin/sh\nexit 1\n' >"$FAKEBIN/dpkg-query"
-  bcc_c11_file nginx "$T/pkg/nginx"
-  run findings_brief
-  [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
-  [[ ${BCC_FINDINGS[0]} == *"diversion by acme-internal-nginx from"* ]]
 }
 
 @test "C11: a Go server without the cgo binding is NOT_APPLICABLE and says what was looked for; with it, UNKNOWN" {
@@ -1145,6 +1142,144 @@ EOS
   bcc_exec_facts "$T/prog"
   has_fact "$T/etc/ld.so.preload can be written by anyone"
   has_fact "$T/open/libhook.so does not exist (whoever can write in the directory above could create it)"
+}
+
+# --- Codex review, round 7 (2026-11-02) ---------------------------------------------------
+
+@test "round 7: conda: C09 leaves to C06 only the files C06 compared, not a static archive next to them" {
+  mkdir -p "$T/env/conda-meta" "$T/env/lib"
+  printf '{}\n' >"$T/env/conda-meta/libbrotlidec-1.2.1-h0_0.json"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.1-nostrip.txt" >"$T/env/lib/libbrotlidec.so.1.2.1"
+  tr '\n' '\0' <"$FIXTURES/c09/static-1.2.0-O2-p2-strip.txt" >"$T/env/lib/libbrotlidec.a"
+  BCC_IDX_PY=() BCC_IDX_CONDA=("$T/env/conda-meta/libbrotlidec-1.2.1-h0_0.json")
+  BCC_IDX_LIB=("$T/env/lib/libbrotlidec.so.1.2.1" "$T/env/lib/libbrotlidec.a")
+  bcc_check_c06
+  bcc_check_c09_libs
+  run findings_brief
+  [[ $output == *"FIXED|C06|conda:libbrotlidec|"* ]]
+  [[ $output == *"C09|libbrotlidec (static)|$T/env/lib/libbrotlidec.a|"* ]]
+  [[ $output != *"C09|libbrotlidec (shared)"* ]]
+}
+
+@test "round 7: C14: python3-brotli defers only Brotli's metadata, not a brotlicffi next to it" {
+  cat >"$FAKEBIN/docker" <<'EOF'
+#!/bin/sh
+printf 'OS\tdebian\ttrixie\t\nPKG\tii\tpython3-brotli\t1.1.0-2+deb13u1\tbrotli\t1.1.0-2+deb13u1\nPKGRC\t0\n'
+printf 'PY\t/usr/lib/python3/dist-packages/Brotli-1.1.0.egg-info\tBrotli\t1.1.0\n'
+printf 'PY\t/usr/lib/python3/dist-packages/brotlicffi-1.2.0.2.dist-info/METADATA\tbrotlicffi\t1.2.0.2\nEND\n'
+EOF
+  chmod +x "$FAKEBIN/docker"
+  bcc_c14_inspect docker 0123abcd web img:1
+  run findings_brief
+  [[ $output == *"FIXED|C14|python3-brotli|"* ]]
+  [[ $output == *"VULNERABLE|C14|brotlicffi|"*"|1.2.0.2"* ]]
+  [[ $output != *"C14|Brotli|"* ]]
+}
+
+@test "round 7: C11: a server loading libbrotlidec that carries its own decoder gets that copy judged" {
+  command -v cc >/dev/null || skip "no C compiler"
+  command -v readelf >/dev/null || skip "readelf not available"
+  lib=""
+  for x in /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 /usr/lib/aarch64-linux-gnu/libbrotlidec.so.1; do
+    [ -e "$x" ] && { lib=$x; break; }
+  done
+  [ -n "$lib" ] || skip "no system libbrotlidec to link against"
+  BCC_NO_EXEC=1
+  printf 'int main(void){return 0;}\n' >"$T/m.c"
+  cc -o "$T/nginx" "$T/m.c" -Wl,--no-as-needed "$lib"
+  readelf -d "$T/nginx" | grep -q 'libbrotlidec' || skip "could not make a program that needs libbrotlidec"
+  tr '\n' '\0' <"$FIXTURES/c09/static-1.2.0-O2-p2-strip.txt" >>"$T/nginx"
+  printf 'BrotliDecoderDecompressStream\0' >>"$T/nginx"
+  bcc_c11_file nginx "$T/nginx"
+  run findings_brief
+  [[ $output == *"LIKELY_VULNERABLE|C11|nginx (own copy)|$T/nginx|"* ]]
+}
+
+@test "round 7: a NEEDED entry that is a path to libbrotlidec is recognized" {
+  fake_readelf
+  mkdir -p "$T/private"
+  dyn "$T/private/libbrotlidec.so.1"
+  dyn "$T/app" "NEEDED=$T/private/libbrotlidec.so.1"
+  run bcc_links_brotlidec "$T/app"
+  [ "$status" -eq 0 ]
+  [[ $output == "$T/private/libbrotlidec.so.1"$'\t'readelf ]]
+  bcc_needed_has_brotlidec "/var/lib/acme/libbrotlidec.so.1"
+  bcc_needed_has_brotlidec $'libc.so.6\nlibbrotlidec.so.1'
+  run bcc_needed_has_brotlidec $'libc.so.6\n/opt/libbrotlidec-dir/libz.so.1\nnotlibbrotlidec.so.1'
+  [ "$status" -eq 1 ]
+}
+
+@test "round 7: an own copy not read to the end is listed as not scanned, not dropped" {
+  BCC_MAX_ELF_MB=1
+  make_fake_elf "$T/curl"
+  head -c 2097152 /dev/zero >>"$T/curl"
+  bcc_report_own_copy C08 curl "$T/curl"
+  [ "${#BCC_FINDINGS[@]}" -eq 0 ]
+  [[ ${BCC_SKIPPED[*]} == *"$T/curl"* ]]
+  # Read to the end with too few names: nothing to say.
+  bcc_init_findings
+  BCC_MAX_ELF_MB=64
+  bcc_report_own_copy C08 curl "$T/curl"
+  [ "${#BCC_FINDINGS[@]}" -eq 0 ]
+  [ "${#BCC_SKIPPED[@]}" -eq 0 ]
+}
+
+@test "round 7: a directory in the caller's PATH may hold a newline" {
+  d="$T/a"$'\n'"b/bin"
+  mkdir -p "$d"
+  make_fake_elf "$d/node"
+  BCC_USER_PATH="/nonexistent::$d:"
+  bcc_collect0 < <(bcc_candidates 'node|nodejs' </dev/null)
+  [ "${#BCC_LIST[@]}" -eq 1 ]
+  [ "${BCC_LIST[0]}" = "$d/node" ]
+}
+
+@test "round 7: a flatpak runtime's libbrotlidec without a full version in its name is judged by strings" {
+  lib="$T/flatpak/runtime/org.x.Platform/x86_64/24/active/files/lib/libbrotlidec.so.1"
+  mkdir -p "${lib%/*}"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.0-nostrip.txt" >"$lib"
+  bcc_c12_runtime_lib "$lib"
+  run findings_brief
+  [[ $output == *"LIKELY_VULNERABLE|C12|"*"|$lib|"* ]]
+}
+
+@test "round 7: C11: a file the package records no checksum for has not been compared" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  mkdir -p "$T/pkg"
+  cp /bin/true "$T/pkg/nginx"
+  bcc_dpkg_owner() { echo nginx-core; }
+  # No md5sums at all: dpkg --verify says nothing, and exits 0.
+  FAKE_SUMS='' fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT" "missing     /usr/share/man/man8/nginx.8.gz"
+  bcc_c11_file nginx "$T/pkg/nginx"
+  run findings_brief
+  [[ $output == "UNKNOWN|C11|nginx|$T/pkg/nginx|"* ]]
+  [[ ${BCC_FINDINGS[0]} == *"could not be compared"* ]]
+  # Checksums of other files, even of one whose name begins or ends the same way, do not count.
+  local st=0
+  FAKE_SUMS="d41d8cd98f00b204e9800998ecf8427e  ${T#/}/pkg/nginx.bak
+d41d8cd98f00b204e9800998ecf8427e  x/${T#/}/pkg/nginx" fake_dpkg_c11 1.24.0-2ubuntu7.19 "$UBUNTU_MAINT"
+  bcc_c11_package_status nginx-core "$T/pkg/nginx" || st=$?
+  [ "$st" -eq 3 ]
+}
+
+@test "round 7: a diverted path has no package owner, whoever diverted it" {
+  bcc_init_findings
+  printf '#!/bin/sh\nprintf "diversion by brotli from: /usr/sbin/a\\ndiversion by brotli to: /usr/sbin/a.distrib\\nnginx: /usr/sbin/a\\n"\n' >"$FAKEBIN/dpkg-query"
+  chmod +x "$FAKEBIN/dpkg-query"
+  BCC_C01_JUDGED[brotli]=1
+  run bcc_dpkg_owner /usr/sbin/a
+  [ "$status" -eq 1 ]
+  run bcc_covered_by_c01 /usr/sbin/a
+  [ "$status" -eq 1 ]
+  printf '#!/bin/sh\nprintf "local diversion from: /usr/sbin/b\\nlocal diversion to: /usr/sbin/b.distrib\\nnginx: /usr/sbin/b\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/sbin/b
+  [ "$status" -eq 1 ]
+  # An ordinary answer is unchanged.
+  printf '#!/bin/sh\nprintf "nginx-core:amd64, nginx-extras:amd64: /usr/sbin/c\\n"\n' >"$FAKEBIN/dpkg-query"
+  run bcc_dpkg_owner /usr/sbin/c
+  [ "$status" -eq 0 ]
+  [ "$output" = "nginx-core:amd64, nginx-extras:amd64" ]
 }
 
 # A readelf that pretends: "-d FILE" prints FILE.dyn (the dynamic section, written by dyn

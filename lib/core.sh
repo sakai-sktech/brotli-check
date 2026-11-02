@@ -335,6 +335,11 @@ bcc_dpkg_owner() {
     out=${BCC_DPKG_CACHE[$path]}
   else
     out=$(bcc_sys dpkg-query -S "$path") || out=""
+    # A diverted path: what is there now is not what the package listed for it installed, and
+    # the words of "diversion by X from" are not package names.
+    case $out in
+      'diversion by '* | 'local diversion '*) out="" ;;
+    esac
     out=${out%%: *}
     BCC_DPKG_CACHE[$path]=$out
   fi
@@ -348,12 +353,14 @@ bcc_realpath() {
 
 # Print each directory of the scanning user's PATH that exists (where to look, not what runs).
 bcc_path_dirs() {
-  local d
-  local -a dirs=()
-  IFS=: read -r -a dirs <<<"${BCC_USER_PATH:-${PATH:-/usr/bin:/bin}}"
-  for d in "${dirs[@]}"; do
-    [[ -n $d && -d $d ]] && printf '%s\n' "$d"
+  # Split without read, and give them NUL-separated: a directory name can hold a newline.
+  local d rest=${BCC_USER_PATH:-${PATH:-/usr/bin:/bin}}:
+  while [[ -n $rest ]]; do
+    d=${rest%%:*}
+    rest=${rest#*:}
+    [[ -n $d && -d $d ]] && printf '%s\0' "$d"
   done
+  return 0
 }
 
 # Candidate executables named NAME (or another of NAME|ALIAS): in each directory of the
@@ -369,7 +376,7 @@ bcc_candidates() {
   local -A seen=()
   local -a names_a=() list=()
   IFS='|' read -r -a names_a <<<"$names"
-  while IFS= read -r d; do
+  while IFS= read -r -d '' d; do
     for n in "${names_a[@]}"; do list+=("$d/$n"); done
   done < <(bcc_path_dirs)
   while IFS= read -r -d '' rec; do

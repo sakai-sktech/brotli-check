@@ -68,8 +68,9 @@ bcc_check_c10() {
 BCC_C11_CHECKED_PACKAGES=" nginx nginx-core nginx-full nginx-light nginx-extras libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static apache2-bin haproxy "
 # A distribution's version: upstream, then only the revision forms Debian and Ubuntu use
 # (1.22.1-9+deb12u10, 2.4.68-1~deb12u1, 1.24.0-2ubuntu7.19, 1.0.0~rc-5build1, 2.8.30-0ubuntu0.24.04.1,
-# with ~bpo12+1, +esm1, ~22.04.1). A suffix of anyone else's (+acme1, ~noble, +deb.sury.org+1) fails.
-BCC_C11_DISTRO_VERSION='^([0-9]+:)?[0-9][0-9A-Za-z.~]*(\+(dfsg|ds)[0-9]*)?-[0-9]+(\.[0-9]+)*((build|ubuntu)[0-9]+(\.[0-9]+)*)*([~+](deb[0-9]+u[0-9]+|bpo[0-9]+\+[0-9]+|esm[0-9]+|[0-9][0-9]\.[0-9][0-9](\.[0-9]+)*))*$'
+# with ~bpo12+1, +esm1, ~22.04.1). A suffix of anyone else's (+acme1, ~noble, +deb.sury.org+1) fails,
+# and so does vendor text in the upstream part (1.26.3~acme1-1, 1.26.3acme-1).
+BCC_C11_DISTRO_VERSION='^([0-9]+:)?[0-9]+(\.[0-9]+)*(~(rc|alpha|beta|pre|dev)[0-9]*)?(\+(dfsg|ds)[0-9]*)?-[0-9]+(\.[0-9]+)*((build|ubuntu)[0-9]+(\.[0-9]+)*)*([~+](deb[0-9]+u[0-9]+|bpo[0-9]+\+[0-9]+|esm[0-9]+|[0-9][0-9]\.[0-9][0-9](\.[0-9]+)*))*$'
 
 # Does OWNER (bcc_dpkg_owner's words) speak for FILE? Status: 0 a checked distribution package and
 # the file as it installed it; 1 not such a package; 2 the file differs from what it installed;
@@ -77,7 +78,7 @@ BCC_C11_DISTRO_VERSION='^([0-9]+:)?[0-9][0-9A-Za-z.~]*(\+(dfsg|ds)[0-9]*)?-[0-9]
 # this keeps an honest in-house or third-party build from being taken for the distribution's.
 # dpkg --verify exits 0 with differences too; they are lines ending in the path.
 bcc_c11_package_status() {
-  local owner=$1 f=$2 pkg ver maint out
+  local owner=$1 f=$2 pkg ver maint out sums
   while IFS= read -r pkg; do
     case $BCC_C11_CHECKED_PACKAGES in
       *" ${pkg%%:*} "*) ;;
@@ -92,6 +93,10 @@ bcc_c11_package_status() {
     esac
     out=$(bcc_sys dpkg --verify "$pkg") || return 3
     [[ $'\n'$out$'\n' != *" $f"$'\n'* ]] || return 2
+    # dpkg --verify is silent about a file it has no checksum for, so its silence counts only
+    # when the package does record one for this file.
+    sums=$(bcc_sys dpkg-query --control-show "$pkg" md5sums) || return 3
+    [[ $'\n'$sums$'\n' == *"  ${f#/}"$'\n'* ]] || return 3
   done <<<"${owner//, /$'\n'}"
   return 0
 }
@@ -101,7 +106,7 @@ bcc_c11_file() {
   BCC_JUDGED[$f]=1
   res=$(bcc_brotli_scan "$f")
   bcc_split_tab "$res"
-  if [[ ${BCC_F[3]} == 1 ]] && ! bcc_elf_needed "$f" 2>/dev/null | grep -q '^libbrotlidec'; then
+  if [[ ${BCC_F[3]} == 1 ]] && ! bcc_needed_has_brotlidec "$(bcc_elf_needed "$f" 2>/dev/null)"; then
     bcc_report_by_strings C11 "$prod" "$f" "" "$(bcc_msg r_c09_vendored)"
     return
   fi
@@ -111,6 +116,7 @@ bcc_c11_file() {
   if ((rc == 0)); then
     bcc_split_tab "$link"
     bcc_report_linked_lib C11 "$prod" "$f" "${BCC_F[0]}" "${BCC_F[1]}"
+    bcc_report_own_copy C11 "$prod" "$f"
   elif [[ $read_st != complete ]]; then
     # No markers were seen, but not all of the file was read: absence is not shown.
     bcc_add_finding C11 UNKNOWN "$prod" "$f" "" "$(bcc_msg r_heur_incomplete "$BCC_MAX_ELF_MB")" "$(bcc_msg n_check_vendor)" "" ""
@@ -249,11 +255,15 @@ bcc_check_c12() {
 
 bcc_c12_runtime_lib() {
   local f=$1 ver series rt
-  [[ ${f##*/} =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+)$ ]] || return 0
-  ver=${BASH_REMATCH[1]}
-  series=${ver%.*}
   rt=${f#/var/lib/flatpak/runtime/}
   rt=${rt%%/*}
+  if [[ ! ${f##*/} =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+    # A real file named libbrotlidec.so.1 is still a copy; only the strings can speak for it.
+    bcc_report_by_strings C12 "flatpak-runtime:$rt" "$f" "" "$(bcc_msg r_c09_lib_noversion)"
+    return 0
+  fi
+  ver=${BASH_REMATCH[1]}
+  series=${ver%.*}
   bcc_judge brotli "$series" semver "$ver"
   bcc_crosscheck_fixed "$f"
   bcc_add_finding C12 "$BCC_J_STATUS" "flatpak-runtime:$rt" "$f" "$ver" "$BCC_J_REASON" \

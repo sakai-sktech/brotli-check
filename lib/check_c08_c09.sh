@@ -86,7 +86,11 @@ bcc_report_own_copy() {
   local res
   res=$(bcc_brotli_heuristic "$3")
   bcc_split_tab "$res"
-  ((${BCC_F[1]:-0} >= BCC_MIN_ERROR_NAMES)) || return 0
+  if ((${BCC_F[1]:-0} < BCC_MIN_ERROR_NAMES)); then
+    # Too few names so far is no answer when the file was not read to its end.
+    [[ ${BCC_F[0]} != INCOMPLETE ]] || bcc_note_incomplete "$3"
+    return 0
+  fi
   bcc_report_by_strings "$1" "$2 (own copy)" "$3" "" "$(bcc_msg r_own_copy)"
 }
 
@@ -101,10 +105,10 @@ bcc_c09_lib_entry() {
   [[ $base == *.so* || $base == *.a ]] || return 0
   [[ $base == *.a ]] && kind=static
   BCC_JUDGED[$f]=1
-  # A conda environment's libbrotlidec is reported by C06 from its conda-meta record; only
-  # when C06 did report one for this environment (an empty or unrelated conda-meta/ next to
-  # a library proves nothing).
-  [[ -n ${BCC_C06_CONDA_ENVS[$(dirname -- "$(dirname -- "$f")")]:-} ]] && return 0
+  # A conda environment's libbrotlidec is reported by C06 from its conda-meta record; only the
+  # files C06 compared with such a record (an empty or unrelated conda-meta/ next to a library
+  # proves nothing, and neither does a record about another file in the same lib/).
+  [[ -n ${BCC_C06_CONDA_FILES[$f]:-} ]] && return 0
   bcc_covered_by_c01 "$f" && return 0
   [[ $base =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+)$ ]] && ver=${BASH_REMATCH[1]}
   res=$(bcc_brotli_heuristic "$f")
@@ -196,7 +200,7 @@ bcc_check_c09_deep() {
     # A program that links libbrotlidec dynamically names the decoder symbols in .dynstr; that
     # alone is not a copy. Its own decoder error names are (bcc_report_own_copy).
     needed=$(bcc_elf_needed "$f" 2>/dev/null || true)
-    if grep -q '^libbrotlidec' <<<"$needed"; then
+    if bcc_needed_has_brotlidec "$needed"; then
       BCC_JUDGED[$f]=1
       bcc_report_own_copy C09 "${f##*/}" "$f"
       continue

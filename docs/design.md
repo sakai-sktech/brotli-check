@@ -71,6 +71,29 @@ GHSA-9v8h-qqgm-4m35, PYSEC-2026-4322 / 4323, the Node.js advisory and its list o
 lines, Debian bookworm / trixie, Envoy GHSA-3wvj-j6qm-62mr, ISTIO-SECURITY-2026-007, Chromium's
 `README.chromium` (cfa184a9) and Firefox's `moz.yaml` (4792c8e4).
 
+### 2.2 Re-checked before release (2026-11-02)
+
+Every row's primary source was read again, and the snapshot moved to 2026-11-02. No existing row's
+version changed. Changes:
+
+| Row | Found | Data | Source |
+|---|---|---|---|
+| Ubuntu ESM | USN-8956-2 (2026-10-27) fixes 20.04 focal, 18.04 bionic and 16.04 xenial, with Ubuntu Pro only | Three `fixed` rows: 1.0.7-6ubuntu0.1+esm1, 1.0.3-1ubuntu1.3+esm1, 1.0.3-1ubuntu1~16.04.2+esm1. Those hosts were UNKNOWN ("no data") | ubuntu.com/security/notices/USN-8956-2, ubuntu.com/security/CVE-2026-111497 |
+| Firefox ESR | The current ESR is 153 (`FIREFOX_153_0esr_RELEASE` has 4792c8e4), and 115 is still updated (115.34.0esr has e61745a6, 115.35.0esr has 4792c8e4). 128 ended at 128.14.0esr without it | Two `analysis` rows: 153.0 and 115.35.0. 128 has no row, so it stays UNKNOWN | `modules/brotli/moz.yaml` per tag, product-details.mozilla.org |
+| Envoy 1.17 and earlier | Envoy's source has no Brotli before v1.18.0 (no mention in `repository_locations.bzl`, `repositories.bzl`, `extensions_build_config.bzl` at v1.14.0-v1.17.4; the filter arrived in 127aa553, 2021-02-08). "Bundles Brotli in the affected range" was too much for these lines | New `unknown` row `<=1.17`; the `<=1.35` note now gives what was pinned (0cd2e392 and 6d03dfbe, both v1.0.9 plus commits, and 1.1.0) | the same files per tag |
+| .NET | Not a row. dotnet/runtime builds Google's C decoder (`src/native/external/brotli`, 1.0.9 at v8.0.29) into `libSystem.IO.Compression.Native.so`, and USN-8958-1 (2026-10-29) names this CVE for it. `docs/limitations.md` called .NET a separate code base, which was wrong. See 10.18 | none yet | ubuntu.com/security/notices/USN-8958-1, github.com/dotnet/runtime |
+
+Unchanged on re-check: Google Brotli tags; GHSA-9v8h-qqgm-4m35 (modified 2026-10-29, same ranges);
+PYSEC-2026-4322 / 4323, which still disagree with it below 1.0.3, so PyPI stays as in 10.16.6; no
+PyPI release lies between the stated last versions and the fixes; Debian bookworm, trixie, sid and
+forky (still 1.2.0-4); Ubuntu's four rows; the Node.js advisory and the end-of-life dates of 20, 21,
+23 and 25; Bun's GHSA-663w-cv8g-jj2p and its pin db24a98a (identical to v1.2.1); Envoy's advisory
+and the pin 42a2ed43 in all five fixed tags, a descendant of the fix 0ed4268a; ISTIO-SECURITY-2026-007
+and 1.29's end of life on that date; Chromium's cfa184a9, a descendant of the fix. Chromium's
+threshold 148.0.7778.0 stays: tags from 148.0.7750.0 already have cfa184a9, so development builds
+between there and the threshold are UNKNOWN when they could be FIXED, which changes no next step for
+a build nobody runs in production.
+
 ## 3. Added from measurements on the development host
 
 Requirements not in the request, found by read-only inspection of the development machine
@@ -647,9 +670,9 @@ rejected alternative.
        comparison is UNKNOWN with its own reason. The cost is one read of the package's files per
        server file, in the branch reached only when nothing else decided.
     4. **A diverted path is not the package's.** `dpkg-query -S` then begins with `diversion by X
-       from`, which `bcc_dpkg_owner` returns as it is. `dpkg --verify` compares the diverted original,
-       not this file, so skipping those lines would have found the package and an empty comparison.
-       The words are not on the list, so it is UNKNOWN, and they appear in the reason.
+       from`. `dpkg --verify` compares the diverted original, not this file, so skipping those lines
+       would have found the package and an empty comparison. It is UNKNOWN (10.18.2 moved this into
+       `bcc_dpkg_owner`, so the words no longer reach the reason).
     5. **Go comes before "any other package".** Debian's `caddy` is a package with no source check
        here, but it is a Go program without `cbrotli`, and that is the better statement about it.
        The reason now says only `cbrotli` is looked for. Other cgo bindings were not tried.
@@ -659,3 +682,54 @@ rejected alternative.
     Accepted: a host with a third-party nginx, or with a Debian `nginx` rebuilt under another
     version, now exits 2 (the point of the issue). The integration tests install the three servers
     in every image and expect exit status 0 once the copies placed on purpose are removed.
+18. **Round 7 of the adversarial review, before the first release (2026-11-02, issue #4).** It gave
+    15 P1 findings against the whole tool; each behaviour holds in the code (the checksum and diversion
+    ones were also seen on Ubuntu 24.04). Eleven were fixed, three are listed in
+    `docs/limitations.md` and left for later issues, one was declined. The requester chose this split
+    and that the gate before releasing is a review of this diff, not of the whole tool again.
+    1. **What a check leaves to another must be what that check looked at.** C09 left every decoder
+       file of a conda environment to C06, which compares only `lib/libbrotlidec.so.*`, so an old
+       `libbrotlidec.a` next to a fixed library was in neither; it now leaves the files C06 compared.
+       C14 treated `python3-brotli` as speaking for everything in `dist-packages`, including a
+       brotlicffi; now only for Brotli's metadata. Accepted: a Debian `python3-brotlicffi`, which uses
+       the system library, is judged by its upstream version in a container, as it already was
+       without `python3-brotli`.
+    2. **A diversion is decided in `bcc_dpkg_owner`, and there is no owner.** 10.17.4 let the words
+       `diversion by X from` through for C11, where they did no harm, but the function has five other
+       callers: C04 called the replacement a distribution package, C06 advised updating a package with
+       that name, C13 left the browser out of the list of programs to run, and C09 split the words, so
+       a diversion by a package named `brotli` counted as covered by C01. What is at a diverted path
+       now counts as unpackaged everywhere. Rejected: an extra reason saying "diverted" in C11, as
+       the next step is the same. Accepted: C11's reason says a build of its own, where the file could
+       belong to the diverting package.
+    3. **Silence is an answer only from what was asked.** `dpkg --verify` says nothing about a file
+       with no recorded checksum, so with `md5sums` gone a replaced `/usr/sbin/nginx` was
+       `NOT_APPLICABLE` and "as installed". The file must now be in `dpkg-query --control-show PKG
+       md5sums`, or it was not compared. A dpkg without `--control-show` gives UNKNOWN.
+    4. **A checked version form keeps only forms that were seen.** The upstream part of
+       `BCC_C11_DISTRO_VERSION` took any letters, so `1.26.3~acme1-1` passed. It now takes digits and
+       dots with `~rc`, `~alpha`, `~beta`, `~pre` or `~dev`, and `+dfsg` or `+ds` as before.
+    5. **Own copies.** C11 now looks for one next to a linked libbrotlidec, as C04 and C08 do, and
+       one not read to its end is listed as not scanned instead of being dropped when too few names
+       were read. A real file named `libbrotlidec.so.1` in a Flatpak runtime is judged by its strings
+       instead of returning silently. A NEEDED entry may be a path (a library linked without a
+       SONAME), and is recognized by its last component.
+    6. **Numbers and paths.** `bcc_numcmp` compares components as digits, since arithmetic wrapped a
+       very long one, which let a reversed range through the loader and could turn a version read from a
+       file into something else. The caller's PATH is split without `read` and passed NUL-separated,
+       as a directory may hold a newline (10.13).
+    7. **Left for later, with an entry in the limitations:** only the first of several differently named
+       libbrotlidec libraries of one program is judged (two in one process are rare, and callers take
+       one path); a `node` that is a link to a program of another name is not taken, and not listed (the
+       filter exists for version-manager shims, 10.12, and telling a shim from a runtime is the real
+       work); glibc-hwcaps directories are tried in name order rather than glibc's priority (the right
+       order needs the CPU's supported levels).
+    8. **Declined: `--output` writes a temporary file first.** It is created beside the requested name
+       in the directory that was just checked, linked to that name so that nothing is overwritten
+       (`noclobber` does not refuse every kind of existing file), and removed. Writing directly would
+       trade this for a partial report under the final name. The README now mentions it.
+    9. **.NET is a known gap, not a detail of the limitations.** Ubuntu's `dotnet-runtime-8.0`
+       (8.0.33, fixed per Ubuntu) holds a decoder in `/usr/lib/dotnet/.../libSystem.IO.Compression.Native.so`,
+       and it does not load libbrotli. The default run says nothing about it and `/usr/lib/dotnet` is
+       not in the default roots; `--deep --roots /usr/lib/dotnet` gives `VENDORED_COPY`. A fair verdict
+       needs rows for .NET's own versions, so it is a separate issue and did not hold the release.

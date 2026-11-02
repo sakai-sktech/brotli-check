@@ -12,7 +12,7 @@ write_data() {
 }
 
 @test "the shipped data file loads and has a snapshot date" {
-  [ "$BCC_DATA_SNAPSHOT" = 2026-10-27 ]
+  [ "$BCC_DATA_SNAPSHOT" = 2026-11-02 ]
   [ "${#BCC_DATA_ROWS[@]}" -gt 20 ]
 }
 
@@ -199,6 +199,34 @@ write_data() {
   [[ $BCC_J_REASON != *evidence* ]]
 }
 
+@test "data: Envoy before Brotli support is UNKNOWN; from 1.18 on it is VULNERABLE" {
+  bcc_load_data shipped-data <"$REPO_ROOT/data/advisories.tsv"
+  bcc_judge envoy 1.17 semver 1.17.4
+  [ "$BCC_J_STATUS" = UNKNOWN ]
+  bcc_judge envoy 1.9 semver 1.9.1
+  [ "$BCC_J_STATUS" = UNKNOWN ]
+  bcc_judge envoy 1.18 semver 1.18.0
+  [ "$BCC_J_STATUS" = VULNERABLE ]
+  bcc_judge envoy 1.35 semver 1.35.13
+  [ "$BCC_J_STATUS" = VULNERABLE ]
+}
+
+@test "data: Ubuntu's ESM releases are judged by USN-8956-2" {
+  bcc_load_data shipped-data <"$REPO_ROOT/data/advisories.tsv"
+  bcc_judge deb-src:brotli ubuntu:focal deb 1.0.7-6ubuntu0.1+esm1
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_judge deb-src:brotli ubuntu:focal deb 1.0.7-6ubuntu0.1
+  [ "$BCC_J_STATUS" = VULNERABLE ]
+  bcc_judge deb-src:brotli ubuntu:bionic deb 1.0.3-1ubuntu1.3+esm1
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_judge deb-src:brotli ubuntu:bionic deb 1.0.3-1ubuntu1.3
+  [ "$BCC_J_STATUS" = VULNERABLE ]
+  bcc_judge deb-src:brotli ubuntu:xenial deb 1.0.3-1ubuntu1~16.04.2+esm1
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_judge deb-src:brotli ubuntu:xenial deb 1.0.3-1ubuntu1~16.04.2
+  [ "$BCC_J_STATUS" = VULNERABLE ]
+}
+
 @test "text report: outside the range is visible without evidence, and adds to exit code 2 only" {
   BCC_LANG=ja BCC_DATA_LABEL=test BCC_ROOTS=(/opt)
   bcc_judge bun '*' semver 1.0.20
@@ -255,6 +283,10 @@ write_data() {
   run bcc_load_data test-data <"$DATA"
   [ "$status" -eq 3 ]
   [[ $output == *"not above LAST"* ]]
+  # A component too long for arithmetic does not wrap around into a valid order.
+  write_data '# snapshot: 2026-10-26' 'foo|*|1.2.1|fixed|ADV-1:18446744073709551617.2.0:1.2.0|https://x|2026-10-26|'
+  run bcc_load_data test-data <"$DATA"
+  [ "$status" -eq 3 ]
 }
 
 @test "data: the old status name derived is rejected" {

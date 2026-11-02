@@ -126,10 +126,11 @@ bcc_c06_conda() {
     [[ -f $lib && ! -L $lib ]] || continue
     checked=1
     bcc_crosscheck_fixed "$lib"
+    # C09 leaves to this finding the files compared here, and no others: a static archive or
+    # a stray copy in the same lib/ says nothing to this record, nor it to them.
+    BCC_C06_CONDA_FILES[$lib]=1
   done
   ((checked)) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_lib "$ver" 'lib/libbrotlidec.so.*')" "$(bcc_msg n_missing_file)"
-  # C09 leaves this environment's lib/libbrotlidec* to this finding.
-  BCC_C06_CONDA_ENVS[$env]=1
   local next=$BCC_J_NEXT
   bcc_judge_advises_update && next=$(bcc_msg n_conda_update "$(printf '%q' "$(dirname -- "$(dirname -- "$f")")")")
   bcc_add_finding C06 "$BCC_J_STATUS" "conda:libbrotlidec" "$f" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
@@ -137,7 +138,7 @@ bcc_c06_conda() {
 
 bcc_check_c06() {
   local p
-  declare -gA BCC_C06_SITES=() BCC_C06_CONDA_ENVS=()
+  declare -gA BCC_C06_SITES=() BCC_C06_CONDA_FILES=()
   for p in ${BCC_IDX_PY[@]+"${BCC_IDX_PY[@]}"}; do bcc_c06_entry "$p"; done
   for p in ${BCC_IDX_CONDA[@]+"${BCC_IDX_CONDA[@]}"}; do bcc_c06_conda "$p"; done
 }

@@ -39,12 +39,15 @@ bcc_numcmp() {
     y=${b[i]:-0}
     x=${x//[!0-9]/}
     y=${y//[!0-9]/}
-    x=$((10#${x:-0}))
-    y=$((10#${y:-0}))
-    if ((x < y)); then
+    # Compared as digits, not as numbers: arithmetic would wrap a very long component.
+    while [[ $x == 0?* ]]; do x=${x#0}; done
+    while [[ $y == 0?* ]]; do y=${y#0}; done
+    x=${x:-0}
+    y=${y:-0}
+    if ((${#x} < ${#y})) || [[ ${#x} == "${#y}" && $x < $y ]]; then
       printf -- -1
       return
-    elif ((x > y)); then
+    elif [[ $x != "$y" ]]; then
       printf 1
       return
     fi

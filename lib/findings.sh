@@ -18,7 +18,7 @@ bcc_init_findings() {
   declare -gA BCC_C01_JUDGED=()
   # Filled by C06, read by C09; declared here so that every entry point has them as
   # associative arrays (an undeclared one would evaluate a path key arithmetically).
-  declare -gA BCC_C06_SITES=() BCC_C06_CONDA_ENVS=()
+  declare -gA BCC_C06_SITES=() BCC_C06_CONDA_FILES=()
   # Execution plan, consent and results (lib/exec.sh); caches for facts and linkage.
   BCC_PLAN=()
   declare -gA BCC_PLAN_BIN=() BCC_PLAN_ARG=() BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=()

@@ -126,7 +126,7 @@ bcc_report_by_strings() {
 bcc_c04_candidates() {
   [[ -z ${BCC_C04_DONE:-} ]] || return 0
   local exe c known
-  bcc_collect0 < <({ bcc_node_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_NODE[@]+"${BCC_IDX_NODE[@]}"}; } | bcc_candidates 'node|nodejs')
+  bcc_candidates C04 'node|nodejs' < <(bcc_node_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_NODE[@]+"${BCC_IDX_NODE[@]}"})
   BCC_C04_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
   # Running node executables outside the searched places are judged too.
   while IFS= read -r -d '' exe; do
@@ -189,6 +189,7 @@ bcc_check_c04() {
     bcc_add_finding C04 "$BCC_J_STATUS" node "$bin" "$ver" "$BCC_J_REASON" "$next" \
       "$(bcc_msg e_version_method "$method")${pids:+; pids $pids}; $BCC_J_EVIDENCE" ""
   done
+  bcc_report_other_names C04
   bcc_report_deleted_exes C04
 }
 
@@ -202,7 +203,7 @@ bcc_bun_patterns() {
 
 bcc_c05_candidates() {
   [[ -z ${BCC_C05_DONE:-} ]] || return 0
-  bcc_collect0 < <({ bcc_bun_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_BUN[@]+"${BCC_IDX_BUN[@]}"}; } | bcc_candidates bun)
+  bcc_candidates C05 bun < <(bcc_bun_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_BUN[@]+"${BCC_IDX_BUN[@]}"})
   BCC_C05_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
   BCC_C05_DONE=1
 }
@@ -240,5 +241,6 @@ bcc_check_c05() {
     bcc_add_finding C05 "$BCC_J_STATUS" bun "$bin" "$ver" "$BCC_J_REASON" "$next" \
       "$(bcc_msg e_version_method "$method")${pids:+; pids $pids}; $BCC_J_EVIDENCE" ""
   done
+  bcc_report_other_names C05
   bcc_report_deleted_exes C05
 }

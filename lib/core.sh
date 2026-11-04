@@ -397,14 +397,17 @@ bcc_path_dirs() {
 # caller's PATH, plus NUL-terminated records on stdin: "G<pattern>" (a glob) or "L<path>" (a
 # literal path, from the index). The name is matched on the path as found and on the file
 # it resolves to: the target must carry the name too, as in /opt/x/bin/node -> node-22.0.0
-# or node -> nodejs. A link to a program of another name is a multi-call shim (mise, volta),
-# not the runtime, and is dropped, as are scripts. Prints the unique real paths of ELF
-# files, NUL-terminated (paths may contain newlines).
-# Usage: printf 'G%s\0' PATTERN... | bcc_candidates NAME[|ALIAS]
+# or node -> nodejs. Scripts are dropped. Fills BCC_LIST with the unique real paths of ELF
+# files (paths may contain newlines). A link to an ELF program of another name may be a
+# multi-call shim (mise, volta, snap's launcher) that would answer for itself, not for the
+# runtime: it is not a candidate, and is kept under ID for bcc_report_other_names
+# (BCC_OTHER_*; once per link, by its directory's real path: /bin/x and /usr/bin/x are one).
+# Usage: bcc_candidates ID NAME[|ALIAS] < <(printf 'G%s\0' PATTERN...)
 bcc_candidates() {
-  local names=$1 d f rec real n ok
+  local id=$1 names=$2 d f rec real n ok at key
   local -A seen=()
   local -a names_a=() list=()
+  BCC_LIST=()
   IFS='|' read -r -a names_a <<<"$names"
   while IFS= read -r -d '' d; do
     for n in "${names_a[@]}"; do list+=("$d/$n"); done
@@ -424,13 +427,22 @@ bcc_candidates() {
     ((ok)) || continue
     [[ -f $f && -x $f ]] || continue
     real=$(bcc_realpath "$f") || continue
+    [[ -n $real ]] || continue
     ok=0
     for n in "${names_a[@]}"; do [[ ${real##*/} == "$n"* ]] && ok=1; done
-    ((ok)) || continue
-    [[ -n $real && -z ${seen[$real]:-} ]] || continue
+    if ((!ok)); then
+      if at=$(bcc_realpath "${f%/*}") && [[ -n $at ]]; then at="${at%/}/${f##*/}"; else at=$f; fi
+      key="$id|$at"
+      if [[ -z ${BCC_OTHER_KEYS[$key]:-} ]] && bcc_is_elf "$real"; then
+        BCC_OTHER_KEYS[$key]=1
+        BCC_OTHER_ID+=("$id") BCC_OTHER_FOUND+=("$at") BCC_OTHER_REAL+=("$real")
+      fi
+      continue
+    fi
+    [[ -z ${seen[$real]:-} ]] || continue
     seen[$real]=1
     bcc_is_elf "$real" || continue
-    printf '%s\0' "$real"
+    BCC_LIST+=("$real")
   done
 }
 

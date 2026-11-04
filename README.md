@@ -366,7 +366,6 @@ Problems known in the current version. Each is removed from this list once fixed
 - The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
 - A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it
 - Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))
-- A `node` that is a link to a program of another name is dropped without a mention ([#19](https://github.com/sakai-sktech/brotli-check/issues/19))
 
 All: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 
@@ -381,8 +380,8 @@ and on containers that can be built and thrown away.
 - **Integration tests**: x86_64 containers of Ubuntu 22.04, 24.04, 26.04 and Debian 12, 13, with
   unfixed and fixed copies put in on purpose; every expected verdict matched, as root and as an
   ordinary user, with `--no-exec` and with `--yes`.
-- **172 unit tests** and ShellCheck with zero warnings. The string heuristic was checked on the
-  builds listed under "What a verdict rests on".
+- **239 unit tests** (as of 2026-11-02) and ShellCheck with zero warnings. The string heuristic
+  was checked on the builds listed under "What a verdict rests on".
 - **Not checked**: how often it misses copies or misjudges them on real hosts; architectures
   other than x86_64; RHEL and the like; integration tests on Ubuntu 26.10 and on derivatives.
 

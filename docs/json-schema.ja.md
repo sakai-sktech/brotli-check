@@ -35,7 +35,7 @@ UTF-8 の JSON オブジェクトを 1 行で出します。フィールドは�
 | `NO_FIX_AVAILABLE` | 配布元が修正版をまだ出していない |
 | `RESTART_REQUIRED` | 削除済みの Brotli 関連のファイル（libbrotlidec、`_brotli*.so`、node・bun の実行ファイル）を使い続けているプロセスがある。同じパスにいまあるファイルが修正版かは判定名に含まない。`reason` に、この結果がそのファイルをどう判定したか（判定していない、ファイルが無い、別のマウント名前空間のプロセス、のどれか）を書き、`next_step` はそれに従う（再起動する／先に更新する／版を確かめてから再起動する） |
 | `VENDORED_COPY` | デコーダーを同梱している。版を人が確認する必要がある |
-| `LIKELY_FIXED`, `LIKELY_VULNERABLE` | 検証済みの文字列による推定。`confidence` を参照 |
+| `LIKELY_FIXED`, `LIKELY_VULNERABLE` | 試したビルドで確かめた文字列による推定。`confidence` を参照 |
 | `EXPOSURE` | 攻撃者のデータがデコーダーに届く経路の手がかり（脆弱性そのものではない） |
 | `NOT_APPLICABLE` | そのファイルにデコーダーの形跡が無く、ソースを確かめた配布元のパッケージ、`cbrotli` の無い Go のプログラム、`curl -V` が brotli を挙げないこと、のどれかが裏づける。無いことの証明ではなく、何を根拠にしたかは `reason` に書く |
 | `UNKNOWN` | 判定できない。理由は `reason` |

@@ -335,7 +335,6 @@ testing（forky）は修正の移行を待っていました。
 - dpkg-query の失敗などで点検の一部ができなくても、終了コードが `0` になる（[#10](https://github.com/sakai-sktech/brotli-check/issues/10)）
 - 既定の実行では、.NET のランタイムの中のデコーダーについて何も出ない（[#17](https://github.com/sakai-sktech/brotli-check/issues/17)）。`--deep --roots /usr/lib/dotnet` で一覧に出る
 - 1 つのプログラムが読む `libbrotlidec*` のうち判定するのは最初の 1 つだけで、`glibc-hwcaps` のディレクトリは名前の順に試す（[#18](https://github.com/sakai-sktech/brotli-check/issues/18)）
-- 別の名前のプログラムへのリンクである `node` が、何も言わずに落ちる（[#19](https://github.com/sakai-sktech/brotli-check/issues/19)）
 
 一覧: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 
@@ -348,7 +347,7 @@ testing（forky）は修正の移行を待っていました。
   ことを確かめました。
 - **統合試験**: Ubuntu 22.04・24.04・26.04、Debian 12・13 の x86_64 のコンテナに、未修正のものと修正済みのものを
   わざと入れ、root と一般ユーザー、`--no-exec` と `--yes` のそれぞれで、期待した判定と一致しました。
-- **単体試験** 172 件と ShellCheck（警告ゼロ）。文字列による推定は、上の「判定の根拠」に書いたビルドで確かめました。
+- **単体試験** 239 件（2026-11-02 の時点）と ShellCheck（警告ゼロ）。文字列による推定は、上の「判定の根拠」に書いたビルドで確かめました。
 - **確かめていないこと**: 実際のホストでの見つけ漏れや誤判定の率、x86_64 以外、RHEL 系、Ubuntu 26.10 と
   派生ディストリビューションの統合試験。
 

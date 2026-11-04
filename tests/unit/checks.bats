@@ -507,6 +507,139 @@ EOF
   [[ ${BCC_FINDINGS[*]:-} != *"$T/shims/node"* ]]
 }
 
+# A real ELF program with no Brotli in it, for links whose libraries must be followed.
+plain_elf() {
+  mkdir -p "$(dirname "$1")"
+  cp /bin/true "$1"
+  readelf -d "$1" >/dev/null 2>&1 || skip "readelf cannot read /bin/true"
+}
+
+@test "C04: a link to a program of another name is not run, and the report names it (#19)" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  plain_elf "$T/bin/mise"
+  mkdir -p "$T/shims"
+  ln -s ../bin/mise "$T/shims/node"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_USER_PATH="$T/shims"
+  bcc_build_exec_plan
+  [[ ${BCC_PLAN[*]:-} != *"$T/bin/mise"* ]]
+  bcc_check_c04
+  [[ ${BCC_FINDINGS[*]:-} != *"$T/bin/mise"* ]]
+  [[ ${BCC_INFO[*]} == *"$T/shims/node is a link to $T/bin/mise, a program of another name"*"not judged as node"*"does not load libbrotlidec"* ]]
+}
+
+@test "C04: a link of another name to a file with a Brotli decoder is judged by its strings, not run (#19)" {
+  BCC_NO_EXEC=1
+  make_fake_elf "$T/opt/app/runtime/app-runtime" "$FIXTURES/c09/node-v22.23.4.txt"
+  mkdir -p "$T/opt/app/bin"
+  ln -s ../runtime/app-runtime "$T/opt/app/bin/node"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_IDX_NODE=("$T/opt/app/bin/node")
+  BCC_USER_PATH="$T/empty"
+  bcc_build_exec_plan
+  [[ ${BCC_PLAN[*]:-} != *"$T/opt/app/runtime/app-runtime"* ]]
+  bcc_check_c04
+  run findings_brief
+  [[ $output == *"LIKELY_FIXED|C04|app-runtime|$T/opt/app/runtime/app-runtime|"* ]]
+  [[ ${BCC_FINDINGS[*]} == *"Found as $T/opt/app/bin/node, a link to this program of another name: it was not run"* ]]
+  # --deep does not report the same file again.
+  BCC_ROOTS=("$T/opt")
+  bcc_check_c09_deep
+  run findings_brief
+  [ "$(grep -c '|C09|.*app-runtime' <<<"$output")" -eq 0 ]
+}
+
+@test "C04: a second link to a file already judged points to it (#19)" {
+  BCC_NO_EXEC=1
+  make_fake_elf "$T/opt/app/runtime/app-runtime" "$FIXTURES/c09/node-v22.23.4.txt"
+  mkdir -p "$T/opt/app/bin" "$T/opt/app/sbin"
+  ln -s ../runtime/app-runtime "$T/opt/app/bin/node"
+  ln -s ../runtime/app-runtime "$T/opt/app/sbin/node"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_IDX_NODE=("$T/opt/app/bin/node" "$T/opt/app/sbin/node")
+  BCC_USER_PATH="$T/empty"
+  bcc_check_c04
+  run findings_brief
+  [ "$(grep -c "|$T/opt/app/runtime/app-runtime|" <<<"$output")" -eq 1 ]
+  [[ ${BCC_INFO[*]} == *"$T/opt/app/sbin/node is a link to $T/opt/app/runtime/app-runtime, a program of another name: it was not run"* ]]
+}
+
+@test "C04: a link of another name to a file not read to its end is listed as not scanned (#19)" {
+  BCC_NO_EXEC=1
+  BCC_MAX_ELF_MB=1
+  make_fake_elf "$T/bin/big"
+  head -c 2097152 /dev/zero >>"$T/bin/big"
+  # Its libraries cannot be followed either; what was not read comes first.
+  cat >"$FAKEBIN/readelf" <<'EOF'
+#!/bin/sh
+exit 1
+EOF
+  chmod +x "$FAKEBIN/readelf"
+  mkdir -p "$T/shims"
+  ln -s ../bin/big "$T/shims/node"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_USER_PATH="$T/shims"
+  bcc_check_c04
+  [[ ${BCC_FINDINGS[*]:-} != *"$T/bin/big"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"$T/shims/node"$'\t'"a link to $T/bin/big, a program of another name: that file could not be read to the end"* ]]
+}
+
+@test "C04: a link of another name whose libraries could not be followed is listed as not scanned (#19)" {
+  BCC_NO_EXEC=1
+  # Not a real ELF: readelf cannot read it, so whether it loads libbrotlidec stays open.
+  make_fake_elf "$T/bin/mise"
+  mkdir -p "$T/shims"
+  ln -s ../bin/mise "$T/shims/node"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_USER_PATH="$T/shims"
+  bcc_check_c04
+  [[ ${BCC_FINDINGS[*]:-} != *"$T/bin/mise"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"$T/shims/node"$'\t'"a link to $T/bin/mise, a program of another name: that file carries no Brotli decoder, but whether it loads libbrotlidec could not be followed to the end"* ]]
+}
+
+@test "C04: a link of another name to a file that loads libbrotlidec is judged by that library (#19)" {
+  command -v cc >/dev/null || skip "no C compiler"
+  command -v readelf >/dev/null || skip "readelf not available"
+  lib=""
+  for x in /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 /usr/lib/aarch64-linux-gnu/libbrotlidec.so.1; do
+    [ -e "$x" ] && { lib=$x; break; }
+  done
+  [ -n "$lib" ] || skip "no system libbrotlidec to link against"
+  BCC_NO_EXEC=1
+  mkdir -p "$T/opt/app/bin" "$T/shims"
+  printf 'int main(void){return 0;}\n' >"$T/m.c"
+  cc -o "$T/opt/app/bin/runner" "$T/m.c" -Wl,--no-as-needed "$lib"
+  readelf -d "$T/opt/app/bin/runner" | grep -q 'libbrotlidec' || skip "could not make a program that needs libbrotlidec"
+  ln -s ../opt/app/bin/runner "$T/shims/node"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_USER_PATH="$T/shims"
+  bcc_check_c04
+  [[ ${BCC_INFO[*]} == *"$T/shims/node is a link to $T/opt/app/bin/runner, a program of another name: it was not run"* ]]
+  [[ ${BCC_INFO[*]} == *"$T/opt/app/bin/runner (runner) loads "*"libbrotlidec"* ]]
+}
+
+@test "C05: a bun that is a link to a program of another name is named in the report (#19)" {
+  command -v readelf >/dev/null || skip "readelf not available"
+  BCC_NO_EXEC=1
+  plain_elf "$T/bin/mise"
+  mkdir -p "$T/shims"
+  ln -s ../bin/mise "$T/shims/bun"
+  BCC_PROC_ROOT="$BATS_TEST_TMPDIR/emptyproc"
+  mkdir -p "$BCC_PROC_ROOT"
+  BCC_USER_PATH="$T/shims"
+  bcc_check_c05
+  [[ ${BCC_FINDINGS[*]:-} != *"$T/bin/mise"* ]]
+  [[ ${BCC_INFO[*]} == *"$T/shims/bun is a link to $T/bin/mise, a program of another name"*"not judged as bun"* ]]
+  [[ $'\n'"$(printf '%s\n' "${BCC_INFO[@]}")" == *$'\n'"C05"$'\t'"$T/shims/bun is a link"* ]]
+}
+
 @test "C04: a node chosen to run gives its version through --version" {
   command -v cc >/dev/null || skip "no C compiler to build a stand-in node"
   mkdir -p "$T/n/bin"

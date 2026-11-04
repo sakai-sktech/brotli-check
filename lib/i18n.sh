@@ -17,7 +17,7 @@ bcc_msg() {
   printf -- "$fmt" "$@"
 }
 
-BCC_MSG_EN[usage]='brotli-cve-check %s - read-only local check for CVE-2026-111497 (Brotli decoder)
+BCC_MSG_EN[usage]='brotli-cve-check %s - local check for CVE-2026-111497 (Brotli decoder)
 
 Usage: brotli-cve-check [options]
 
@@ -27,8 +27,9 @@ Scan scope
   --include-remote        also search network file systems (NFS, CIFS, sshfs; excluded by default)
   --deep                  C09: search all ELF files under --roots for bundled decoders (slow)
   --projects              C07: exposure hints from node_modules under --roots
-  --containers            C14: list containers and images (docker/podman)
-  --inspect-containers    C14: also run read-only checks inside running containers
+  --containers            C14: list containers and images (docker/podman), and where the engine connects
+  --inspect-containers    C14: also run a fixed check script inside running containers, only
+                          when reached through this host (a unix socket, or podman itself)
   --exposure              C15: listening sockets of node/python/bun/envoy
   --envoy-config FILE     C10: look for a Brotli decompressor in an Envoy configuration
 Behaviour
@@ -53,7 +54,7 @@ Exit status: 0 nothing needing action in the scanned ranges (not proof of safety
 LIKELY_*, UNKNOWN), 3 error of the tool itself.
 This tool does not check for intrusion.
 '
-BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダー）の読み取り専用ローカル点検
+BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダー）のローカル点検
 
 使い方: brotli-cve-check [オプション]
 
@@ -63,8 +64,9 @@ BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダ�
   --include-remote        ネットワークファイルシステム（NFS・CIFS・sshfs）も探す（既定は除外）
   --deep                  C09: --roots 配下の ELF ファイルすべてから同梱デコーダーを探す（時間がかかる）
   --projects              C07: --roots 配下の node_modules から露出のヒントを出す
-  --containers            C14: コンテナとイメージを一覧する（docker/podman）
-  --inspect-containers    C14: 実行中のコンテナの中も読み取り専用で確認する
+  --containers            C14: コンテナとイメージを一覧する（docker/podman。接続先も出す）
+  --inspect-containers    C14: 実行中のコンテナの中でも決まった確認のスクリプトを動かす
+                          （このホストの unix ソケットか、サービスを介さない podman のときだけ）
   --exposure              C15: node/python/bun/envoy の待ち受けポートを確認する
   --envoy-config FILE     C10: Envoy の設定に Brotli の展開フィルタがあるか確認する
 動作
@@ -91,8 +93,8 @@ VENDORED_COPY・LIKELY_*・UNKNOWN）、3 ツール自体のエラー。
 '
 
 # --- header -----------------------------------------------------------------
-BCC_MSG_EN[h_title]='brotli-cve-check %s - read-only local check for %s (Brotli decoder)'
-BCC_MSG_JA[h_title]='brotli-cve-check %s - %s（Brotli デコーダー）の読み取り専用ローカル点検'
+BCC_MSG_EN[h_title]='brotli-cve-check %s - local check for %s (Brotli decoder)'
+BCC_MSG_JA[h_title]='brotli-cve-check %s - %s（Brotli デコーダー）のローカル点検'
 BCC_MSG_EN[h_host]='Host: %s [%s], kernel %s, %s'
 BCC_MSG_JA[h_host]='ホスト: %s [%s]、カーネル %s、%s'
 BCC_MSG_EN[h_root]='running as root'
@@ -374,12 +376,24 @@ BCC_MSG_EN[i_c10_istio]='Istio sidecars run Envoy inside containers; fixed in Is
 BCC_MSG_JA[i_c10_istio]='Istio のサイドカーはコンテナ内で Envoy を動かします。修正版は Istio 1.29.9 / 1.30.6 / 1.31.2 です。'
 BCC_MSG_EN[i_c13_electron]='Electron applications bundle their own Chromium and Brotli; --deep lists such copies.'
 BCC_MSG_JA[i_c13_electron]='Electron アプリは独自の Chromium と Brotli を同梱しています。--deep でそうしたコピーを列挙します。'
+BCC_MSG_EN[i_c14_conn_unix]='Connection of %s: %s (a unix socket on this host).'
+BCC_MSG_JA[i_c14_conn_unix]='%s の接続先: %s（このホストの unix ソケット）。'
+BCC_MSG_EN[i_c14_conn_other]='Connection of %s: %s. This is not a unix socket on this host: containers listed through it may be another host'"'"'s, and nothing runs inside them.'
+BCC_MSG_JA[i_c14_conn_other]='%s の接続先: %s。このホストの unix ソケットではありません。ここから一覧したコンテナは別のホストのものかもしれず、中では何も実行しません。'
+BCC_MSG_EN[i_c14_conn_unknown]='Connection of %s: not known (%s gave no answer). Containers listed through it may be another host'"'"'s, and nothing runs inside them.'
+BCC_MSG_JA[i_c14_conn_unknown]='%s の接続先: 分からない（%s が答えなかった）。ここから一覧したコンテナは別のホストのものかもしれず、中では何も実行しません。'
+BCC_MSG_EN[i_c14_conn_podman_local]='Connection of podman: none. podman runs the containers on this host itself, with no service in between (podman info).'
+BCC_MSG_JA[i_c14_conn_podman_local]='podman の接続先: なし。podman はサービスを介さず、このホストでコンテナを動かしています（podman info）。'
+BCC_MSG_EN[i_c14_conn_podman_remote]='Connection of podman: a service (podman info), whose address podman does not state. Containers listed through it may be another host'"'"'s, and nothing runs inside them.'
+BCC_MSG_JA[i_c14_conn_podman_remote]='podman の接続先: サービス（podman info）。そのアドレスを podman は示しません。ここから一覧したコンテナは別のホストのものかもしれず、中では何も実行しません。'
 BCC_MSG_EN[i_c14_inventory]='%s: %s running containers, %s images.'
 BCC_MSG_JA[i_c14_inventory]='%s: 実行中のコンテナ %s 個、イメージ %s 個。'
 BCC_MSG_EN[i_c14_rebuild]='Updating the host does not fix containers. The Node.js version inside an image and the image'"'"'s OS libbrotli are separate things.'
 BCC_MSG_JA[i_c14_rebuild]='ホストを更新してもコンテナは直りません。イメージ内の Node.js 本体の版と、ベース OS の libbrotli の版は別物です。'
 BCC_MSG_EN[i_c14_not_inspected]='Container %s (%s) was not inspected (use --inspect-containers).'
 BCC_MSG_JA[i_c14_not_inspected]='コンテナ %s（%s）の中は確認していません（--inspect-containers で確認）。'
+BCC_MSG_EN[i_c14_not_inspected_conn]='Container %s (%s) was not inspected (see the connection of the engine above).'
+BCC_MSG_JA[i_c14_not_inspected_conn]='コンテナ %s（%s）の中は確認していません（理由は上の接続先の行）。'
 BCC_MSG_EN[i_c14_unsupported_os]='Container %s: OS "%s" is not supported for package checks.'
 BCC_MSG_JA[i_c14_unsupported_os]='コンテナ %s: OS「%s」はパッケージの判定に対応していません。'
 
@@ -404,12 +418,18 @@ BCC_MSG_EN[skip_engine_denied]='%s cannot be used by this user (permission or da
 BCC_MSG_JA[skip_engine_denied]='このユーザーは %s を使えない（権限がない、またはデーモンが止まっている）'
 BCC_MSG_EN[skip_c14_inside]='inside of containers (use --inspect-containers)'
 BCC_MSG_JA[skip_c14_inside]='コンテナの中（--inspect-containers で確認）'
+BCC_MSG_EN[skip_c14_conn_other]='inside of containers: %s connects to %s, not to a unix socket on this host, so nothing was run inside them'
+BCC_MSG_JA[skip_c14_conn_other]='コンテナの中（%s の接続先 %s はこのホストの unix ソケットではないため、中では何も実行していない）'
+BCC_MSG_EN[skip_c14_conn_unknown]='inside of containers: where %s connects is not known, so nothing was run inside them'
+BCC_MSG_JA[skip_c14_conn_unknown]='コンテナの中（%s の接続先が分からないため、中では何も実行していない）'
+BCC_MSG_EN[skip_c14_conn_podman_remote]='inside of containers: podman is a client of a service whose address it does not state, so nothing was run inside them'
+BCC_MSG_JA[skip_c14_conn_podman_remote]='コンテナの中（podman はアドレスの分からないサービスにつないでいるため、中では何も実行していない）'
 BCC_MSG_EN[skip_c14_noexec]='inside of containers: --no-exec forbids running commands there'
 BCC_MSG_JA[skip_c14_noexec]='コンテナの中（--no-exec のためコマンドを実行しない）'
-BCC_MSG_EN[skip_c14_exec_failed]='the read-only check could not run inside the container'
-BCC_MSG_JA[skip_c14_exec_failed]='コンテナの中で読み取り専用の確認を実行できなかった'
-BCC_MSG_EN[skip_c14_incomplete]='the read-only check inside the container stopped before its end; findings for it may be missing'
-BCC_MSG_JA[skip_c14_incomplete]='コンテナの中の読み取り専用の確認が最後まで終わらなかった（所見が欠けている可能性がある）'
+BCC_MSG_EN[skip_c14_exec_failed]='the check script could not run inside the container'
+BCC_MSG_JA[skip_c14_exec_failed]='コンテナの中で確認のスクリプトを実行できなかった'
+BCC_MSG_EN[skip_c14_incomplete]='the check script inside the container stopped before its end; findings for it may be missing'
+BCC_MSG_JA[skip_c14_incomplete]='コンテナの中の確認のスクリプトが最後まで終わらなかった（所見が欠けている可能性がある）'
 BCC_MSG_EN[skip_dpkg_failed]='dpkg-query failed (status %s): the package database could not be read'
 BCC_MSG_JA[skip_dpkg_failed]='dpkg-query が失敗した（終了状態 %s）。パッケージのデータベースを読めなかった'
 BCC_MSG_EN[skip_other_fs]='%s file systems mounted below the search roots (%s; this is one) are not searched; add them with --roots'

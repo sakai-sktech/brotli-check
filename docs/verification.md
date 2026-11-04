@@ -2,33 +2,56 @@
 
 日本語: [verification.ja.md](verification.ja.md)
 
-What was checked before the first release, how, and what came out. First checks: **2026-10-26**;
-updated **2026-10-27** (advisory data snapshot 2026-10-27, docs/design.md 2.1).
+What was checked, how, under which conditions, and what came out. Each section says when it was
+run and with which advisory data: the first checks on **2026-10-26**; the integration table on
+**2026-10-27** (advisory data snapshot 2026-10-27, docs/design.md 2.1); the C11 section and the
+last row of the unit-test table on **2026-11-02** (snapshot 2026-11-02, docs/design.md 2.2).
 
 One-page figures (A4): [Fig. 01 What we checked, and how](zukai/01_check-method_en.pdf) ·
 [Fig. 02 Results on 5 OSes, and how to read them](zukai/02_results-reading_en.pdf)
 (Japanese: [図解 01](zukai/01_check-method_ja.pdf), [図解 02](zukai/02_results-reading_ja.pdf)).
 
-## How to read these results (as of 2026-10-27)
+## What these tests show, and what they do not
+
+The tests put copies whose verdict is known in advance into containers and test files on
+purpose, and compare the tool's report with the expected verdicts. In the images, the ways of
+running and the builds listed on this page, every expected verdict matched. That is what they
+show. They do not measure how often the tool misses a copy or misjudges one on real hosts, and
+they do not show that it judges every build, distribution or architecture as expected:
+
+- The string heuristic (C09) was tried on Brotli 1.2.0 and 1.2.1 built with gcc 13 on Ubuntu
+  24.04 (x86_64), on official Node.js binaries and on PyPI wheels. Builds of 1.0.x and 1.1.x,
+  other compilers and other architectures were not tried.
+- The integration images are x86_64 containers of Ubuntu 22.04, 24.04, 26.04 and Debian 12, 13,
+  each holding one set of copies placed there. RHEL and the like, Ubuntu 26.10, derivatives and
+  other architectures were not tried.
+- The run on a real workstation ("On a real workstation") shows what the tool found there, not
+  what it missed.
+
+The expected verdicts of the integration tests are in `tests/integration/run.sh`; CI runs them on
+every push and pull request, on images built at that time.
+
+## How to read the integration results (images and data of 2026-10-27)
 
 The integration tests below put known-unfixed and known-fixed copies into each image on purpose,
-so every run ends with exit status 1. What they show:
+so every run ends with exit status 1. In those five images:
 
-- **The tool judges correctly.** Every expected verdict matched, as root and as an ordinary user,
-  with `--no-exec` and with `--yes`.
-- **The operating system's Brotli is fixed on every distribution tested.** Ubuntu fixed 22.04,
+- **Every expected verdict matched**, as root and as an ordinary user, with `--no-exec` and with
+  `--yes`.
+- **The operating system's Brotli was fixed on every distribution tested.** Ubuntu fixed 22.04,
   24.04, 26.04 and 26.10 on 2026-10-26 (USN-8956-1: `1.0.9-2ubuntu0.1`, `1.1.0-2ubuntu0.1`,
   `1.2.0-3ubuntu0.1`, `1.2.0-4ubuntu0.1`); Debian fixed 12 (`1.0.9-2+deb12u1`) and 13
-  (`1.1.0-2+deb13u1`). Images built now get these versions, and `libbrotli1` and `python3-brotli`
-  are `FIXED` in all five. A host that has not been updated since has them `VULNERABLE`: update
-  with apt and restart what uses them (the tool lists those processes as `RESTART_REQUIRED`).
+  (`1.1.0-2+deb13u1`). The images built on 2026-10-27 got these versions, and `libbrotli1` and
+  `python3-brotli` were `FIXED` in all five. A host that has not been updated since has them
+  `VULNERABLE`: update with apt and restart what uses them (the tool lists those processes as
+  `RESTART_REQUIRED`).
   - Until the data of 2026-10-27, the tool reported Ubuntu's packages as `NO_FIX_AVAILABLE`: on
     2026-10-26 the CVE page said "Needs evaluation" and there was no USN, and the data was not
     updated when the USN came out later that day. The sample output captured on 2026-10-27 showed
     the fixed version reported that way (docs/design.md 2.1).
-- **Bundled copies are not fixed by OS updates.** Node.js 22.23.4 and PyPI Brotli 1.2.1 are
-  `FIXED` and their predecessors `VULNERABLE` regardless of the OS. These copies have to be updated
-  product by product, which is why the tool looks for them.
+- **Bundled copies are not fixed by OS updates.** Node.js 22.23.4 and PyPI Brotli 1.2.1 were
+  `FIXED` and their predecessors `VULNERABLE` in all five images, whatever the OS. These copies have
+  to be updated product by product, which is why the tool looks for them.
 
 ## Static checks and unit tests
 
@@ -106,8 +129,8 @@ modules where the archive has them. Versions as installed from the archives on t
 - **Tried by hand, once each:** nginx.org's `nginx` 1.26.0-1~noble on Ubuntu 24.04 was `UNKNOWN`, exit
   `2`. Debian's `caddy` 2.6.2-12+deb13u1 was `NOT_APPLICABLE` as a Go program, exit `0`. `nginx-extras`
   on Ubuntu 22.04 was `NOT_APPLICABLE`, exit `0`.
-- **Unit tests:** 218 / 218 on this branch, merged with #2, with zero ShellCheck warnings. Fifteen mutations of the new
-  code (each check removed or loosened in a copy of the tree) each made a test fail.
+- **Unit tests:** 218 / 218 on 2026-11-02, with the fixes for #1 and #2 merged, and zero ShellCheck warnings. Fifteen
+  mutations of the new code (each check removed or loosened in a copy of the tree) each made a test fail.
 
 What this does not show: no package holding a real stripped static decoder was built, so the
 in-house package here is `/bin/true` under another name. Later versions of these packages were not
@@ -138,12 +161,17 @@ heuristic changed.
 
 ## String heuristic for bundled copies (C09)
 
-Brotli 1.2.0 and 1.2.1 built as shared and static libraries (-O2 and LTO, stripped or not),
-official Node.js 22.23.3 / 22.23.4 / 24.22.0 / 24.22.1, and PyPI Brotli and brotlicffi wheels:
-every fixed artifact contains `_ERROR_FORMAT_BLOCK_SWITCH` and every unfixed one does not. The only
-undecidable case is LTO with garbage collection when the program never calls
-`BrotliDecoderErrorString`; the tool then reports `VENDORED_COPY`. Rerunning
-`tests/fixtures/c09/reproduce.sh` from scratch produced byte-identical fixtures.
+Tried on Brotli 1.2.0 and 1.2.1 built with gcc 13 on Ubuntu 24.04 (x86_64) as shared and static
+libraries (-O2 and LTO, stripped or not), on official Node.js 22.23.3 / 22.23.4 / 24.22.0 / 24.22.1,
+and on PyPI Brotli and brotlicffi wheels: every fixed artifact among them contains
+`_ERROR_FORMAT_BLOCK_SWITCH` and every unfixed one does not. Among these builds, the only case that
+could not be decided was LTO with garbage collection when the program never calls
+`BrotliDecoderErrorString`; the tool then reports `VENDORED_COPY`. Builds of 1.0.x and 1.1.x (the
+fixed 1.0.10 and 1.1.1 carry the same marker in their source), other compilers and other
+architectures were not tried. Some cases are not told apart whatever the build, such as two
+decoders in one file sharing one dictionary (see "The string heuristic" in
+[limitations.md](limitations.md)). Rerunning `tests/fixtures/c09/reproduce.sh` from scratch
+produced byte-identical fixtures.
 Details and download checksums: [tests/fixtures/c09/README.md](../tests/fixtures/c09/README.md).
 
 ## On a real workstation

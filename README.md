@@ -37,7 +37,7 @@ next step: it inventories one host.
   compressed request, as a response the host fetches and decodes automatically (`fetch()`, URL
   previews, crawlers, AI agents), or through a direct call to a decompression API; which of these
   apply to your services is for you to judge. An `EXPOSURE` finding is a hint, not a
-  confirmation that data gets there;
+  confirmation that data gets there, and no `EXPOSURE` is no confirmation that it does not;
 - whether an attack would succeed, or whether the host was compromised. Updating does not remove
   traces of an intrusion that happened before the update;
 - whether the whole host is safe. The best result is "no known vulnerable component was found
@@ -199,7 +199,7 @@ Each finding is one line:
 | `VENDORED_COPY` | Carries its own decoder; neither its version nor whether it is fixed could be determined | Ask the vendor which Brotli it bundles |
 | `LIKELY_VULNERABLE` / `LIKELY_FIXED` | Judged from the decoder's strings; the reason says what was found and what was not (see "[What a verdict rests on](#what-a-verdict-rests-on)") | Confirm with the vendor |
 | `UNKNOWN` | Could not be judged. A version at or above the fix ends up here too when a file could not confirm it, and so does a version before the affected range an advisory states, because the advisory does not say whether it is affected. The reason is always given | Read the reason. For a version before the range: update it (the line says to what) |
-| `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (a related package, a setting, a listening socket). Whether an application uses it, or whether it can be reached from outside, is not checked. Not a vulnerability by itself | Prioritize the updates it points to |
+| `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (a related package, an entry in a configuration file, a listening socket). The reason says what was seen (the package is installed, the file has the entry, the process listens) and what was not (whether an application uses it, whether the running program uses that file, whether it can be reached from outside). Not a vulnerability by itself. No `EXPOSURE` is not proof that there is no path: a response the host fetches and decodes does not show as a listening socket | Prioritize the updates it points to |
 | `NOT_APPLICABLE` | The file has no decoder markers and does not load libbrotlidec, and one of these backs that up: a distribution package whose sources were read (nginx, Apache, HAProxy; told by name, maintainer and version form, with the file as installed), a Go program whose build info does not name cbrotli (other cgo bindings are not looked for), or a curl whose `curl -V` lists no brotli. Not proof that there is no decoder; the reason says what it rests on. Any other package or a build of your own that merely shows no markers is `UNKNOWN` | None for that file |
 | `FIXED` | The version obtained meets the fixed-version condition of the advisory data. A version read from a file counts only when the decoder's strings confirm the fix too. How strong that is depends on where the version came from (see "[What a verdict rests on](#what-a-verdict-rests-on)") | No update needed for this line |
 
@@ -236,7 +236,7 @@ For automation, read not only the exit status but also `skipped` (not scanned) a
 | `--roots DIR,...` | Replaces the search roots | Does not add to them. The fixed places are looked at regardless of `--roots` |
 | `--deep` | Searches the ELF files under the roots for bundled decoders by their strings | Static copies without markers, the inside of archives, files of 512 MiB or more, files with neither an executable bit nor a `.so` / `.node` name. Not the whole disk |
 | `--projects` | Related packages in node_modules (hints) | Whether an application uses them |
-| `--exposure` | Non-loopback listening sockets of node, python, bun and envoy (hints) | Whether they can be reached from outside (firewall, routing) |
+| `--exposure` | Non-loopback listening sockets of node, python, bun and envoy (hints) | Whether they can be reached from outside (firewall, routing). Programs that do not listen but fetch and decode responses |
 | `--containers` | The list of running containers and the number of images, and where docker or podman connects | The inside of containers, stopped containers, the inside of images |
 | `--inspect-containers` | Packages, Node.js and PyPI inside running containers, only when they are reached through this host (a unix socket, or podman with no service) | Stopped containers, the inside of images, apk packages (Alpine and the like), the inside of containers reached any other way |
 | `--no-exec` | Starts none of the programs it finds | More `UNKNOWN` where no version can be read. The system tools it checks with still run |
@@ -371,7 +371,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- `EXPOSURE` reasons say "decodes ... automatically" when a package is merely installed ([#7](https://github.com/sakai-sktech/brotli-check/issues/7))
 - The text report does not show which kind of evidence a `FIXED` rests on ([#9](https://github.com/sakai-sktech/brotli-check/issues/9))
 - The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
 - A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it

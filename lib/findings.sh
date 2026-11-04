@@ -15,7 +15,13 @@ bcc_init_findings() {
   declare -gA BCC_DPKG_CACHE=()
   declare -gA BCC_PRIVGRP_CACHE=()
   declare -gA BCC_JUDGED=()
-  declare -gA BCC_C01_JUDGED=()
+  declare -gA BCC_C01_JUDGED=() BCC_C01_STATUS=()
+  # What this run said about the file now at a path (bcc_note_disk), for the processes that
+  # still run a deleted file at that path (C03-C05, bcc_restart_advice).
+  declare -gA BCC_DISK_JUDGED=()
+  # Links to a program of another name that bcc_candidates did not take, per check.
+  BCC_OTHER_ID=() BCC_OTHER_FOUND=() BCC_OTHER_REAL=()
+  declare -gA BCC_OTHER_KEYS=()
   # Filled by C06, read by C09; declared here so that every entry point has them as
   # associative arrays (an undeclared one would evaluate a path key arithmetically).
   declare -gA BCC_C06_SITES=() BCC_C06_CONDA_FILES=()
@@ -69,6 +75,18 @@ bcc_add_finding() {
   f+=$'\t'"$(bcc_clean_field "$version")"$'\t'"$(bcc_clean_field "$reason")"$'\t'"$(bcc_clean_field "$next")"
   f+=$'\t'"$(bcc_clean_field "$evidence")"$'\t'"$(bcc_clean_field "$confidence")"
   BCC_FINDINGS+=("$f")
+  # A finding about a file is what this run says about that file on disk. A restart and an
+  # exposure hint say nothing about the file's decoder.
+  case $status in RESTART_REQUIRED | EXPOSURE) ;; *) [[ $path != /* ]] || bcc_note_disk "$path" "$id" "$component" "$status" ;; esac
+}
+
+# bcc_note_disk PATH ID COMPONENT STATUS - this run judged the file now at PATH (directly, or
+# through what it loads, or by the package or record it belongs to) as STATUS in finding ID.
+bcc_note_disk() {
+  local line
+  line="$(bcc_clean_field "$2")"$'\t'"$(bcc_clean_field "$3")"$'\t'"$4"
+  case $'\n'"${BCC_DISK_JUDGED[$1]:-}" in *$'\n'"$line"$'\n'*) return 0 ;; esac
+  BCC_DISK_JUDGED[$1]+="$line"$'\n'
 }
 
 # bcc_add_info ID TEXT  - context that is not a finding (does not affect counts or exit code).

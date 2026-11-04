@@ -89,9 +89,9 @@ removed or renamed field changes the major part of `tool_version`.
 | `VULNERABLE` | Known affected version; update needed |
 | `FIXED` | Version that contains the fix |
 | `NO_FIX_AVAILABLE` | The distributor has not released a fix yet |
-| `RESTART_REQUIRED` | The fix is on disk but a process still runs the old code |
+| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). Whether the file now at that path is fixed is not part of the status: `reason` gives what this report judged about it (or that it did not, or that there is no file, or that the process is in another mount namespace), and `next_step` follows from that: restart; update first; or check the version, then restart |
 | `VENDORED_COPY` | Carries its own decoder; version must be checked by a person |
-| `LIKELY_FIXED`, `LIKELY_VULNERABLE` | Judged by the verified string heuristic; see `confidence` |
+| `LIKELY_FIXED`, `LIKELY_VULNERABLE` | Judged by the string heuristic, checked on the builds tried; see `confidence` |
 | `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (not a vulnerability). `reason` says what was seen and what was not. No `EXPOSURE` is not proof that there is no path |
 | `NOT_APPLICABLE` | No sign of a decoder in that file, backed by a distribution package whose sources were read, a Go program without `cbrotli`, or `curl -V` listing no brotli. Not proof of absence; `reason` says what it rests on |
 | `UNKNOWN` | Could not be judged; `reason` says why |

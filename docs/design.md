@@ -735,7 +735,7 @@ rejected alternative.
        libbrotlidec libraries of one program is judged (two in one process are rare, and callers take
        one path); a `node` that is a link to a program of another name is not taken, and not listed (the
        filter exists for version-manager shims, 10.12, and telling a shim from a runtime is the real
-       work); glibc-hwcaps directories are tried in name order rather than glibc's priority (the right
+       work; 10.23 names such links and judges what their files carry); glibc-hwcaps directories are tried in name order rather than glibc's priority (the right
        order needs the CPU's supported levels).
     8. **Declined: `--output` writes a temporary file first.** It is created beside the requested name
        in the directory that was just checked, linked to that name so that nothing is overwritten
@@ -746,6 +746,48 @@ rejected alternative.
        and it does not load libbrotli. The default run says nothing about it and `/usr/lib/dotnet` is
        not in the default roots; `--deep --roots /usr/lib/dotnet` gives `VENDORED_COPY`. A fair verdict
        needs rows for .NET's own versions, so it is a separate issue (#17).
+19. **RESTART_REQUIRED takes its next step from the file now at the same path (2026-11-04, issue
+    #5).** The status was defined as "the fix is on disk but a process still runs the old code", but
+    C03-C05 saw only that a process uses a deleted file. A process restarted onto a file that is still
+    unfixed would be taken for fixed. The status and what it counts (the summary's "Needs restart",
+    exit status 1) stay; its definition is now what is seen, and the line says what is on disk.
+    1. **What is at the path now is what this run already said about it.** Every finding about a file
+       records its status for that path (`bcc_note_disk`, from `bcc_add_finding`). Files judged
+       through something else are recorded where that happens: a package's files through C01 (by the
+       dpkg owner of the path, `bcc_c01_notes`), the extension modules and conda libraries C06
+       compared, and a program that loads libbrotlidec gets that library's judgment
+       (`bcc_note_loaded`; Debian's `nodejs` is judged through `libbrotli1`). The issue names C01,
+       C04, C05 and C06; C09's libraries (a private `libbrotlidec.so.1.2.0` under `/opt`) follow
+       from the same rule, since every finding is recorded. The deleted file itself is not read:
+       whatever the old code was, the next step is the same.
+    2. **Three next steps.** Every judgment FIXED: restart, as before. Any VULNERABLE,
+       NO_FIX_AVAILABLE or LIKELY_VULNERABLE: a restart alone does not fix it; follow that line first
+       (named by ID and component), then restart. Anything else (UNKNOWN, LIKELY_FIXED,
+       VENDORED_COPY, no judgment, no file at the path now): check the version a restart would use,
+       then restart. LIKELY_VULNERABLE goes with "update" because the summary already counts it as
+       needing an update; LIKELY_FIXED goes with "check" because its own line says to ask the vendor.
+       A process with several deleted files gets the strongest (update, then check, then restart).
+    3. **A process in another mount namespace is not compared** (not in the issue). A process in a
+       container, a snap or a flatpak names its files by paths that lead to other files on this host;
+       without this, a container whose image is unfixed would be told "restart" because the host's
+       library is fixed. `/proc/<pid>/ns/mnt` is compared with the tool's own; different, or not
+       readable: not compared, and the line says to check first. Reading it needs the same
+       permission as the maps C03 reads.
+    4. **Order.** C03 now runs after C13, once C06 and C09 have judged; C04 and C05 report deleted
+       executables after judging their candidates. The text report groups findings by ID, so it does
+       not change; in JSON, C03's findings now come after C13's (the order of `findings` was never
+       specified).
+    5. **Wording.** "replaced" became "deleted": a file can be removed with nothing in its place.
+       The reason gives each judgment as "ID component: STATUS", so the line it rests on can be
+       found. Not finding a deleted file is not proof that nothing needs a restart
+       (`docs/limitations.md`).
+    Rejected: following the soname (`libbrotlidec.so.1`) to what a restart would load, instead of
+    the same path. It is closer to what a restart does, but the issue asks for the same path, and
+    when the file name changed, "no file there now; check the version" is still true. Rejected:
+    reading a container process's files through `/proc/<pid>/root` (reaching into containers is
+    what #6 is deciding). Accepted: a process whose old file had another name than the new one
+    (`libbrotlidec.so.1.1.0` replaced by `.1.2.1`) is told to check first even when the new library
+    is fixed.
 21. **EXPOSURE reasons say what was seen and what was not (2026-11-04, issue #7).** C06, C07 and C15
     see only that a package is installed or that a process listens, but their reasons said "decodes
     ... automatically" and "prioritize this process", which the external review (R7) read as
@@ -781,3 +823,57 @@ rejected alternative.
        is to be captured again after #9, which changes other lines.
     Accepted: longer reasons. The tests compare whole reasons in both languages, so a change of
     wording changes them too; putting back any of the old sentences fails a test.
+22. **What a test showed is written with its conditions (2026-11-04, issue #11).** The verification
+    page said "The tool judges correctly" and "The only undecidable case is ...", and the
+    confidence of the string heuristic said "verified". What had been shown is narrower: in five
+    images, four ways of running and the builds tried (Brotli 1.2.0 and 1.2.1 with gcc 13 on
+    x86_64, official Node.js binaries, PyPI wheels), every expected verdict matched.
+    1. **The conditions are the subject.** `docs/verification.md` opens with what the tests show
+       and what they do not (how often copies are missed or misjudged on real hosts was not
+       measured; other builds, distributions and architectures were not tried), and says when each
+       section was run and with which data. Fig. 02 calls exit status 1 "the intended result".
+    2. **The tool's output follows.** The `confidence` of `LIKELY_*` lines (JSON only) names the
+       builds tried instead of saying "verified", and so does `docs/json-schema.md`. A unit test
+       keeps "verified" out of the message catalog.
+    3. **Not changed:** the 0.1.0 entry of the CHANGELOG ("verified on Brotli 1.2.0/1.2.1 builds,
+       official Node.js binaries and PyPI wheels") stays as released; it names the builds. The
+       integration tests were not run again for this: the table keeps the images and data of
+       2026-10-27, and the page says that CI checks the same expected verdicts on every push.
+23. **A link to a program of another name is named in the report, and judged only by what its
+    file carries (2026-11-04, issue #19).** `bcc_candidates` does not take a `node` (or `bun`,
+    `curl`, `envoy`, a server, a browser) whose link resolves to a file of another name: a
+    multi-call shim (`node -> mise`) would answer `--version` for itself (10.12). It dropped such a
+    link silently, so a runtime under another name (`node -> runtime`) left no trace, not even
+    under "Not scanned" (10.18.7).
+    1. **What is kept.** Such a link is still not a candidate: it is not on the list of programs to
+       run, and no version is read for it by running it, from a header or from its path. (The
+       header next to a `/usr/bin/mise` would be `/usr/include/node/node_version.h`, there on a host
+       with the Node.js headers: reading it would take mise for that Node.js.)
+    2. **What the file carries decides, not what it is.** This CVE does not need a shim told from a
+       runtime; it needs to know whether the file holds or loads the C decoder. The link's file is
+       looked at as `--deep` looks at an ELF file: one that loads libbrotlidec is judged by that
+       library (and by its own copy, if any), one with decoder markers by its strings. The finding
+       is under the check that found the link, with the file's own name as the component (it is not
+       called `node`) and the link in the reason. A file with neither is information ("not judged
+       as node: that file carries no Brotli decoder and does not load libbrotlidec"). When that
+       could not be told - the file not read to its end, or its libraries not followed - the link is
+       listed as not scanned, the unread file first. A second link to a file already judged points
+       to its lines.
+    3. **Measured on the developer's workstation (Ubuntu 24.04).** Three such links:
+       `~/.local/share/mise/shims/node -> ~/.local/bin/mise` (164 MB, Rust: no decoder markers, one
+       copy of the Brotli dictionary - a Rust decoder, outside this CVE), and `/snap/bin/firefox`
+       and `/snap/bin/chromium -> /usr/lib/snapd/snapd` (35 MB, Go: neither). The official Node.js
+       26.4.0 next to it carries markers. Reading them took 1.2 s for mise and 0.25 s for snapd (once
+       per link). Run at the same time with `--no-exec`, this branch and `main` differed only in the
+       three information lines.
+    4. **Every caller.** The filter is shared, so C04, C05, C08, C10, C11 and C13 report such links;
+       on Ubuntu with snaps, `firefox` and `chromium` in `/snap/bin` are links to snapd. A link is
+       named once, by its directory's real path (`/bin/x` and `/usr/bin/x` on a merged `/usr` are
+       one). `bcc_candidates` now runs in the calling shell and fills `BCC_LIST`: in a pipe, it had
+       nowhere to keep the links.
+    5. **Not changed.** Scripts of any name are dropped without a word, as before: a script holds no
+       decoder, and the runtimes that the script shims of asdf or nodenv start are found where they
+       are installed, under the search roots (the index takes any executable named `node` there).
+    Rejected: running the file with `--version` (the regression of 10.12, `mise --version` read as
+    a node), and listing every such link as not scanned without looking at it (a shim would then
+    read as a gap in what was looked at).

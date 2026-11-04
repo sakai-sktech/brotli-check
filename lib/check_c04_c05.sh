@@ -41,12 +41,14 @@ bcc_node_version() {
   return 1
 }
 
-# Running processes per executable: fills BCC_PROC_EXE[pid]=path and reports deleted
-# executables of the given names as RESTART_REQUIRED. Usage: bcc_scan_proc_exes ID NAME...
+# Running processes per executable: fills BCC_PROC_EXE[pid]=path, and BCC_GONE_DIR/BCC_GONE_EXE
+# with the processes still running a deleted executable of the given names (reported by
+# bcc_report_deleted_exes, once the files now at those paths are judged). Usage:
+# bcc_scan_proc_exes NAME...
 bcc_scan_proc_exes() {
-  local id=$1 d pid exe base n match
-  shift
+  local d pid exe base n match
   declare -gA BCC_PROC_EXE=()
+  BCC_GONE_DIR=() BCC_GONE_EXE=()
   local proc=${BCC_PROC_ROOT:-/proc}
   for d in "$proc"/[0-9]*; do
     exe=$(readlink -- "$d/exe" 2>/dev/null) || continue
@@ -56,11 +58,22 @@ bcc_scan_proc_exes() {
     for n in "$@"; do [[ ${base%" (deleted)"} == "$n" ]] && match=1; done
     ((match)) || continue
     if [[ $exe == *" (deleted)" ]]; then
-      bcc_add_finding "$id" RESTART_REQUIRED "pid $pid" "${exe%" (deleted)"}" "" "$(bcc_msg r_exe_deleted)" \
-        "$(bcc_msg n_restart)" "$(bcc_proc_evidence "$d")" ""
+      BCC_GONE_DIR+=("$d")
+      BCC_GONE_EXE+=("${exe%" (deleted)"}")
     else
       BCC_PROC_EXE[$pid]=$exe
     fi
+  done
+}
+
+# RESTART_REQUIRED for each process bcc_scan_proc_exes found running a deleted executable; the
+# next step depends on the file now at that path (bcc_restart_advice). Usage: ID
+bcc_report_deleted_exes() {
+  local id=$1 i
+  for i in ${BCC_GONE_DIR[@]+"${!BCC_GONE_DIR[@]}"}; do
+    bcc_restart_advice "${BCC_GONE_DIR[$i]}" "${BCC_GONE_EXE[$i]}"
+    bcc_add_finding "$id" RESTART_REQUIRED "pid ${BCC_GONE_DIR[$i]##*/}" "${BCC_GONE_EXE[$i]}" "" \
+      "$(bcc_msg r_exe_deleted) $BCC_RA_REASON" "$BCC_RA_NEXT" "$(bcc_proc_evidence "${BCC_GONE_DIR[$i]}")" ""
   done
 }
 
@@ -113,7 +126,7 @@ bcc_report_by_strings() {
 bcc_c04_candidates() {
   [[ -z ${BCC_C04_DONE:-} ]] || return 0
   local exe c known
-  bcc_collect0 < <({ bcc_node_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_NODE[@]+"${BCC_IDX_NODE[@]}"}; } | bcc_candidates 'node|nodejs')
+  bcc_candidates C04 'node|nodejs' < <(bcc_node_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_NODE[@]+"${BCC_IDX_NODE[@]}"})
   BCC_C04_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
   # Running node executables outside the searched places are judged too.
   while IFS= read -r -d '' exe; do
@@ -127,7 +140,7 @@ bcc_c04_candidates() {
 bcc_check_c04() {
   local bin owner link rc libpath method ver vm major pids next
   bcc_c04_candidates
-  bcc_scan_proc_exes C04 node nodejs
+  bcc_scan_proc_exes node nodejs
   for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
     BCC_JUDGED[$bin]=1
     pids=$(bcc_pids_of "$bin")
@@ -176,6 +189,8 @@ bcc_check_c04() {
     bcc_add_finding C04 "$BCC_J_STATUS" node "$bin" "$ver" "$BCC_J_REASON" "$next" \
       "$(bcc_msg e_version_method "$method")${pids:+; pids $pids}; $BCC_J_EVIDENCE" ""
   done
+  bcc_report_other_names C04
+  bcc_report_deleted_exes C04
 }
 
 bcc_bun_patterns() {
@@ -188,7 +203,7 @@ bcc_bun_patterns() {
 
 bcc_c05_candidates() {
   [[ -z ${BCC_C05_DONE:-} ]] || return 0
-  bcc_collect0 < <({ bcc_bun_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_BUN[@]+"${BCC_IDX_BUN[@]}"}; } | bcc_candidates bun)
+  bcc_candidates C05 bun < <(bcc_bun_patterns | bcc_glob_records; bcc_index_list ${BCC_IDX_BUN[@]+"${BCC_IDX_BUN[@]}"})
   BCC_C05_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
   BCC_C05_DONE=1
 }
@@ -196,7 +211,7 @@ bcc_c05_candidates() {
 bcc_check_c05() {
   local bin out ver method pids next re='/([^/]+)/bin/bun$'
   bcc_c05_candidates
-  bcc_scan_proc_exes C05 bun
+  bcc_scan_proc_exes bun
   for bin in ${BCC_C05_CANDS[@]+"${BCC_C05_CANDS[@]}"}; do
     BCC_JUDGED[$bin]=1
     pids=$(bcc_pids_of "$bin")
@@ -226,4 +241,6 @@ bcc_check_c05() {
     bcc_add_finding C05 "$BCC_J_STATUS" bun "$bin" "$ver" "$BCC_J_REASON" "$next" \
       "$(bcc_msg e_version_method "$method")${pids:+; pids $pids}; $BCC_J_EVIDENCE" ""
   done
+  bcc_report_other_names C05
+  bcc_report_deleted_exes C05
 }

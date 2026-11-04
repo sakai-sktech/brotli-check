@@ -566,7 +566,7 @@ printf 'OS\tdebian\ttrixie\t\n'
 EOF
   chmod +x "$FAKEBIN/docker"
   bcc_c14_inspect docker 0123abcd web img:1
-  [[ ${BCC_SKIPPED[*]} == *"container web"$'\t'"the read-only check inside the container stopped before its end"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"container web"$'\t'"the check script inside the container stopped before its end"* ]]
 }
 
 # --- Codex review, round 5 (2026-10-26) --------------------------------------------------

@@ -62,7 +62,7 @@ body {
 /* フッタ: 左=文脈(何の資料か) 右=作成者・出典 */
 .foot {
   margin-top: 2.5mm; padding-top: 1.5mm; border-top: 0.3mm solid var(--line);
-  display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--ink-sub);
+  display: flex; justify-content: space-between; gap: 4mm; font-size: 7.5pt; color: var(--ink-sub);
 }
 /* 追加: コード片(コマンド・識別子)は等幅で */
 code { font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace; font-size: 0.92em; background: rgba(28,39,51,0.06); padding: 0 0.6mm; border-radius: 0.6mm; }
@@ -183,14 +183,14 @@ body { font-family: "Noto Sans", "BIZ UDPGothic", "Noto Sans CJK JP", sans-serif
   <ol>
     <li><b>The flaw is on the decompression side (the decoder) and is reached when attacker data is decompressed.</b> Data can arrive as a compressed request, as a response the host fetches and decodes automatically (<code>fetch()</code>, URL previews, crawlers, AI agents), or through a direct call to a decompression API. The tool <b>inventories</b> the copies; whether data can reach them is for you to judge. Upstream fixed it on 2026-10-21 (<span class="nw">GHSA-9v8h-qqgm-4m35</span>).</li>
     <li><b>Bundled copies need each product's own update</b> (<span class="accent">updating the OS does not fix them</span>). Fixed versions include Node.js 22.23.4 / 24.22.1 / 26.12.1, Bun 1.4.4 and PyPI Brotli 1.2.1. The string check was verified on self-built Brotli 1.2.0 / 1.2.1, official Node.js binaries and PyPI wheels; a build whose error-name table was stripped is reported as <code>VENDORED_COPY</code> (needs review), never as fixed. The OS packages are fixed on both Ubuntu (USN-8956-1) and Debian (DLA-4855-1, DSA-6582-1).</li>
-    <li><b>Read-only, and it never says “safe”. It shows the facts; you decide.</b> It writes only to standard output and <code>--output</code>, and uses neither the network nor attack data. Found programs run only if chosen, with one version argument (<code>--version</code> etc.), from <code>/</code>, with an empty environment, stdin closed, a time limit and capped output. Without a terminal, <code>--yes</code> or <code>--no-exec</code> is required. The report lists what ran and what did not. <code>EXPOSURE</code> is a hint of a path, not a vulnerability. It does not check for intrusion.</li>
+    <li><b>The tool itself changes no software or settings, and it never says “safe”. It shows the facts; you decide.</b> It writes only to standard output and <code>--output</code>; the tool itself uses neither the network nor attack data. Found programs run only if chosen, with one version argument (<code>--version</code> etc.), from <code>/</code>, with an empty environment, stdin closed, a time limit and capped output, and with your rights (what they do is not stopped). Without a terminal, <code>--yes</code> or <code>--no-exec</code> is required. The report lists what ran and what did not. Containers come with where docker or podman connects, and are looked inside only through a unix socket on this host. <code>EXPOSURE</code> is a hint of a path, not a vulnerability. It does not check for intrusion.</li>
   </ol>
   <div class="keymsg">Updating the OS fixes only the OS's copy, so bundled copies must be found and told apart one by one, by version and by strings.</div>
   <div class="rx"><b>Next step</b>Verify the SHA256, run <code>sudo bash brotli-cve-check</code>, read the facts before choosing what may run, then act on “Needs update” and “Needs restart” first.</div>
 </div>
 
 <div class="foot">
-  <span>Fig. 01 | made 2026-10-27 (advisory data of the same date)</span>
+  <span>Fig. 01 | made 2026-10-27, revised 11-04 (advisory data of 10-27)</span>
   <span>Sources: GHSA-9v8h-qqgm-4m35, USN-8956-1, brotli-cve-check v0.1.0 docs</span>
 </div>
 

@@ -178,7 +178,8 @@ Requirements: bash 4.2 or later, coreutils, findutils, grep, sed, awk. binutils 
 optional; without it some linkage checks are less precise and the report says so. curl to
 download it (git and make only for the source tree). docker or podman for `--containers`, ss
 (iproute2) for `--exposure`. No Python. The tool itself does not connect to the network (docker
-or podman used by `--containers`, and programs you allow it to run, are another matter).
+or podman used by `--containers`, and programs you allow it to run, are another matter; where
+docker or podman connects is shown in the report).
 
 ## Reading the result
 
@@ -236,8 +237,8 @@ For automation, read not only the exit status but also `skipped` (not scanned) a
 | `--deep` | Searches the ELF files under the roots for bundled decoders by their strings | Static copies without markers, the inside of archives, files of 512 MiB or more, files with neither an executable bit nor a `.so` / `.node` name. Not the whole disk |
 | `--projects` | Related packages in node_modules (hints) | Whether an application uses them |
 | `--exposure` | Non-loopback listening sockets of node, python, bun and envoy (hints) | Whether they can be reached from outside (firewall, routing). Programs that do not listen but fetch and decode responses |
-| `--containers` | The list of running containers and the number of images | The inside of containers, stopped containers, the inside of images |
-| `--inspect-containers` | Packages, Node.js and PyPI inside running containers | Stopped containers, the inside of images, apk packages (Alpine and the like) |
+| `--containers` | The list of running containers and the number of images, and where docker or podman connects | The inside of containers, stopped containers, the inside of images |
+| `--inspect-containers` | Packages, Node.js and PyPI inside running containers, only when they are reached through this host (a unix socket, or podman with no service) | Stopped containers, the inside of images, apk packages (Alpine and the like), the inside of containers reached any other way |
 | `--no-exec` | Starts none of the programs it finds | More `UNKNOWN` where no version can be read. The system tools it checks with still run |
 | `sudo` | Other users' homes and processes | Not everything is then seen. Programs you allow to run run as root |
 
@@ -280,10 +281,20 @@ Even with `--no-exec`, the system tools it checks with (dpkg-query, readelf, ss,
 and docker or podman with `--containers`) run.
 
 **Where containers are looked at.** `--containers` and `--inspect-containers` use docker or
-podman with their current connection settings. If `DOCKER_HOST` or the docker context points at
-another host, the tool looks at that host's containers, and with `--inspect-containers` runs
-commands inside them. When you mean this host's containers, make sure the connection is this
-host's socket before running.
+podman with their current connection settings, ask them where they connect, and show it in the
+report (for example `Connection of docker: unix:///var/run/docker.sock (a unix socket on this
+host).`). If `DOCKER_HOST` or the docker context points at another host, the list and the counts
+are that host's. They come with the connection: check it when you read them.
+
+The check script runs inside containers (`--inspect-containers`) only when the connection is a
+unix socket on this host (`unix://`), or when podman runs on this host itself, with no service in
+between. Otherwise nothing runs inside them, and the connection and the reason are listed under
+"Not scanned". `tcp://localhost` is not looked inside either, since an ssh tunnel behind it may
+lead to another host; nor is podman as a client of a service (`CONTAINER_HOST` and the like),
+since podman does not state the service's address. A socket of another host brought to a unix
+socket on this host (with ssh, for example) cannot be told from this host's own. Docker
+Desktop's engine runs in a virtual machine on this host and is reached through a unix socket, so
+its containers are looked inside.
 
 ## What a verdict rests on
 
@@ -360,7 +371,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- The container connection is neither checked nor shown in the report ([#6](https://github.com/sakai-sktech/brotli-check/issues/6))
 - The text report does not show which kind of evidence a `FIXED` rests on ([#9](https://github.com/sakai-sktech/brotli-check/issues/9))
 - The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
 - A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it

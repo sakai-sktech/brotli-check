@@ -12,7 +12,14 @@ engine=${ENGINE:-docker}
 out="$root/tests/tmp/integration"
 mkdir -p "$out"
 ctx=$(mktemp -d)
-trap 'rm -rf "$ctx"' EXIT
+c14_name="" relay_pid=""
+# shellcheck disable=SC2317  # run by the EXIT trap
+cleanup() {
+  [[ -z $relay_pid ]] || kill "$relay_pid" 2>/dev/null || true
+  [[ -z $c14_name ]] || "$engine" rm -f "$c14_name" >/dev/null 2>&1 || true
+  rm -rf "$ctx"
+}
+trap cleanup EXIT
 cp "$root/tests/integration/Dockerfile" "$root/tests/integration/fetch-node.sh" "$root/dist/brotli-cve-check" "$ctx/"
 
 # BASE | expected C01 verdict for libbrotli1 | expected for python3-brotli
@@ -47,7 +54,89 @@ probe=$(bash -c 'eval "$(sed -n "/^BCC_C14_PROBE='"'"'/,/^'"'"'\$/p" "$1")"; pri
 [[ $probe == *'echo END'* ]] || { echo "FAIL: could not extract BCC_C14_PROBE from dist/brotli-cve-check"; exit 1; }
 node_path=/opt/node-v22.23.3-linux-x64/bin:/opt/node-v22.23.4-linux-x64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# C14 through a real engine, once per run (with the first image): the tool runs on this host
+# against a container of the image that has both Node.js copies on its PATH. Through the
+# engine's unix socket the check script runs inside it; through a TCP relay to the same socket
+# (DOCKER_HOST=tcp://127.0.0.1:PORT) the container is listed with the connection, and nothing
+# runs inside it (docs/design.md 10.20). Found programs on this host are not run: the question
+# whether to run them is answered "n" on a pseudo-terminal (--yes would run them on the machine
+# that runs the tests). Running the check script inside containers needs no such answer:
+# --inspect-containers is the consent.
+c14_run() { # NAME REPORT [ENV-ASSIGNMENT...]
+  local name=$1 report=$2 rc
+  shift 2
+  set +e
+  printf 'n\n' | script -qec "$(printf '%q ' env "$@" bash "$root/dist/brotli-cve-check" --json --inspect-containers \
+    --roots "$ctx/empty" --timeout 60)>$(printf '%q' "$report")" /dev/null >"$out/c14-$name.log" 2>&1
+  rc=$?
+  set -e
+  if ((rc == 3)) || [[ ! -s $report ]]; then
+    echo "FAIL C14 ($name): the tool exited with $rc (see $out/c14-$name.log)"
+    return 1
+  fi
+}
+c14_check() { # TAG BASE
+  local tag=$1 base=$2 host sock port report ok=0
+  if [[ $engine != docker ]]; then
+    echo "SKIP C14 on this host: only with ENGINE=docker (the tool tries docker before podman)"
+    return 0
+  fi
+  if ! command -v script >/dev/null || ! command -v python3 >/dev/null; then
+    echo "FAIL C14 on this host: needs script (util-linux) and python3"
+    return 1
+  fi
+  host=$("$engine" context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
+  if [[ $host != unix:///?* ]]; then
+    echo "SKIP C14 on this host: docker does not connect through a unix socket here (${host:-not known})"
+    return 0
+  fi
+  sock=${host#unix://}
+  mkdir -p "$ctx/empty"
+  c14_name="bcc-it-c14-$$"
+  if ! "$engine" run -d --rm --name "$c14_name" -e "PATH=$node_path" "$tag" sleep 600 >/dev/null; then
+    echo "FAIL C14 on this host: could not start a container of $tag"
+    c14_name=""
+    return 1
+  fi
+  report="$out/c14-unix.json"
+  if c14_run unix "$report" &&
+    python3 -I "$root/tests/integration/assert.py" "$report" \
+      "info:C14|Connection of docker: $host (a unix socket on this host)." \
+      "C14|container $c14_name ($tag) /opt/node-v22.23.3-linux-x64/bin/node|VULNERABLE" \
+      "C14|container $c14_name ($tag) /opt/node-v22.23.4-linux-x64/bin/node|FIXED"; then
+    echo "ok   C14 on this host through $host ($base): the check script ran inside the container"
+  else
+    echo "     report: $report"
+    ok=1
+  fi
+  python3 -I "$root/tests/integration/relay.py" "$sock" >"$ctx/relay.port" 2>/dev/null &
+  relay_pid=$!
+  for _ in $(seq 50); do
+    [[ -s $ctx/relay.port ]] && break
+    sleep 0.1
+  done
+  port=$(head -n 1 "$ctx/relay.port")
+  report="$out/c14-tcp.json"
+  if [[ $port =~ ^[0-9]+$ ]] && c14_run tcp "$report" "DOCKER_HOST=tcp://127.0.0.1:$port" &&
+    python3 -I "$root/tests/integration/assert.py" "$report" \
+      "info:C14|Connection of docker: tcp://127.0.0.1:$port. This is not a unix socket on this host" \
+      "info:C14|Container $c14_name ($tag) was not inspected" \
+      "skipped:C14|docker connects to tcp://127.0.0.1:$port, not to a unix socket on this host" \
+      "C14|container $c14_name ($tag)|-"; then
+    echo "ok   C14 on this host through tcp://127.0.0.1:$port ($base): listed with the connection, nothing ran inside"
+  else
+    echo "FAIL C14 through tcp://127.0.0.1:${port:-?} (report: $report)"
+    ok=1
+  fi
+  kill "$relay_pid" 2>/dev/null || true
+  relay_pid=""
+  "$engine" rm -f "$c14_name" >/dev/null 2>&1 || true
+  c14_name=""
+  return "$ok"
+}
+
 failed=0
+c14_done=0
 for row in "${matrix[@]}"; do
   IFS='|' read -r base lib py <<<"$row"
   # The ngx_brotli modules are not in Ubuntu 22.04's archive.
@@ -129,6 +218,10 @@ for row in "${matrix[@]}"; do
   else
     echo "FAIL $base: C14 probe output: $out/${tag#bcc-it:}-probe.txt"
     failed=1
+  fi
+  if ((!c14_done)); then
+    c14_done=1
+    c14_check "$tag" "$base" || failed=1
   fi
 done
 

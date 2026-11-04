@@ -53,6 +53,12 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
 - **Electron applications** installed outside snap/flatpak are found only with `--deep`.
 - **Containers based on Alpine** (apk) get no package check inside (`--inspect-containers`
   covers Debian/Ubuntu-based images and Node.js / PyPI copies).
+- **Containers reached through anything but a unix socket on this host** (`DOCKER_HOST`, a docker
+  context or podman pointing elsewhere, `tcp://localhost`, podman as a client of a service) are
+  listed and counted with the connection, but nothing runs inside them. A socket of another host
+  brought to a unix socket here (with ssh, for example) cannot be told from this host's own. A
+  `docker` that is podman's emulation (podman-docker) does not say where it connects, so its
+  containers are not looked inside either.
 - Only Linux. Only Debian, Ubuntu and their derivatives for package checks.
 
 ## Without root
@@ -136,8 +142,9 @@ symlinks where they are and looks libraries up the way glibc's ld.so does (DT_RP
 needing object and of its loaders, DT_RUNPATH, the ld.so cache, the default directories), but it
 cannot see what a program opens once it runs (dlopen, configuration files), and tokens such as
 `$LIB` are not expanded (the facts say so). Programs run from `/`, with an empty environment, a
-time limit and their output capped. `--inspect-containers` runs a fixed read-only script inside
-running containers; asking for it is the consent.
+time limit and their output capped. `--inspect-containers` runs a fixed script inside running
+containers (it reads files there and runs the `node` it finds with `--version`), only when the
+engine connects through a unix socket on this host; asking for it is the consent.
 
 System tools (`readelf`, `stat`, `dpkg-query`, ...) are taken from `/usr/sbin`, `/usr/bin`,
 `/sbin` and `/bin` (and `/usr/local/sbin`, `/usr/local/bin` when only root can change them),
@@ -165,7 +172,9 @@ redirect a root-written file elsewhere. To keep a root scan in your home, redire
 
 - Not an intrusion check. Updating does not remove traces of a compromise that happened
   before the update.
-- Not a statement about other hosts, or about containers that were not running.
+- Not a statement about other hosts, or about containers that were not running. Containers
+  listed through a connection to another host are that host's; the report shows the connection
+  with them.
 - Not a list of every process that needs a restart. The restart checks (C03-C05) see processes that
   still use a deleted `libbrotlidec*` or `_brotli*.so`, or run a deleted node or bun. A process
   running another program that carries its own copy of the decoder is not among them, and no such

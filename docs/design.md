@@ -263,11 +263,12 @@ and reported with a reason.
 
 - **`--no-exec` stops running *found* programs**: `--version` of node, bun, curl, envoy and
   browsers, `ldd` on found executables, and commands inside containers. System query tools
-  (dpkg-query, dpkg, readelf, ldconfig, ss, snap, flatpak, docker ps) still run; they are outside
-  "running the programs it found" in section 2.4 of the request. Without `--no-exec`, found
-  programs run only after the user chose them from the list (or gave `--yes`), 10.11;
-  `--inspect-containers` runs its fixed script inside containers, the option itself being the
-  consent. `--no-exec` with `--yes` is an error.
+  (dpkg-query, dpkg, readelf, ldconfig, ss, snap, flatpak, docker ps, docker context inspect,
+  podman info) still run; they are outside "running the programs it found" in section 2.4 of the
+  request. Without `--no-exec`, found programs run only after the user chose them from the list
+  (or gave `--yes`), 10.11; `--inspect-containers` runs its fixed script inside containers, the
+  option itself being the consent, and only through a unix socket on this host (10.20). `--no-exec`
+  with `--yes` is an error.
 - **Every external command runs with `LC_ALL=C`.** The development host's readelf printed localized
   output. Found programs run with an emptied environment (`env -i`) so that `NODE_OPTIONS` and the
   like have no effect.
@@ -788,6 +789,68 @@ rejected alternative.
     what #6 is deciding). Accepted: a process whose old file had another name than the new one
     (`libbrotlidec.so.1.1.0` replaced by `.1.2.1`) is told to check first even when the new library
     is fixed.
+20. **Containers: the connection is reported, and the check script runs only through this host
+    (2026-11-04, issue #6).** C14 used docker or podman with the caller's connection settings and
+    never looked at them, so `DOCKER_HOST` or a docker context naming another host put that host's
+    containers into this host's report, and `--inspect-containers` ran the check script inside them.
+    The help and the report header called the tool read-only, which holds for the tool's own code
+    only.
+    1. **The engine is asked; its settings are not read.** docker settles the connection from `-H`,
+       `DOCKER_HOST`, `DOCKER_CONTEXT` and the current context of its configuration, in that order,
+       and `docker context inspect` with no name answers for the context so chosen (docker 29.9 on
+       the development host, 2026-11-04: `DOCKER_HOST` over `DOCKER_CONTEXT`, an unknown
+       `DOCKER_CONTEXT` fails). Reading the variables and `config.json` would be a second
+       implementation of that order, and the tool reads no environment variables (7). podman runs
+       containers itself unless it is a client of a service, and `podman info` says which
+       (`.Host.ServiceIsRemote`). Measured with podman 3.4.4, 4.3.1, 4.9.3, 5.4.2 and 5.7.0 of the
+       five releases: from 4.3 on it is true with `CONTAINER_HOST`, `--url` or `CONTAINER_CONNECTION`,
+       and false with only a default connection registered; 3.4 keeps running locally with those
+       variables and says false, which is then true.
+    2. **Only a unix socket on this host, or podman with no service, counts as this host.**
+       `tcp://localhost` may be an ssh tunnel to another host. A socket of another host brought here
+       as a unix socket cannot be told apart; the README and the limitations say so. Docker
+       Desktop's engine runs in a virtual machine on this host behind a unix socket, and counts as
+       this host.
+    3. **The list and the counts stay, with the connection** (the triage's A2; stopping C14 for other
+       connections was too heavy). The connection line comes first, and also when the engine then
+       fails, where "cannot be used" may be about another host. Each container not looked inside
+       points at that line, and one "Not scanned" entry gives the connection and the reason. This
+       also holds without `--inspect-containers`, where suggesting that option would lead nowhere,
+       and with `--no-exec`.
+    4. **Every later call stays on the context that was checked** (`docker --context NAME`). A scan
+       takes tens of seconds, and the user may switch contexts in another terminal meanwhile
+       (`docker context use`); `ps` and `exec` would follow the switch. podman is not pinned: whether
+       it is a client is settled at its start from its arguments, environment and configuration,
+       which a context switch does not touch.
+    5. **podman as a client is not looked inside, even through a unix socket,** because podman does
+       not state the client's address: `podman system connection list` shows the configured default
+       and not `CONTAINER_HOST` (measured), and `.Host.RemoteSocket.Path` is the service's own
+       socket (it printed `unix:///run/podman/podman.sock` in client mode), a unix socket also when
+       the service is reached over ssh. Accepted cost: podman with `CONTAINER_HOST` naming a local
+       socket is not looked inside; the reason says why, and podman without it runs locally.
+    6. **An answer of another shape is "not known".** docker's must be a context name of docker's
+       characters and an endpoint with a scheme; podman's must be `true` or `false`. A `docker`
+       without contexts (before 19.03) or podman's emulation (podman-docker, whose `context inspect`
+       printed nothing on 4.3 to 5.7 and failed on 3.4) gives "not known": listed, nothing run
+       inside. Accepted cost: with podman-docker, containers are looked inside only through
+       `podman`, which C14 does not try when `docker` exists.
+    7. **Words.** The help and the report header no longer say "read-only"; `--inspect-containers`
+       says that it runs a fixed check script, and where. The script's own reasons say "check
+       script", since it starts the `node` it finds with `--version`, as a program of the container.
+       for-clinics and figure 01 no longer say "without changing anything" or "uses no network"; the
+       README had already separated the tool's own actions from those of the programs it runs (#13).
+    8. **Two questions left by issue #1, answered by the requester (2026-11-04).** Python inside a
+       container stays UNKNOWN at or above the fix (10.15.5): this issue narrows where the check
+       script may run, and streaming each extension module to the host through the engine is a
+       feature of its own, with more reads through the engine. A real container is now tested in the
+       integration run (`tests/integration/run.sh`), once per run: the tool runs on the test host
+       against a container of the image, through the engine's unix socket (the script runs inside;
+       both Node.js copies are judged) and through a TCP relay to the same socket (listed with the
+       connection; nothing runs inside; the relay serves only the test user's own sockets, by the owner
+       `/proc/net/tcp` gives, since a loopback port is open to every user of the machine and the
+       engine's socket gives control of the engine). Found programs of the test host are not run: the question
+       is answered "n" on a pseudo-terminal, since `--yes` would run them on the developer's machine
+       under `make integration`.
 21. **EXPOSURE reasons say what was seen and what was not (2026-11-04, issue #7).** C06, C07 and C15
     see only that a package is installed or that a process listens, but their reasons said "decodes
     ... automatically" and "prioritize this process", which the external review (R7) read as

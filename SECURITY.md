@@ -32,5 +32,7 @@ reproduction you can. Do not attach exploit data for Brotli.
   directory above it, or a library it loads, and runs only those chosen (all of them with
   `--yes`, none with `--no-exec`). Nothing keeps a program allowed to run from writing files or
   using the network.
-- With `--containers`, docker or podman are used with their current connection settings.
+- With `--containers`, docker or podman are used with their current connection settings, and the
+  report shows where they connect. The fixed script of `--inspect-containers` runs inside containers
+  only when that is a unix socket on this host, or podman with no service in between.
 - Command lines of processes are not shown unless `--show-cmdline`.

@@ -1,9 +1,11 @@
 # shellcheck shell=bash
 # C14 containers (--containers, --inspect-containers), C15 listening sockets (--exposure).
 
-# Fixed, read-only script run inside a container with --inspect-containers.
-# It prints tagged lines only; nothing is installed, written, or started. os-release is
-# read with sed, never sourced (it is a file the image's author controls).
+# Fixed script run inside a container with --inspect-containers, only through a unix socket
+# on this host (bcc_c14_connection). It prints tagged lines only and installs or writes
+# nothing; the only programs it starts besides its readers are node/nodejs --version, which
+# run as the container's own programs do. os-release is read with sed, never sourced (it is
+# a file the image's author controls).
 # POSIX sh only: /bin/sh is dash (Debian/Ubuntu) or busybox, and neither knows
 # "command -v -a", so node/nodejs are looked up in each PATH directory by hand.
 # The END line tells a complete run from one that stopped early.
@@ -41,6 +43,42 @@ done
 echo END
 '
 
+# Where the engine connects (docs/design.md 10.20), asked from the engine itself and never
+# read from the environment or its configuration files. docker settles it from -H,
+# DOCKER_HOST, DOCKER_CONTEXT and the current context of its configuration, in that order,
+# and "docker context inspect" with no name answers for the context so chosen; its name then
+# keeps every later call on it (--context), even if the current context is switched during the
+# scan. podman runs containers itself unless it is a client of a service (--remote, --url,
+# CONTAINER_HOST, CONTAINER_CONNECTION); "podman info" says which, but not the service's
+# address. Only a unix socket on this host, or podman without a service, counts as this host.
+# Sets BCC_C14_KIND (unix, other, unknown, podman_local, podman_remote), BCC_C14_WHERE (the
+# endpoint docker stated) and BCC_C14_ARGS (arguments for every later call of the engine).
+bcc_c14_connection() {
+  local engine=$1 out name host
+  BCC_C14_KIND=unknown BCC_C14_WHERE=""
+  BCC_C14_ARGS=()
+  case $engine in
+    docker)
+      out=$(bcc_sys docker context inspect --format '{{.Name}} {{.Endpoints.docker.Host}}') || return 0
+      out=${out%%$'\n'*}
+      [[ $out == *' '* ]] || return 0
+      name=${out%% *}
+      host=${out#* }
+      [[ $name =~ ^[A-Za-z0-9][A-Za-z0-9_.+-]*$ && $host =~ ^[a-z][a-z0-9+.-]*:// ]] || return 0
+      BCC_C14_WHERE=$host
+      BCC_C14_ARGS=(--context "$name")
+      if [[ $host == unix:///?* ]]; then BCC_C14_KIND=unix; else BCC_C14_KIND=other; fi
+      ;;
+    podman)
+      out=$(bcc_sys podman info --format '{{.Host.ServiceIsRemote}}') || return 0
+      case ${out%%$'\n'*} in
+        false) BCC_C14_KIND=podman_local ;;
+        true) BCC_C14_KIND=podman_remote ;;
+      esac
+      ;;
+  esac
+}
+
 bcc_check_c14() {
   local engine="" e line id image name
   for e in docker podman; do
@@ -50,16 +88,54 @@ bcc_check_c14() {
     bcc_skip C14 "$(bcc_msg skip_no_engine)"
     return
   fi
+  # The connection comes first and is always reported, also when the engine then fails.
+  local local_host=0 not_local=""
+  bcc_c14_connection "$engine"
+  case $BCC_C14_KIND in
+    unix)
+      local_host=1
+      bcc_add_info C14 "$(bcc_msg i_c14_conn_unix "$engine" "$BCC_C14_WHERE")"
+      ;;
+    podman_local)
+      local_host=1
+      bcc_add_info C14 "$(bcc_msg i_c14_conn_podman_local)"
+      ;;
+    other)
+      bcc_add_info C14 "$(bcc_msg i_c14_conn_other "$engine" "$BCC_C14_WHERE")"
+      not_local=$(bcc_msg skip_c14_conn_other "$engine" "$BCC_C14_WHERE")
+      ;;
+    podman_remote)
+      bcc_add_info C14 "$(bcc_msg i_c14_conn_podman_remote)"
+      not_local=$(bcc_msg skip_c14_conn_podman_remote)
+      ;;
+    *)
+      local asked="docker context inspect"
+      [[ $engine == podman ]] && asked="podman info"
+      bcc_add_info C14 "$(bcc_msg i_c14_conn_unknown "$engine" "$asked")"
+      not_local=$(bcc_msg skip_c14_conn_unknown "$engine")
+      ;;
+  esac
   local ps
-  if ! ps=$(timeout -k 2 "$BCC_TIMEOUT" env LC_ALL=C "$engine" ps --format '{{.ID}}\t{{.Image}}\t{{.Names}}' </dev/null 2>/dev/null); then
+  if ! ps=$(timeout -k 2 "$BCC_TIMEOUT" env LC_ALL=C "$engine" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"} \
+    ps --format '{{.ID}}\t{{.Image}}\t{{.Names}}' </dev/null 2>/dev/null); then
     bcc_skip "C14 $engine" "$(bcc_msg skip_engine_denied "$engine")"
     return
   fi
   local nimages
-  nimages=$(bcc_sys "$engine" images -q | sort -u | grep -c . || true)
+  nimages=$(bcc_sys "$engine" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"} images -q | sort -u | grep -c . || true)
   bcc_add_info C14 "$(bcc_msg i_c14_inventory "$engine" "$(grep -c . <<<"$ps" || true)" "$nimages")"
   bcc_add_info C14 "$(bcc_msg i_c14_rebuild)"
   [[ -n $ps ]] || return 0
+  # Containers reached any other way are listed and counted, but nothing runs inside them:
+  # they may be another host's (issue #6). This holds with or without --inspect-containers.
+  if ((!local_host)); then
+    while IFS= read -r line; do
+      bcc_split_tab "$line"
+      bcc_add_info C14 "$(bcc_msg i_c14_not_inspected_conn "${BCC_F[2]:-}" "${BCC_F[1]:-}")"
+    done <<<"$ps"
+    bcc_skip C14 "$not_local"
+    return
+  fi
   if ((!BCC_INSPECT_CONTAINERS)); then
     while IFS= read -r line; do
       bcc_split_tab "$line"
@@ -78,13 +154,16 @@ bcc_check_c14() {
     image=${BCC_F[1]:-}
     name=${BCC_F[2]:-$id}
     [[ $id =~ ^[0-9a-f]+$ ]] || continue
-    bcc_c14_inspect "$engine" "$id" "$name" "$image"
+    bcc_c14_inspect "$engine" "$id" "$name" "$image" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"}
   done <<<"$ps"
 }
 
+# Usage: bcc_c14_inspect ENGINE ID NAME IMAGE [ENGINE-ARGS...]
+# Only for containers reached through this host (bcc_check_c14); ENGINE-ARGS keep the call on
+# the connection that was checked.
 bcc_c14_inspect() {
   local engine=$1 id=$2 name=$3 image=$4 out line series="" where ended=0 deb_py_ver=""
-  if ! out=$(timeout -k 2 "$BCC_TIMEOUT" "$engine" exec "$id" sh -c "$BCC_C14_PROBE" </dev/null 2>/dev/null); then
+  if ! out=$(timeout -k 2 "$BCC_TIMEOUT" "$engine" "${@:5}" exec "$id" sh -c "$BCC_C14_PROBE" </dev/null 2>/dev/null); then
     bcc_skip "container $name" "$(bcc_msg skip_c14_exec_failed)"
     return
   fi

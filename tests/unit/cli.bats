@@ -26,6 +26,25 @@ setup() {
   [[ $output == "brotli-cve-check "* ]]
 }
 
+@test "--help says what --deep and --containers look at, not more (issue #8)" {
+  run "$BIN" --help
+  [ "$status" -eq 0 ]
+  [[ $output != *"all ELF"* ]]
+  [[ $output != *"list containers and images"* ]]
+  [[ $output == *"executable or named *.so,"*"*.so.* or *.node (ELF, below 512 MiB)"* ]]
+  [[ $output == *"not the whole disk"* ]]
+  [[ $output == *"list running containers and count stopped ones and images"*"nothing inside is read"* ]]
+  [[ $output == *"never inside stopped containers or images"* ]]
+  run "$BIN" --lang ja --help
+  [ "$status" -eq 0 ]
+  [[ $output != *"すべて"* ]]
+  [[ $output != *"コンテナとイメージを一覧する"* ]]
+  [[ $output == *"実行属性があるか名前が *.so・*.so.*・*.node のファイル"*"（ELF、512 MiB 未満）"* ]]
+  [[ $output == *"ディスク全体ではない"* ]]
+  [[ $output == *"実行中のコンテナを一覧し、止まっているコンテナとイメージを数える"*"中は見ない"* ]]
+  [[ $output == *"止まっているコンテナとイメージの中は見ない"* ]]
+}
+
 @test "an unknown option is an error of the tool (exit 3)" {
   run "$BIN" --deeep
   [ "$status" -eq 3 ]

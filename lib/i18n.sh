@@ -25,11 +25,15 @@ Scan scope
   --roots DIR[,DIR...]    places to search (default: %s)
   --exclude DIR[,DIR...]  places to skip
   --include-remote        also search network file systems (NFS, CIFS, sshfs; excluded by default)
-  --deep                  C09: search all ELF files under --roots for bundled decoders (slow)
+  --deep                  C09: search the files under --roots that are executable or named *.so,
+                          *.so.* or *.node (ELF, below %s MiB) for the strings of a bundled
+                          decoder (slow; not the whole disk)
   --projects              C07: exposure hints from node_modules under --roots
-  --containers            C14: list containers and images (docker/podman), and where the engine connects
+  --containers            C14: list running containers and count stopped ones and images
+                          (docker/podman), with where the engine connects; nothing inside is read
   --inspect-containers    C14: also run a fixed check script inside running containers, only
-                          when reached through this host (a unix socket, or podman itself)
+                          when reached through this host (a unix socket, or podman itself);
+                          never inside stopped containers or images
   --exposure              C15: listening sockets of node/python/bun/envoy
   --envoy-config FILE     C10: look for a Brotli decompressor in an Envoy configuration
 Behaviour
@@ -62,11 +66,15 @@ BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダ�
   --roots DIR[,DIR...]    探索する場所（既定: %s）
   --exclude DIR[,DIR...]  除外する場所
   --include-remote        ネットワークファイルシステム（NFS・CIFS・sshfs）も探す（既定は除外）
-  --deep                  C09: --roots 配下の ELF ファイルすべてから同梱デコーダーを探す（時間がかかる）
+  --deep                  C09: --roots 配下で、実行属性があるか名前が *.so・*.so.*・*.node のファイル
+                          （ELF、%s MiB 未満）から同梱デコーダーの文字列を探す（時間がかかる。
+                          ディスク全体ではない）
   --projects              C07: --roots 配下の node_modules から露出のヒントを出す
-  --containers            C14: コンテナとイメージを一覧する（docker/podman。接続先も出す）
+  --containers            C14: 実行中のコンテナを一覧し、止まっているコンテナとイメージを数える
+                          （docker/podman。接続先も出す。中は見ない）
   --inspect-containers    C14: 実行中のコンテナの中でも決まった確認のスクリプトを動かす
-                          （このホストの unix ソケットか、サービスを介さない podman のときだけ）
+                          （このホストの unix ソケットか、サービスを介さない podman のときだけ。
+                          止まっているコンテナとイメージの中は見ない）
   --exposure              C15: node/python/bun/envoy の待ち受けポートを確認する
   --envoy-config FILE     C10: Envoy の設定に Brotli の展開フィルタがあるか確認する
 動作
@@ -412,8 +420,8 @@ BCC_MSG_EN[i_c14_conn_podman_local]='Connection of podman: none. podman runs the
 BCC_MSG_JA[i_c14_conn_podman_local]='podman の接続先: なし。podman はサービスを介さず、このホストでコンテナを動かしています（podman info）。'
 BCC_MSG_EN[i_c14_conn_podman_remote]='Connection of podman: a service (podman info), whose address podman does not state. Containers listed through it may be another host'"'"'s, and nothing runs inside them.'
 BCC_MSG_JA[i_c14_conn_podman_remote]='podman の接続先: サービス（podman info）。そのアドレスを podman は示しません。ここから一覧したコンテナは別のホストのものかもしれず、中では何も実行しません。'
-BCC_MSG_EN[i_c14_inventory]='%s: %s running containers, %s images.'
-BCC_MSG_JA[i_c14_inventory]='%s: 実行中のコンテナ %s 個、イメージ %s 個。'
+BCC_MSG_EN[i_c14_inventory]='%s: %s running containers, %s stopped containers, %s images.'
+BCC_MSG_JA[i_c14_inventory]='%s: 実行中のコンテナ %s 個、止まっているコンテナ %s 個、イメージ %s 個。'
 BCC_MSG_EN[i_c14_rebuild]='Updating the host does not fix containers. The Node.js version inside an image and the image'"'"'s OS libbrotli are separate things.'
 BCC_MSG_JA[i_c14_rebuild]='ホストを更新してもコンテナは直りません。イメージ内の Node.js 本体の版と、ベース OS の libbrotli の版は別物です。'
 BCC_MSG_EN[i_c14_not_inspected]='Container %s (%s) was not inspected (use --inspect-containers).'
@@ -442,16 +450,24 @@ BCC_MSG_EN[skip_no_engine]='neither docker nor podman is installed'
 BCC_MSG_JA[skip_no_engine]='docker も podman も入っていない'
 BCC_MSG_EN[skip_engine_denied]='%s cannot be used by this user (permission or daemon not running)'
 BCC_MSG_JA[skip_engine_denied]='このユーザーは %s を使えない（権限がない、またはデーモンが止まっている）'
-BCC_MSG_EN[skip_c14_inside]='inside of containers (use --inspect-containers)'
-BCC_MSG_JA[skip_c14_inside]='コンテナの中（--inspect-containers で確認）'
-BCC_MSG_EN[skip_c14_conn_other]='inside of containers: %s connects to %s, not to a unix socket on this host, so nothing was run inside them'
-BCC_MSG_JA[skip_c14_conn_other]='コンテナの中（%s の接続先 %s はこのホストの unix ソケットではないため、中では何も実行していない）'
-BCC_MSG_EN[skip_c14_conn_unknown]='inside of containers: where %s connects is not known, so nothing was run inside them'
-BCC_MSG_JA[skip_c14_conn_unknown]='コンテナの中（%s の接続先が分からないため、中では何も実行していない）'
-BCC_MSG_EN[skip_c14_conn_podman_remote]='inside of containers: podman is a client of a service whose address it does not state, so nothing was run inside them'
-BCC_MSG_JA[skip_c14_conn_podman_remote]='コンテナの中（podman はアドレスの分からないサービスにつないでいるため、中では何も実行していない）'
-BCC_MSG_EN[skip_c14_noexec]='inside of containers: --no-exec forbids running commands there'
-BCC_MSG_JA[skip_c14_noexec]='コンテナの中（--no-exec のためコマンドを実行しない）'
+BCC_MSG_EN[skip_c14_inside]='inside of running containers (use --inspect-containers)'
+BCC_MSG_JA[skip_c14_inside]='実行中のコンテナの中（--inspect-containers で確認）'
+BCC_MSG_EN[skip_c14_conn_other]='inside of running containers: %s connects to %s, not to a unix socket on this host, so nothing was run inside them'
+BCC_MSG_JA[skip_c14_conn_other]='実行中のコンテナの中（%s の接続先 %s はこのホストの unix ソケットではないため、中では何も実行していない）'
+BCC_MSG_EN[skip_c14_conn_unknown]='inside of running containers: where %s connects is not known, so nothing was run inside them'
+BCC_MSG_JA[skip_c14_conn_unknown]='実行中のコンテナの中（%s の接続先が分からないため、中では何も実行していない）'
+BCC_MSG_EN[skip_c14_conn_podman_remote]='inside of running containers: podman is a client of a service whose address it does not state, so nothing was run inside them'
+BCC_MSG_JA[skip_c14_conn_podman_remote]='実行中のコンテナの中（podman はアドレスの分からないサービスにつないでいるため、中では何も実行していない）'
+BCC_MSG_EN[skip_c14_noexec]='inside of running containers: --no-exec forbids running commands there'
+BCC_MSG_JA[skip_c14_noexec]='実行中のコンテナの中（--no-exec のためコマンドを実行しない）'
+BCC_MSG_EN[skip_c14_stopped]='inside of stopped containers (%s counted): nothing is run or read inside them, with or without --inspect-containers'
+BCC_MSG_JA[skip_c14_stopped]='止まっているコンテナの中（%s 個。数えただけで、--inspect-containers でも中では何も実行せず何も読まない）'
+BCC_MSG_EN[skip_c14_stopped_uncounted]='stopped containers and their inside: "%s ps -a" failed, so they were not counted'
+BCC_MSG_JA[skip_c14_stopped_uncounted]='止まっているコンテナとその中（「%s ps -a」が失敗したため、数えていない）'
+BCC_MSG_EN[skip_c14_images]='inside of images (%s counted): images are not looked inside, with or without --inspect-containers'
+BCC_MSG_JA[skip_c14_images]='イメージの中（%s 個。数えただけで、--inspect-containers でもイメージの中は見ない）'
+BCC_MSG_EN[skip_c14_images_uncounted]='images and their inside: "%s images" failed, so they were not counted'
+BCC_MSG_JA[skip_c14_images_uncounted]='イメージとその中（「%s images」が失敗したため、数えていない）'
 BCC_MSG_EN[skip_c14_exec_failed]='the check script could not run inside the container'
 BCC_MSG_JA[skip_c14_exec_failed]='コンテナの中で確認のスクリプトを実行できなかった'
 BCC_MSG_EN[skip_c14_incomplete]='the check script inside the container stopped before its end; findings for it may be missing'

@@ -6,7 +6,7 @@ BCC_CVE="CVE-2026-111497"
 BCC_DEFAULT_ROOTS="/opt,/usr/local,/srv,/var/www,/home,/root"
 
 bcc_usage() {
-  bcc_msg usage "$BCC_VERSION" "$BCC_DEFAULT_ROOTS"
+  bcc_msg usage "$BCC_VERSION" "$BCC_DEFAULT_ROOTS" "$BCC_MAX_ELF_MB"
 }
 
 # Split "a,b,c" into lines, dropping empty items and trailing slashes.

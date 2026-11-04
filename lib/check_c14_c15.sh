@@ -121,10 +121,29 @@ bcc_check_c14() {
     bcc_skip "C14 $engine" "$(bcc_msg skip_engine_denied "$engine")"
     return
   fi
-  local nimages
-  nimages=$(bcc_sys "$engine" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"} images -q | sort -u | grep -c . || true)
-  bcc_add_info C14 "$(bcc_msg i_c14_inventory "$engine" "$(grep -c . <<<"$ps" || true)" "$nimages")"
+  # Stopped containers and images are counted and never looked inside, with or without
+  # --inspect-containers (issue #8, docs/design.md 10.24). The number goes to "Not scanned",
+  # so that the list of running containers is not read as all of them; a count that could not
+  # be taken is said so there, never given as 0.
+  local all images nstopped="?" nimages="?"
+  if all=$(bcc_sys "$engine" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"} ps -a --format '{{.ID}}'); then
+    nstopped=$(bcc_c14_count_stopped "$ps" "$all")
+  fi
+  if images=$(bcc_sys "$engine" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"} images -q); then
+    nimages=$(sort -u <<<"$images" | grep -c . || true)
+  fi
+  bcc_add_info C14 "$(bcc_msg i_c14_inventory "$engine" "$(grep -c . <<<"$ps" || true)" "$nstopped" "$nimages")"
   bcc_add_info C14 "$(bcc_msg i_c14_rebuild)"
+  if [[ $nstopped == '?' ]]; then
+    bcc_skip "C14 (stopped containers)" "$(bcc_msg skip_c14_stopped_uncounted "$engine")"
+  elif ((nstopped > 0)); then
+    bcc_skip "C14 (stopped containers)" "$(bcc_msg skip_c14_stopped "$nstopped")"
+  fi
+  if [[ $nimages == '?' ]]; then
+    bcc_skip "C14 (images)" "$(bcc_msg skip_c14_images_uncounted "$engine")"
+  elif ((nimages > 0)); then
+    bcc_skip "C14 (images)" "$(bcc_msg skip_c14_images "$nimages")"
+  fi
   [[ -n $ps ]] || return 0
   # Containers reached any other way are listed and counted, but nothing runs inside them:
   # they may be another host's (issue #6). This holds with or without --inspect-containers.
@@ -156,6 +175,25 @@ bcc_check_c14() {
     [[ $id =~ ^[0-9a-f]+$ ]] || continue
     bcc_c14_inspect "$engine" "$id" "$name" "$image" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"}
   done <<<"$ps"
+}
+
+# Usage: bcc_c14_count_stopped RUNNING ALL - how many IDs of "ps -a" (ALL, one per line) are not
+# among the running ones (RUNNING, the lines of "ps", ID first). Both lists use the engine's
+# own {{.ID}}, so they agree on its length. They are two calls: a container that starts in
+# between is counted as stopped (and was not looked inside either way).
+bcc_c14_count_stopped() {
+  local running=$1 all=$2 line n=0
+  local -A up=() seen=()
+  while IFS= read -r line; do
+    line=${line%%$'\t'*}
+    [[ -n $line ]] && up[$line]=1
+  done <<<"$running"
+  while IFS= read -r line; do
+    [[ -n $line && -z ${up[$line]:-} && -z ${seen[$line]:-} ]] || continue
+    seen[$line]=1
+    n=$((n + 1))
+  done <<<"$all"
+  printf '%d' "$n"
 }
 
 # Usage: bcc_c14_inspect ENGINE ID NAME IMAGE [ENGINE-ARGS...]

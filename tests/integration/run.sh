@@ -12,11 +12,12 @@ engine=${ENGINE:-docker}
 out="$root/tests/tmp/integration"
 mkdir -p "$out"
 ctx=$(mktemp -d)
-c14_name="" relay_pid=""
+c14_name="" c14_stopped="" relay_pid=""
 # shellcheck disable=SC2317  # run by the EXIT trap
 cleanup() {
   [[ -z $relay_pid ]] || kill "$relay_pid" 2>/dev/null || true
   [[ -z $c14_name ]] || "$engine" rm -f "$c14_name" >/dev/null 2>&1 || true
+  [[ -z $c14_stopped ]] || "$engine" rm -f "$c14_stopped" >/dev/null 2>&1 || true
   rm -rf "$ctx"
 }
 trap cleanup EXIT
@@ -58,7 +59,10 @@ node_path=/opt/node-v22.23.3-linux-x64/bin:/opt/node-v22.23.4-linux-x64/bin:/usr
 # against a container of the image that has both Node.js copies on its PATH. Through the
 # engine's unix socket the check script runs inside it; through a TCP relay to the same socket
 # (DOCKER_HOST=tcp://127.0.0.1:PORT) the container is listed with the connection, and nothing
-# runs inside it (docs/design.md 10.20). Found programs on this host are not run: the question
+# runs inside it (docs/design.md 10.20). A stopped container of the same image is counted and
+# never looked inside, and the stopped containers and the images are listed under "Not scanned"
+# (10.24; the numbers depend on the host, so only the entries are checked). Found programs on
+# this host are not run: the question
 # whether to run them is answered "n" on a pseudo-terminal (--yes would run them on the machine
 # that runs the tests). Running the check script inside containers needs no such answer:
 # --inspect-containers is the consent.
@@ -98,13 +102,22 @@ c14_check() { # TAG BASE
     c14_name=""
     return 1
   fi
+  c14_stopped="$c14_name-stopped"
+  if ! "$engine" run --name "$c14_stopped" -e "PATH=$node_path" "$tag" true >/dev/null; then
+    echo "FAIL C14 on this host: could not run a container of $tag to its end"
+    c14_stopped=""
+    return 1
+  fi
   report="$out/c14-unix.json"
   if c14_run unix "$report" &&
     python3 -I "$root/tests/integration/assert.py" "$report" \
       "info:C14|Connection of docker: $host (a unix socket on this host)." \
       "C14|container $c14_name ($tag) /opt/node-v22.23.3-linux-x64/bin/node|VULNERABLE" \
-      "C14|container $c14_name ($tag) /opt/node-v22.23.4-linux-x64/bin/node|FIXED"; then
-    echo "ok   C14 on this host through $host ($base): the check script ran inside the container"
+      "C14|container $c14_name ($tag) /opt/node-v22.23.4-linux-x64/bin/node|FIXED" \
+      "skipped:C14 (stopped containers)|inside of stopped containers (" \
+      "skipped:C14 (images)|inside of images (" \
+      "C14|container $c14_stopped|-"; then
+    echo "ok   C14 on this host through $host ($base): the check script ran inside the container; stopped containers and images only counted"
   else
     echo "     report: $report"
     ok=1
@@ -130,8 +143,8 @@ c14_check() { # TAG BASE
   fi
   kill "$relay_pid" 2>/dev/null || true
   relay_pid=""
-  "$engine" rm -f "$c14_name" >/dev/null 2>&1 || true
-  c14_name=""
+  "$engine" rm -f "$c14_name" "$c14_stopped" >/dev/null 2>&1 || true
+  c14_name="" c14_stopped=""
   return "$ok"
 }
 

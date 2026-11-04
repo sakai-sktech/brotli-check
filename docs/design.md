@@ -746,3 +746,38 @@ rejected alternative.
        and it does not load libbrotli. The default run says nothing about it and `/usr/lib/dotnet` is
        not in the default roots; `--deep --roots /usr/lib/dotnet` gives `VENDORED_COPY`. A fair verdict
        needs rows for .NET's own versions, so it is a separate issue (#17).
+21. **EXPOSURE reasons say what was seen and what was not (2026-11-04, issue #7).** C06, C07 and C15
+    see only that a package is installed or that a process listens, but their reasons said "decodes
+    ... automatically" and "prioritize this process", which the external review (R7) read as
+    statements about the application. The verdict, its place outside the exit status and what each
+    check looks at are unchanged.
+    1. **Each reason states what was seen, then one sentence on what was not.** C07: packages that
+       can decode br request bodies (express 5, body-parser 2, ...) or br responses they fetch
+       (undici, axios, ...) are installed; whether an application uses them, and through which
+       path, is not checked. That sentence comes once per line, for both kinds: the issue drafted
+       one per kind, and a line with both would have said it twice. C06: these HTTP clients decode
+       a br response when they receive one; whether an application fetches with them is not
+       checked. C15: it listens beyond loopback; whether it can be reached from outside (firewall,
+       routing) is not checked. "Prioritize" stays in the next step, where it already was.
+    2. **aiohttp.** C06 adds that aiohttp.web servers decode br request bodies by default. After a
+       sentence on what was not checked that spoke only of fetching, that read as if a server had
+       been seen. With aiohttp, the sentence on what was not checked comes last and names receiving
+       requests with aiohttp.web as well (a second message, since a message is one printf format).
+    3. **C10 too, beyond the issue (requester's answer, 2026-11-04).** The `--envoy-config` file is
+       searched for the decompressor's name, so a commented-out filter matches, and whether the
+       running Envoy uses that file is not seen. "The configuration enables a Brotli decompressor"
+       now reads: the file names one, and whether the running Envoy uses the file and whether the
+       entry is in effect is not checked. The README's row for `EXPOSURE` covers entries in
+       configuration files, and would not have been true of C10 otherwise.
+    4. **No `EXPOSURE` is not proof of no path.** A program that fetches and decodes responses
+       without listening (a crawler, URL previews, an AI agent) does not show in C15, and C06 and
+       C07 see client packages only where they look (C07 only with `--projects`). This is said in
+       the README (what the tool does not tell you, the status table, the `--exposure` row of "How
+       far it looks") and in `docs/json-schema.md`. Not in the summary, the alternative the issue
+       allowed: those four lines are for non-specialists, and most runs have no `EXPOSURE` check
+       at all (C07 and C15 are off by default); a line only when one ran would make the summary's
+       shape depend on the options.
+    5. **`docs/sample-output.md`: only the C06 line was edited**, by hand, and the page says so. It
+       is to be captured again after #9, which changes other lines.
+    Accepted: longer reasons. The tests compare whole reasons in both languages, so a change of
+    wording changes them too; putting back any of the old sentences fails a test.

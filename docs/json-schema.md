@@ -92,7 +92,7 @@ removed or renamed field changes the major part of `tool_version`.
 | `RESTART_REQUIRED` | The fix is on disk but a process still runs the old code |
 | `VENDORED_COPY` | Carries its own decoder; version must be checked by a person |
 | `LIKELY_FIXED`, `LIKELY_VULNERABLE` | Judged by the verified string heuristic; see `confidence` |
-| `EXPOSURE` | A path by which attacker data could reach a decoder (not a vulnerability) |
+| `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (not a vulnerability). `reason` says what was seen and what was not. No `EXPOSURE` is not proof that there is no path |
 | `NOT_APPLICABLE` | No sign of a decoder in that file, backed by a distribution package whose sources were read, a Go program without `cbrotli`, or `curl -V` listing no brotli. Not proof of absence; `reason` says what it rests on |
 | `UNKNOWN` | Could not be judged; `reason` says why |
 | `SKIPPED` | Reserved; not-scanned ranges are reported in `skipped` |

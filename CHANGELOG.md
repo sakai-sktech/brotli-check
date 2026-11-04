@@ -6,6 +6,11 @@
   check joined so that a failure stops the rest; reading and running are separate steps, and the
   commands that run the file check the checksum again. The checksum confirms an intact download,
   not who made the file. The source tree, at the tag, is described as the other way (#4).
+- `EXPOSURE` reasons (C06, C07, C10, C15) say what was seen and what was not: that a package is
+  installed, that a configuration file names a Brotli decompressor, that a process listens beyond
+  loopback; not whether an application uses it, whether the running Envoy uses that file, or
+  whether it can be reached from outside. They no longer say "decodes ... automatically". The
+  README and the JSON schema say that no `EXPOSURE` is not proof that there is no path (#7).
 
 ## 0.1.0 - 2026-11-02
 

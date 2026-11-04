@@ -420,6 +420,88 @@ make_dist_info() { # site name version
   [[ ${BCC_FINDINGS[0]} == *"axios@1.7.9"* ]]
 }
 
+# --- EXPOSURE reasons: what was seen, and what was not (issue #7) -----------------------
+# finding_reason (defined below, with the Codex regressions) gives the reason of the first finding.
+
+@test "issue #7: C07 with only express 5's package.json says a package is installed, not that the app decodes" {
+  nm="$T/srv/app/node_modules"
+  mkdir -p "$nm/express"
+  printf '{"name":"express","version":"5.0.0"}\n' >"$nm/express/package.json"
+  BCC_LANG=ja
+  bcc_c07_entry "$nm"
+  run findings_brief
+  [ "$output" = "EXPOSURE|C07|npm-project|$T/srv/app|" ]
+  [ "$(finding_reason)" = 'br の受信本文を展開できるパッケージが入っています: express@5.0.0。 アプリが使っているか、どの経路で使っているかは見ていません。' ]
+  bcc_init_findings
+  BCC_LANG=en
+  bcc_c07_entry "$nm"
+  [ "$(finding_reason)" = 'Packages that can decode br request bodies are installed: express@5.0.0. Whether an application uses them, and through which path, is not checked.' ]
+}
+
+@test "issue #7: C07 says once what it did not check, for fetching and receiving packages alike" {
+  nm="$T/srv/app/node_modules"
+  mkdir -p "$nm/undici"
+  printf '{"name":"undici","version":"7.16.0"}\n' >"$nm/undici/package.json"
+  bcc_c07_entry "$nm"
+  [ "$(finding_reason)" = 'Packages that can decode br responses they fetch are installed: undici@7.16.0. Whether an application uses them, and through which path, is not checked.' ]
+  mkdir -p "$nm/body-parser"
+  printf '{"name":"body-parser","version":"2.2.0"}\n' >"$nm/body-parser/package.json"
+  bcc_init_findings
+  BCC_LANG=ja
+  bcc_c07_entry "$nm"
+  [ "${#BCC_FINDINGS[@]}" -eq 1 ]
+  [ "$(finding_reason)" = 'br の受信本文を展開できるパッケージが入っています: body-parser@2.2.0。 取得した br の応答を展開できるパッケージが入っています: undici@7.16.0。 アプリが使っているか、どの経路で使っているかは見ていません。' ]
+}
+
+@test "issue #7: C06 says the clients decode a br response they receive, and that their use was not checked" {
+  site="$T/srv/venv/lib/python3.12/site-packages"
+  mkdir -p "$site/urllib3-2.2.0.dist-info"
+  BCC_LANG=ja
+  bcc_c06_exposure "$site"
+  run findings_brief
+  [ "$output" = "EXPOSURE|C06|python-http-clients|$site|" ]
+  [ "$(finding_reason)" = 'この環境には Brotli が入っているので、次の HTTP クライアントは br の応答を受け取ると展開します: urllib3。 アプリがこれらで外から取得しているかは見ていません。' ]
+  # aiohttp also serves: what was not checked names that too, in one sentence.
+  site2="$T/srv/venv2/lib/python3.12/site-packages"
+  mkdir -p "$site2/urllib3-2.2.0.dist-info" "$site2/aiohttp-3.9.0.dist-info"
+  bcc_init_findings
+  BCC_LANG=en
+  bcc_c06_exposure "$site2"
+  [ "$(finding_reason)" = 'Brotli is installed here, so these HTTP clients decode a br response when they receive one: urllib3, aiohttp. aiohttp.web servers also decode request bodies sent with Content-Encoding: br by default. Whether an application fetches from outside with them, or receives requests with aiohttp.web, is not checked.' ]
+}
+
+@test "issue #7: C15 says the process listens beyond loopback, not that it can be reached from outside" {
+  cat >"$FAKEBIN/ss" <<'EOS'
+#!/bin/sh
+printf 'LISTEN 0 511 0.0.0.0:3000 0.0.0.0:* users:(("node",pid=4242,fd=20))\n'
+EOS
+  chmod +x "$FAKEBIN/ss"
+  BCC_LANG=ja
+  bcc_check_c15
+  run findings_brief
+  [ "$output" = "EXPOSURE|C15|node (pid 4242)|0.0.0.0:3000|" ]
+  [ "$(finding_reason)" = 'ループバック以外のアドレスで待ち受けています。外から届くか（ファイアウォール・経路）は見ていません。' ]
+  bcc_init_findings
+  BCC_LANG=en
+  bcc_check_c15
+  [ "$(finding_reason)" = 'Listens on a non-loopback address. Whether it can be reached from outside (firewall, routing) is not checked.' ]
+}
+
+@test "issue #7: C10 says the file names a Brotli decompressor, not that the running Envoy decodes" {
+  # Only the name is searched for, so a commented-out filter is found too; the reason says so.
+  printf '# filters:\n#   - name: envoy.compression.brotli.decompressor\n' >"$T/envoy.yaml"
+  BCC_ENVOY_CONFIG="$T/envoy.yaml"
+  BCC_LANG=ja
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c10
+  run findings_brief
+  [ "$output" = "EXPOSURE|C10|envoy-config|$T/envoy.yaml|" ]
+  [ "$(finding_reason)" = '設定ファイルに Brotli の展開フィルタの記述があります。動いている Envoy がこのファイルを使っているか、その記述が効いているか（コメントの中かもしれません）は見ていません。' ]
+  bcc_init_findings
+  BCC_LANG=en
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c10
+  [ "$(finding_reason)" = 'The configuration file names a Brotli decompressor. Whether the running Envoy uses this file, and whether that entry is in effect (it may be in a comment), is not checked.' ]
+}
+
 # --- C09 libraries by name ---------------------------------------------------------
 
 @test "C09: libbrotlidec named 1.2.1 with fixed strings is FIXED" {

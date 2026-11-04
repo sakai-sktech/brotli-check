@@ -6,6 +6,9 @@ the container, so the consent to run the listed programs is given in advance). T
 from nodejs.org and PyPI Brotli 1.2.0 (with urllib3) and 1.2.1 in two virtual environments.
 Exit status: 1.
 
+Only the reason of the C06 `EXPOSURE` line has been edited since, by hand, to the wording of
+issue #7 (what was seen and what was not); the rest is the capture of 2026-10-27.
+
 The first section lists the programs the tool ran to read their versions, their output, and the
 facts shown before asking: here the Node.js tarballs keep their packager's owners (non-root
 uids, which in this image happen to be the users ubuntu and tester), and the report says so. At a terminal, without `--yes`, the same list is shown first and you choose.
@@ -44,7 +47,7 @@ Search roots: /opt,/srv | options: --yes
 == C06 Python packages (PyPI, conda) ==
 [FIXED] C06 | brotli | /srv/venv-new/lib/python3.12/site-packages/brotli-1.2.1.dist-info | 1.2.1 | At or above the fixed version 1.2.1. | -
 [VULNERABLE] C06 | brotli | /srv/venv-old/lib/python3.12/site-packages/brotli-1.2.0.dist-info | 1.2.0 | Below the fixed version 1.2.1. | In the environment that owns /srv/venv-old/lib/python3.12/site-packages, run: pip install -U "brotli>=1.2.1"
-[EXPOSURE] C06 | python-http-clients | /srv/venv-old/lib/python3.12/site-packages | - | Brotli is installed here, so these HTTP clients decode Brotli responses from remote servers automatically: urllib3. | Not a vulnerability by itself: update the decoder it uses (other findings) with priority.
+[EXPOSURE] C06 | python-http-clients | /srv/venv-old/lib/python3.12/site-packages | - | Brotli is installed here, so these HTTP clients decode a br response when they receive one: urllib3. Whether an application fetches from outside with them is not checked. | Not a vulnerability by itself: update the decoder it uses (other findings) with priority.
 
 == Information ==
 [INFO] C02 | Installed packages depending on libbrotli1 (1), fixed by the libbrotli1 update plus a restart: libcurl4t64
@@ -96,7 +99,7 @@ brotli-cve-check 0.1.0 - CVE-2026-111497（Brotli デコーダー）の読み取
 == C06 Python のパッケージ（PyPI・conda） ==
 [FIXED] C06 | brotli | /srv/venv-new/lib/python3.12/site-packages/brotli-1.2.1.dist-info | 1.2.1 | 修正版 1.2.1 以上です。 | -
 [VULNERABLE] C06 | brotli | /srv/venv-old/lib/python3.12/site-packages/brotli-1.2.0.dist-info | 1.2.0 | 修正版 1.2.1 より古い版です。 | /srv/venv-old/lib/python3.12/site-packages を持つ環境で pip install -U "brotli>=1.2.1" を実行する。
-[EXPOSURE] C06 | python-http-clients | /srv/venv-old/lib/python3.12/site-packages | - | この環境には Brotli が入っているため、次の HTTP クライアントは外部から取得した応答を自動で展開します: urllib3。 | それ自体は脆弱性ではない。使っているデコーダー（ほかの所見）の更新を優先する。
+[EXPOSURE] C06 | python-http-clients | /srv/venv-old/lib/python3.12/site-packages | - | この環境には Brotli が入っているので、次の HTTP クライアントは br の応答を受け取ると展開します: urllib3。 アプリがこれらで外から取得しているかは見ていません。 | それ自体は脆弱性ではない。使っているデコーダー（ほかの所見）の更新を優先する。
 
 == 情報 ==
 [INFO] C02 | libbrotli1 に依存するパッケージ（1 個）。libbrotli1 の更新と再起動で直ります: libcurl4t64

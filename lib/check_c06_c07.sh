@@ -86,6 +86,7 @@ bcc_c06_entry() {
 }
 
 # HTTP libraries in the same environment decode Brotli automatically once Brotli is importable.
+# Only their metadata is seen, so the reason also says what is not: whether anything uses them.
 bcc_c06_exposure() {
   local site=$1 lib f
   local -a found=()
@@ -97,9 +98,14 @@ bcc_c06_exposure() {
     done
   done
   ((${#found[@]})) || return 0
-  local reason
+  local reason unseen=r_c06_unseen
   reason=$(bcc_msg r_c06_exposure "$(IFS=,; printf '%s' "${found[*]}" | sed 's/,/, /g')")
-  case " ${found[*]} " in *" aiohttp "*) reason+=" $(bcc_msg r_c06_aiohttp)" ;; esac
+  case " ${found[*]} " in *" aiohttp "*)
+    reason+=" $(bcc_msg r_c06_aiohttp)"
+    unseen=r_c06_unseen_aiohttp
+    ;;
+  esac
+  reason+=" $(bcc_msg "$unseen")"
   bcc_add_finding C06 EXPOSURE "python-http-clients" "$site" "" "$reason" "$(bcc_msg n_exposure_hint)" "" ""
 }
 
@@ -170,9 +176,11 @@ bcc_c07_entry() {
     outbound+=("$pkg@$(bcc_pkg_version "$nm/$pkg/package.json")")
   done
   ((${#inbound[@]} + ${#outbound[@]})) || return 0
+  # Only package.json is read: the reason says so, once, whichever of the two were found.
   local reason=""
   ((${#inbound[@]})) && reason+="$(bcc_msg r_c07_inbound "${inbound[*]}") "
-  ((${#outbound[@]})) && reason+="$(bcc_msg r_c07_outbound "${outbound[*]}")"
+  ((${#outbound[@]})) && reason+="$(bcc_msg r_c07_outbound "${outbound[*]}") "
+  reason+=$(bcc_msg r_c07_unseen)
   bcc_add_finding C07 EXPOSURE "npm-project" "$(dirname -- "$nm")" "" "$reason" "$(bcc_msg n_c07)" "" ""
 }
 

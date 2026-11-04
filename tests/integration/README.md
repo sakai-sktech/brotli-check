@@ -26,6 +26,16 @@ container: with only the distribution's servers the exit status must be `0`; wit
 `.deb` installed (`/usr/local/sbin/nginx`) and `/usr/sbin/haproxy` overwritten, both must be `UNKNOWN`
 through the real `dpkg` and the exit status `2`.
 
+Once per run, with the first image, C14 is tried through the real engine: the single-file build
+runs on the test host with `--inspect-containers` against a container of the image that has
+both Node.js copies on its `PATH`. Through docker's unix socket the connection line must say so
+and both copies must be judged inside the container; through a TCP relay to the same socket
+(`relay.py`, `DOCKER_HOST=tcp://127.0.0.1:PORT`) the container must be listed with the connection
+and the reason under "Not scanned", with no finding from inside it (docs/design.md 10.20). The
+programs the tool finds on the test host are not run: the question is answered "n" on a
+pseudo-terminal (`script`). This step needs `ENGINE=docker` (the default) connected through a
+unix socket, `script` (util-linux) and `python3`; otherwise it says SKIP or FAIL.
+
 A last step runs the single-file build under `bash:4.2` (the oldest supported version) with
 GNU tools added, places a PyPI Brotli 1.2.0 record, and expects exit status 1 with that
 finding `VULNERABLE` in valid JSON.

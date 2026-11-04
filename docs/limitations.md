@@ -166,3 +166,9 @@ redirect a root-written file elsewhere. To keep a root scan in your home, redire
 - Not an intrusion check. Updating does not remove traces of a compromise that happened
   before the update.
 - Not a statement about other hosts, or about containers that were not running.
+- Not a list of every process that needs a restart. The restart checks (C03-C05) see processes that
+  still use a deleted `libbrotlidec*` or `_brotli*.so`, or run a deleted node or bun. A process
+  running another program that carries its own copy of the decoder is not among them, and no such
+  line is no proof that nothing needs a restart. For a process in another mount namespace (a
+  container, a snap, a flatpak) the file at the same path on this host is a different file, so it
+  is not compared, and the line says to check the version before restarting.

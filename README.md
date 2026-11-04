@@ -193,7 +193,7 @@ Each finding is one line:
 | Status | Meaning | Next step |
 |---|---|---|
 | `VULNERABLE` | Older than the fixed version in the advisory data and not before the affected range an advisory states, or a version of a line that gets no fixed release (the reason says on what ground) | Update it (the line says to what) |
-| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). Whether the file now on disk is fixed is told by the other lines of the same report | If the disk has the fixed version, restart that process or service; if not, update first |
+| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). When another line of this report judged the file now at the same path, the reason gives that judgment. No such line is no proof that nothing needs a restart ([limitations](docs/limitations.md)) | Written on the line: if the file now there is `FIXED`, restart; if it is `VULNERABLE`, `NO_FIX_AVAILABLE` or `LIKELY_VULNERABLE`, follow that line first (a restart alone does not fix it); with no judgment, no file, or a process in another mount namespace (a container, for example), check the version, then restart |
 | `NO_FIX_AVAILABLE` | As of the advisory data's date, the distributor had not released a fix | Look at the vendor's latest information; meanwhile update the products that bundle their own copy |
 | `VENDORED_COPY` | Carries its own decoder; neither its version nor whether it is fixed could be determined | Ask the vendor which Brotli it bundles |
 | `LIKELY_VULNERABLE` / `LIKELY_FIXED` | Judged from the decoder's strings; the reason says what was found and what was not (see "[What a verdict rests on](#what-a-verdict-rests-on)") | Confirm with the vendor |
@@ -360,7 +360,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- A `RESTART_REQUIRED` line advises only a restart even when the disk is still unfixed ([#5](https://github.com/sakai-sktech/brotli-check/issues/5))
 - The container connection is neither checked nor shown in the report ([#6](https://github.com/sakai-sktech/brotli-check/issues/6))
 - `EXPOSURE` reasons say "decodes ... automatically" when a package is merely installed ([#7](https://github.com/sakai-sktech/brotli-check/issues/7))
 - The text report does not show which kind of evidence a `FIXED` rests on ([#9](https://github.com/sakai-sktech/brotli-check/issues/9))

@@ -178,7 +178,7 @@ root で動かすときは（ツリーも、あなたのディレクトリと同
 | 判定 | 意味 | 次にやること |
 |---|---|---|
 | `VULNERABLE` | 既知データの修正版より古く、告知の示す影響範囲より前でもない版、または修正版の出ない系列の版（根拠は理由に書いてある） | 更新する（行に更新先が書いてある） |
-| `RESTART_REQUIRED` | 削除済みの Brotli 関連のファイル（libbrotlidec、`_brotli*.so`、node・bun の実行ファイル）を使い続けているプロセスがある。ディスク上のいまのファイルが修正版かは、同じ結果のほかの行で確かめる | ディスク上が修正版なら、そのプロセス（サービス）を再起動する。まだなら先に更新する |
+| `RESTART_REQUIRED` | 削除済みの Brotli 関連のファイル（libbrotlidec、`_brotli*.so`、node・bun の実行ファイル）を使い続けているプロセスがある。同じパスにいまあるファイルをこの結果のほかの行で判定していれば、その判定が理由に書いてある。この行が無いことは、再起動が要らないことの証明ではない（「[限界](docs/limitations.ja.md)」） | 行に書いてある。いまのファイルが `FIXED` なら再起動する。`VULNERABLE`・`NO_FIX_AVAILABLE`・`LIKELY_VULNERABLE` なら先にその行に従う（再起動だけでは直らない）。判定が無い、ファイルが無い、別のマウント名前空間（コンテナなど）のプロセス、のときは版を確かめてから再起動する |
 | `NO_FIX_AVAILABLE` | 既知データの日付の時点で、配布元が修正版を出していない | 提供元の最新の情報を見る。待つ間は、同梱コピーのある製品を優先して更新する |
 | `VENDORED_COPY` | デコーダーを抱えているが、版も修正の有無も決められない | 同梱している Brotli の版を提供元に確認する |
 | `LIKELY_VULNERABLE`／`LIKELY_FIXED` | デコーダーの文字列からの推定。分かったことと分からないことが理由に書いてある（「[判定の根拠](#判定の根拠)」） | 提供元に確認する |
@@ -329,7 +329,6 @@ testing（forky）は修正の移行を待っていました。
 
 いまの版で分かっている問題です。直したら、この一覧から消します。
 
-- `RESTART_REQUIRED` の行が、ディスク上がまだ未修正でも再起動だけを勧める（[#5](https://github.com/sakai-sktech/brotli-check/issues/5)）
 - コンテナの接続先を確かめず、結果にも出さない（[#6](https://github.com/sakai-sktech/brotli-check/issues/6)）
 - `EXPOSURE` の理由の文が、パッケージがあるだけで「展開する構成」と言い切る（[#7](https://github.com/sakai-sktech/brotli-check/issues/7)）
 - テキストの結果に `FIXED` の根拠の種類が出ない（[#9](https://github.com/sakai-sktech/brotli-check/issues/9)）

@@ -70,13 +70,16 @@ bcc_report_linked_lib() {
     bcc_add_finding "$id" UNKNOWN "$prod" "$file" "" "$(bcc_msg r_linked_lib_missing "$lib")" "$(bcc_msg n_check_vendor)" "" ""
     return 0
   fi
+  # What this run says about the library holds for the file that loads it (bcc_note_loaded).
   if bcc_covered_by_c01 "$real" || bcc_covered_by_c01 "$lib"; then
     bcc_add_info "$id" "$(bcc_msg i_uses_os_lib "$file" "$prod" "$lib" "$method")${more:+ $more}"
+    bcc_note_loaded "$file" "$real" "$lib"
     return 0
   fi
   bcc_add_info "$id" "$(bcc_msg i_uses_private_lib "$file" "$prod" "$real" "$method")${more:+ $more}"
   # Judged under the name it is loaded by (libbrotlidec.so.1 -> decoder.bin is still one).
   [[ -n ${BCC_JUDGED[$real]:-} ]] || bcc_c09_lib_entry "$real" "${lib##*/}"
+  bcc_note_loaded "$file" "$real"
 }
 
 # A file that loads libbrotlidec can also carry a decoder of its own (with local symbols).

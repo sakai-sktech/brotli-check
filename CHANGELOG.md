@@ -6,6 +6,12 @@
   check joined so that a failure stops the rest; reading and running are separate steps, and the
   commands that run the file check the checksum again. The checksum confirms an intact download,
   not who made the file. The source tree, at the tag, is described as the other way (#4).
+- A `node`, `bun`, `curl`, `envoy`, server or browser found by its name that is a link to a
+  program of another name (a version manager's shim such as `node -> mise`, snap's launcher in
+  `/snap/bin`) is no longer dropped without a word. It is still not run, and no version is read
+  for it. The file it points to is judged by the libbrotlidec it loads or by its decoder strings;
+  with neither, the report names the link under information, and under "Not scanned" when that
+  could not be told (docs/design.md 10.23, #19).
 
 ## 0.1.0 - 2026-11-02
 

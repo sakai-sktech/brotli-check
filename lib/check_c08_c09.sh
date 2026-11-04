@@ -3,7 +3,7 @@
 
 bcc_c08_candidates() {
   [[ -z ${BCC_C08_DONE:-} ]] || return 0
-  bcc_collect0 < <(printf '%s\n' /usr/bin/curl /usr/local/bin/curl '/opt/*/bin/curl' | bcc_glob_records | bcc_candidates curl)
+  bcc_candidates C08 curl < <(printf '%s\n' /usr/bin/curl /usr/local/bin/curl '/opt/*/bin/curl' | bcc_glob_records)
   BCC_C08_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
   BCC_C08_DONE=1
 }
@@ -14,6 +14,7 @@ bcc_check_c08() {
   for bin in ${BCC_C08_CANDS[@]+"${BCC_C08_CANDS[@]}"}; do
     bcc_c08_entry "$bin"
   done
+  bcc_report_other_names C08
 }
 
 bcc_c08_entry() {
@@ -92,6 +93,52 @@ bcc_report_own_copy() {
     return 0
   fi
   bcc_report_by_strings "$1" "$2 (own copy)" "$3" "" "$(bcc_msg r_own_copy)"
+}
+
+# The links bcc_candidates did not take for ID, because they point to a program of another
+# name (docs/design.md 10.23). The file is not run and no version is read for it - a version
+# manager's shim would answer for itself - but what it carries is looked at, as --deep does:
+# a file that loads libbrotlidec is judged by that library, one with decoder markers by its
+# strings. One with neither is information, and one where that could not be told (not read
+# to its end, its libraries not followed) is listed as not scanned. Every link shows.
+# Usage: bcc_report_other_names ID
+bcc_report_other_names() {
+  local id=$1 i found real comp link rc res
+  for i in ${BCC_OTHER_ID[@]+"${!BCC_OTHER_ID[@]}"}; do
+    [[ ${BCC_OTHER_ID[i]} == "$id" ]] || continue
+    found=${BCC_OTHER_FOUND[i]}
+    real=${BCC_OTHER_REAL[i]}
+    comp=${real##*/}
+    # Judged already (through another link, or by --deep): its lines are there.
+    if [[ -n ${BCC_JUDGED[$real]:-} ]]; then
+      bcc_add_info "$id" "$(bcc_msg i_other_name_judged "$found" "$real")"
+      continue
+    fi
+    bcc_link_prefetch "$real"
+    rc=0
+    link=$(bcc_links_brotlidec "$real") || rc=$?
+    if ((rc == 0)); then
+      BCC_JUDGED[$real]=1
+      bcc_add_info "$id" "$(bcc_msg i_other_name_judged "$found" "$real")"
+      bcc_split_tab "$link"
+      bcc_report_linked_lib "$id" "$comp" "$real" "${BCC_F[0]}" "${BCC_F[1]}"
+      bcc_report_own_copy "$id" "$comp" "$real"
+      continue
+    fi
+    res=$(bcc_brotli_scan "$real")
+    bcc_split_tab "$res"
+    if [[ ${BCC_F[3]} == 1 ]]; then
+      BCC_JUDGED[$real]=1
+      bcc_report_by_strings "$id" "$comp" "$real" "" "$(bcc_msg r_other_name "$found")"
+    elif [[ ${BCC_F[6]} != complete ]]; then
+      bcc_skip "$found" "$(bcc_msg skip_other_name_incomplete "$real" "$BCC_MAX_ELF_MB")"
+    elif ((rc != 1)); then
+      bcc_skip "$found" "$(bcc_msg skip_other_name_links "$real")"
+    else
+      bcc_add_info "$id" "$(bcc_msg i_other_name "$found" "$real" "${found##*/}")"
+    fi
+  done
+  return 0
 }
 
 # Shared/static libbrotlidec not covered by C01 (built from source, bundled in /opt, a

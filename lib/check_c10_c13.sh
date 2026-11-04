@@ -6,7 +6,7 @@ bcc_c10_candidates() {
   local h
   local -a pats=(/usr/local/bin/envoy /usr/bin/envoy '/opt/*/bin/envoy')
   for h in ${BCC_HOMES[@]+"${BCC_HOMES[@]}"}; do pats+=("$h/.func-e/versions/*/bin/envoy"); done
-  bcc_collect0 < <({ printf '%s\n' "${pats[@]}" | bcc_glob_records; bcc_index_list ${BCC_IDX_ENVOY[@]+"${BCC_IDX_ENVOY[@]}"}; } | bcc_candidates envoy)
+  bcc_candidates C10 envoy < <(printf '%s\n' "${pats[@]}" | bcc_glob_records; bcc_index_list ${BCC_IDX_ENVOY[@]+"${BCC_IDX_ENVOY[@]}"})
   BCC_C10_CANDS=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
   BCC_C10_DONE=1
 }
@@ -35,6 +35,7 @@ bcc_check_c10() {
     fi
     bcc_add_finding C10 "$BCC_J_STATUS" envoy "$bin" "$ver" "$BCC_J_REASON $(bcc_msg r_c10_decompressor)" "$next" "$BCC_J_EVIDENCE" ""
   done
+  bcc_report_other_names C10
   if [[ -n $BCC_ENVOY_CONFIG ]]; then
     if [[ ! -f $BCC_ENVOY_CONFIG || ! -r $BCC_ENVOY_CONFIG ]]; then
       bcc_skip "$BCC_ENVOY_CONFIG" "$(bcc_msg skip_unreadable)"
@@ -164,12 +165,13 @@ bcc_check_c11() {
     names=${prod#*:}
     prod=${prod%%:*}
     names=${names//\//|}
-    bcc_collect0 < <(printf '%s\n' "/usr/sbin/${names%%|*}" "/usr/local/sbin/${names%%|*}" "/usr/local/bin/${names%%|*}" | bcc_glob_records | bcc_candidates "$names")
+    bcc_candidates C11 "$names" < <(printf '%s\n' "/usr/sbin/${names%%|*}" "/usr/local/sbin/${names%%|*}" "/usr/local/bin/${names%%|*}" | bcc_glob_records)
     cands=(${BCC_LIST[@]+"${BCC_LIST[@]}"})
     for bin in ${cands[@]+"${cands[@]}"}; do
       bcc_c11_file "$prod" "$bin"
     done
   done
+  bcc_report_other_names C11
   for m in /usr/lib/nginx/modules/*brotli*.so /usr/lib/apache2/modules/mod_brotli.so /usr/lib64/httpd/modules/mod_brotli.so; do
     [[ -f $m ]] && bcc_c11_file "${m##*/}" "$m"
   done
@@ -344,7 +346,7 @@ bcc_c13_candidates() {
     kind=${spec%%:*}
     names=${spec#*:}
     names=${names%%:*}
-    bcc_collect0 < <(tr ' ' '\n' <<<"${spec##*:}" | bcc_glob_records | bcc_candidates "$names")
+    bcc_candidates C13 "$names" < <(tr ' ' '\n' <<<"${spec##*:}" | bcc_glob_records)
     for x in ${BCC_LIST[@]+"${BCC_LIST[@]}"}; do
       BCC_C13_CANDS+=("$x")
       BCC_C13_KINDS+=("$kind")
@@ -397,5 +399,6 @@ bcc_check_c13() {
       bcc_add_finding C13 "$BCC_J_STATUS" "${bin##*/}" "$bin" "$ver" "$BCC_J_REASON" "$BCC_J_NEXT" \
         "$(bcc_msg e_version_method "$method"); $BCC_J_EVIDENCE" ""
   done
+  bcc_report_other_names C13
   bcc_add_info C13 "$(bcc_msg i_c13_electron)"
 }

@@ -940,3 +940,40 @@ rejected alternative.
     Rejected: running the file with `--version` (the regression of 10.12, `mise --version` read as
     a node), and listing every such link as not scanned without looking at it (a shim would then
     read as a gap in what was looked at).
+24. **Stopped containers and images are counted and listed as not scanned; the help says what
+    `--deep` and `--containers` look at (2026-11-05, issue #8).** C14 listed the running containers
+    (`ps` without `-a`) and counted the images, and neither went to "Not scanned": an entry came only
+    from running containers not looked inside, so with no container running `--containers` left no
+    C14 entry at all, and a report could read as if every container had been looked at. The help
+    said that `--deep` searches "all ELF files under --roots" and that `--containers` lists
+    "containers and images".
+    1. **Counted, never looked inside.** The stopped containers are the IDs of
+       `ps -a --format '{{.ID}}'` that `ps` did not list (the same template, so the same ID length;
+       two calls, so a container started in between counts as stopped, and was not looked inside
+       either way). The images are the distinct IDs of `images -q`, as before. Both calls stay on the
+       context that was checked (10.20.4). Each count above 0 is one "Not scanned" entry
+       (`C14 (stopped containers)`, `C14 (images)`), on every connection, with or without
+       `--inspect-containers`, and also when no container runs. A count of 0 gives no entry: nothing
+       of that kind was left out.
+    2. **A count that could not be taken is not 0.** A failing `images -q` used to give "0 images".
+       Now a failed `ps -a` or `images` shows `?` in the inventory line, and its entry names the call
+       that failed.
+    3. **Words.** The entries for running containers now say "running containers", so that they
+       read apart from the stopped ones. The help gives `--deep`'s selection as the code has it
+       (executable or named `*.so`, `*.so.*`, `*.node`; ELF; below `BCC_MAX_ELF_MB`, which is passed
+       into the help text so that the number cannot drift) and "not the whole disk"; `--containers`
+       lists the running containers and counts the stopped ones and the images, reading nothing
+       inside; `--inspect-containers` never runs inside stopped containers or images. The README
+       tables and the limitations follow (the README part of #8 was done in #13).
+    4. **Measured on the development host (docker 29.9, 2026-11-05).** Docker Desktop's context:
+       0 running, 0 stopped, 11 images; `/var/run/docker.sock`: 0 running, 45 stopped (all
+       `exited`), 33 images, as `docker ps -a` and `docker images -q | sort -u` give them. The
+       integration run now also runs a container of the image to its end and expects both entries,
+       and no finding from that container (the numbers depend on the runner, so only the entries are
+       checked).
+    Rejected: naming each stopped container (a CI host can hold hundreds, and the number is what
+    tells that the list is not all of them); looking inside stopped containers or images (recorded
+    in the triage as an idea, not part of this issue: `docker create` and copying out, reading the
+    layers, or an image scanner where the images are built); one call with a state field (it needs
+    each engine's state names and its support of the field; the difference of two lists of IDs
+    needs neither).

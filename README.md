@@ -194,7 +194,7 @@ Each finding is one line:
 | Status | Meaning | Next step |
 |---|---|---|
 | `VULNERABLE` | Older than the fixed version in the advisory data and not before the affected range an advisory states, or a version of a line that gets no fixed release (the reason says on what ground) | Update it (the line says to what) |
-| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). Whether the file now on disk is fixed is told by the other lines of the same report | If the disk has the fixed version, restart that process or service; if not, update first |
+| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). When another line of this report judged the file now at the same path, the reason gives that judgment. No such line is no proof that nothing needs a restart ([limitations](docs/limitations.md)) | Written on the line: if the file now there is `FIXED`, restart; if it is `VULNERABLE`, `NO_FIX_AVAILABLE` or `LIKELY_VULNERABLE`, follow that line first (a restart alone does not fix it); with no judgment, no file, or a process in another mount namespace (a container, for example), check the version, then restart |
 | `NO_FIX_AVAILABLE` | As of the advisory data's date, the distributor had not released a fix | Look at the vendor's latest information; meanwhile update the products that bundle their own copy |
 | `VENDORED_COPY` | Carries its own decoder; neither its version nor whether it is fixed could be determined | Ask the vendor which Brotli it bundles |
 | `LIKELY_VULNERABLE` / `LIKELY_FIXED` | Judged from the decoder's strings; the reason says what was found and what was not (see "[What a verdict rests on](#what-a-verdict-rests-on)") | Confirm with the vendor |
@@ -371,13 +371,11 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- A `RESTART_REQUIRED` line advises only a restart even when the disk is still unfixed ([#5](https://github.com/sakai-sktech/brotli-check/issues/5))
 - `EXPOSURE` reasons say "decodes ... automatically" when a package is merely installed ([#7](https://github.com/sakai-sktech/brotli-check/issues/7))
 - The text report does not show which kind of evidence a `FIXED` rests on ([#9](https://github.com/sakai-sktech/brotli-check/issues/9))
 - The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
 - A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it
 - Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))
-- A `node` that is a link to a program of another name is dropped without a mention ([#19](https://github.com/sakai-sktech/brotli-check/issues/19))
 
 All: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 
@@ -392,8 +390,8 @@ and on containers that can be built and thrown away.
 - **Integration tests**: x86_64 containers of Ubuntu 22.04, 24.04, 26.04 and Debian 12, 13, with
   unfixed and fixed copies put in on purpose; every expected verdict matched, as root and as an
   ordinary user, with `--no-exec` and with `--yes`.
-- **172 unit tests** and ShellCheck with zero warnings. The string heuristic was checked on the
-  builds listed under "What a verdict rests on".
+- **239 unit tests** (as of 2026-11-02) and ShellCheck with zero warnings. The string heuristic
+  was checked on the builds listed under "What a verdict rests on".
 - **Not checked**: how often it misses copies or misjudges them on real hosts; architectures
   other than x86_64; RHEL and the like; integration tests on Ubuntu 26.10 and on derivatives.
 

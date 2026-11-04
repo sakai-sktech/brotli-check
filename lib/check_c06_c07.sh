@@ -65,14 +65,15 @@ bcc_c06_entry() {
   # The metadata's "fixed" is confirmed against this package's own extension module (another
   # package's module in the same site says nothing about this one). $site is taken literally:
   # a "[" or "*" in a path is part of a name, not a pattern.
-  local ext pattern='_brotli.*so' checked=0
+  local ext pattern='_brotli.*so'
+  local -a exts=()
   [[ $lname == brotli ]] || pattern='brotlicffi/_brotlicffi*.so'
   for ext in "$site"/$pattern; do
     [[ -f $ext ]] || continue
-    checked=1
+    exts+=("$ext")
     bcc_crosscheck_fixed "$ext"
   done
-  ((checked)) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_ext "$ver" "$pattern")" "$(bcc_msg n_missing_file)"
+  ((${#exts[@]})) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_ext "$ver" "$pattern")" "$(bcc_msg n_missing_file)"
   # C09 leaves this package's extension module to this finding.
   BCC_C06_SITES[$lname:$site]=1
   local next=$BCC_J_NEXT
@@ -82,6 +83,8 @@ bcc_c06_entry() {
     next=$(bcc_msg n_pip_upgrade "$(printf '%q' "$site")" "$lname" "$BCC_J_FIXED")
   fi
   bcc_add_finding C06 "$BCC_J_STATUS" "$name" "$p" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE${owner:+; dpkg: $owner}" ""
+  # The extension modules compared here are what this finding judged on disk (C03).
+  for ext in ${exts[@]+"${exts[@]}"}; do bcc_note_disk "$ext" C06 "$name" "$BCC_J_STATUS"; done
   bcc_c06_exposure "$site"
 }
 
@@ -119,21 +122,23 @@ bcc_c06_conda() {
   bcc_judge brotli "$series" semver "$ver"
   # The record is a file name in the environment; its "fixed" is confirmed against the
   # library it describes (lib/libbrotlidec.so.*).
-  local env lib checked=0
+  local env lib
+  local -a libs=()
   env=$(dirname -- "$(dirname -- "$f")")
   # $env is taken literally: a "[" or "*" in a path is part of a name, not a pattern.
   for lib in "$env"/lib/libbrotlidec.so.*; do
     [[ -f $lib && ! -L $lib ]] || continue
-    checked=1
+    libs+=("$lib")
     bcc_crosscheck_fixed "$lib"
     # C09 leaves to this finding the files compared here, and no others: a static archive or
     # a stray copy in the same lib/ says nothing to this record, nor it to them.
     BCC_C06_CONDA_FILES[$lib]=1
   done
-  ((checked)) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_lib "$ver" 'lib/libbrotlidec.so.*')" "$(bcc_msg n_missing_file)"
+  ((${#libs[@]})) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_lib "$ver" 'lib/libbrotlidec.so.*')" "$(bcc_msg n_missing_file)"
   local next=$BCC_J_NEXT
   bcc_judge_advises_update && next=$(bcc_msg n_conda_update "$(printf '%q' "$(dirname -- "$(dirname -- "$f")")")")
   bcc_add_finding C06 "$BCC_J_STATUS" "conda:libbrotlidec" "$f" "$ver" "$BCC_J_REASON" "$next" "$BCC_J_EVIDENCE" ""
+  for lib in ${libs[@]+"${libs[@]}"}; do bcc_note_disk "$lib" C06 conda:libbrotlidec "$BCC_J_STATUS"; done
 }
 
 bcc_check_c06() {

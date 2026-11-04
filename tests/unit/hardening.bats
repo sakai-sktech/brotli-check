@@ -818,7 +818,7 @@ EOS
   mkdir -p "$T/opt/vendor/bin"
   make_fake_elf "$T/opt/vendor/bin/node-22.0.0"
   ln -s node-22.0.0 "$T/opt/vendor/bin/node"
-  bcc_collect0 < <(printf 'G%s\0' "$T/opt/*/bin/node" | PATH=/usr/bin:/bin bcc_candidates 'node|nodejs')
+  PATH=/usr/bin:/bin bcc_candidates C04 'node|nodejs' < <(printf 'G%s\0' "$T/opt/*/bin/node")
   [ "${BCC_LIST[0]}" = "$T/opt/vendor/bin/node-22.0.0" ]
 }
 
@@ -826,15 +826,43 @@ EOS
   mkdir -p "$T/bin" "$T/shims"
   make_fake_elf "$T/bin/mise"
   ln -s ../bin/mise "$T/shims/node"
-  bcc_collect0 < <(printf 'G%s\0' "$T/shims/node" | PATH=/usr/bin:/bin bcc_candidates 'node|nodejs')
+  PATH=/usr/bin:/bin bcc_candidates C04 'node|nodejs' < <(printf 'G%s\0' "$T/shims/node")
   [ "${#BCC_LIST[@]}" -eq 0 ]
+  # Kept for the report (#19), not dropped without a word.
+  [ "${#BCC_OTHER_ID[@]}" -eq 1 ]
+  [ "${BCC_OTHER_ID[0]}" = C04 ]
+  [ "${BCC_OTHER_FOUND[0]}" = "$T/shims/node" ]
+  [ "${BCC_OTHER_REAL[0]}" = "$T/bin/mise" ]
+}
+
+@test "#19: one link reached through two spellings of its directory is kept once" {
+  mkdir -p "$T/usr/bin" "$T/opt/mise"
+  ln -s usr/bin "$T/bin"
+  make_fake_elf "$T/opt/mise/mise"
+  ln -s ../../opt/mise/mise "$T/usr/bin/node"
+  BCC_USER_PATH="$T/bin:$T/usr/bin"
+  bcc_candidates C04 'node|nodejs' < <(printf 'G%s\0' "$T/usr/bin/node")
+  [ "${#BCC_LIST[@]}" -eq 0 ]
+  [ "${#BCC_OTHER_FOUND[@]}" -eq 1 ]
+  [ "${BCC_OTHER_FOUND[0]}" = "$T/usr/bin/node" ]
+}
+
+@test "#19: a link of another name to a script is dropped as scripts are" {
+  mkdir -p "$T/bin" "$T/shims"
+  printf '#!/bin/sh\nexit 0\n' >"$T/bin/wrapper"
+  chmod +x "$T/bin/wrapper"
+  ln -s ../bin/wrapper "$T/shims/node"
+  BCC_USER_PATH="$T/shims"
+  bcc_candidates C04 'node|nodejs' </dev/null
+  [ "${#BCC_LIST[@]}" -eq 0 ]
+  [ "${#BCC_OTHER_ID[@]}" -eq 0 ]
 }
 
 @test "round 6: a path with a newline in it stays one path" {
   d="$T/x"$'\n'"y/bin"
   mkdir -p "$d"
   make_fake_elf "$d/bun"
-  bcc_collect0 < <(bcc_index_list "$d/bun" | PATH=/usr/bin:/bin bcc_candidates bun)
+  PATH=/usr/bin:/bin bcc_candidates C05 bun < <(bcc_index_list "$d/bun")
   [ "${#BCC_LIST[@]}" -eq 1 ]
   [ "${BCC_LIST[0]}" = "$d/bun" ]
 }
@@ -1306,7 +1334,7 @@ EOF
   mkdir -p "$d"
   make_fake_elf "$d/node"
   BCC_USER_PATH="/nonexistent::$d:"
-  bcc_collect0 < <(bcc_candidates 'node|nodejs' </dev/null)
+  bcc_candidates C04 'node|nodejs' </dev/null
   [ "${#BCC_LIST[@]}" -eq 1 ]
   [ "${BCC_LIST[0]}" = "$d/node" ]
 }

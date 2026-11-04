@@ -219,12 +219,12 @@ body {
   <h2>How to read this page</h2>
   <ol>
     <li><b>Rows are where the copy lives; columns are the OS.</b> In the top row (shipped by the OS), all five images built on 2026-10-27 report <code>FIXED</code>: Ubuntu fixed 22.04, 24.04, 26.04 and 26.10 on 2026-10-26 (USN-8956-1), and Debian 12 and 13 were already fixed. A host not updated since then has them <span class="accent">VULNERABLE</span>: update with apt and restart what uses them.
-      The bottom row (bundled in products) is the same on every OS. Unfixed copies were placed on purpose, so every run ends with exit status 1 (the correct result).</li>
+      The bottom row (bundled in products) is the same on every OS. Unfixed copies were placed on purpose, so every run ends with exit status 1 (the intended result).</li>
     <li><b>Read the four-line Summary at the end.</b> “Needs update” = VULNERABLE + LIKELY_VULNERABLE; “Needs restart” = RESTART_REQUIRED;
       “Needs human review” = NO_FIX_AVAILABLE + VENDORED_COPY + UNKNOWN + LIKELY_FIXED; then “Not scanned”.
       Example: the Ubuntu 24.04 sample output (docs/sample-output.md) shows “Needs update: 2, Needs restart: 0, Needs human review: 0”: the Node.js 22.23.3 and PyPI Brotli 1.2.0 placed on purpose.</li>
     <li><b>Exit status 0 does not mean “safe”.</b> It only means nothing needing action was found in the scanned ranges. The tool does not judge whether attacker data can reach a decoder it found (EXPOSURE is a hint), and does not check for intrusion.
-      The advisory data is a snapshot as of 2026-10-27 (with the data of 2026-10-26, Ubuntu's packages were reported as NO_FIX_AVAILABLE; docs/design.md 2.1).</li>
+      The advisory data used in this test is a snapshot as of 2026-10-27 (with the data of 2026-10-26, Ubuntu's packages were reported as NO_FIX_AVAILABLE; docs/design.md 2.1).</li>
   </ol>
   <div class="keymsg">On every OS, the OS's own copy is fixed by apt;<br>bundled copies stay until each product is updated.</div>
   <div class="rx"><b>Next step</b>Update with apt and restart what uses it, scan again, then update the bundled copies still under “Needs update”, product by product.</div>

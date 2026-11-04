@@ -91,7 +91,7 @@ removed or renamed field changes the major part of `tool_version`.
 | `NO_FIX_AVAILABLE` | The distributor has not released a fix yet |
 | `RESTART_REQUIRED` | The fix is on disk but a process still runs the old code |
 | `VENDORED_COPY` | Carries its own decoder; version must be checked by a person |
-| `LIKELY_FIXED`, `LIKELY_VULNERABLE` | Judged by the verified string heuristic; see `confidence` |
+| `LIKELY_FIXED`, `LIKELY_VULNERABLE` | Judged by the string heuristic, checked on the builds tried; see `confidence` |
 | `EXPOSURE` | A path by which attacker data could reach a decoder (not a vulnerability) |
 | `NOT_APPLICABLE` | No sign of a decoder in that file, backed by a distribution package whose sources were read, a Go program without `cbrotli`, or `curl -V` listing no brotli. Not proof of absence; `reason` says what it rests on |
 | `UNKNOWN` | Could not be judged; `reason` says why |

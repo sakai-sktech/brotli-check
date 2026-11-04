@@ -382,8 +382,8 @@ and on containers that can be built and thrown away.
 - **Integration tests**: x86_64 containers of Ubuntu 22.04, 24.04, 26.04 and Debian 12, 13, with
   unfixed and fixed copies put in on purpose; every expected verdict matched, as root and as an
   ordinary user, with `--no-exec` and with `--yes`.
-- **172 unit tests** and ShellCheck with zero warnings. The string heuristic was checked on the
-  builds listed under "What a verdict rests on".
+- **239 unit tests** (as of 2026-11-02) and ShellCheck with zero warnings. The string heuristic
+  was checked on the builds listed under "What a verdict rests on".
 - **Not checked**: how often it misses copies or misjudges them on real hosts; architectures
   other than x86_64; RHEL and the like; integration tests on Ubuntu 26.10 and on derivatives.
 

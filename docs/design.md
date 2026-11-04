@@ -746,6 +746,22 @@ rejected alternative.
        and it does not load libbrotli. The default run says nothing about it and `/usr/lib/dotnet` is
        not in the default roots; `--deep --roots /usr/lib/dotnet` gives `VENDORED_COPY`. A fair verdict
        needs rows for .NET's own versions, so it is a separate issue (#17).
+22. **What a test showed is written with its conditions (2026-11-04, issue #11).** The verification
+    page said "The tool judges correctly" and "The only undecidable case is ...", and the
+    confidence of the string heuristic said "verified". What had been shown is narrower: in five
+    images, four ways of running and the builds tried (Brotli 1.2.0 and 1.2.1 with gcc 13 on
+    x86_64, official Node.js binaries, PyPI wheels), every expected verdict matched.
+    1. **The conditions are the subject.** `docs/verification.md` opens with what the tests show
+       and what they do not (how often copies are missed or misjudged on real hosts was not
+       measured; other builds, distributions and architectures were not tried), and says when each
+       section was run and with which data. Fig. 02 calls exit status 1 "the intended result".
+    2. **The tool's output follows.** The `confidence` of `LIKELY_*` lines (JSON only) names the
+       builds tried instead of saying "verified", and so does `docs/json-schema.md`. A unit test
+       keeps "verified" out of the message catalog.
+    3. **Not changed:** the 0.1.0 entry of the CHANGELOG ("verified on Brotli 1.2.0/1.2.1 builds,
+       official Node.js binaries and PyPI wheels") stays as released; it names the builds. The
+       integration tests were not run again for this: the table keeps the images and data of
+       2026-10-27, and the page says that CI checks the same expected verdicts on every push.
 23. **A link to a program of another name is named in the report, and judged only by what its
     file carries (2026-11-04, issue #19).** `bcc_candidates` does not take a `node` (or `bun`,
     `curl`, `envoy`, a server, a browser) whose link resolves to a file of another name: a

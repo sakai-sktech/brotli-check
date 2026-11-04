@@ -44,3 +44,15 @@ setup() {
     [[ ${BCC_MSG_JA[$k]} != *"安全です"* ]] || { echo "$k"; return 1; }
   done
 }
+
+@test "no message calls a judgement verified; the heuristic's confidence names the builds tried (#11)" {
+  local k
+  for k in "${!BCC_MSG_EN[@]}"; do
+    [[ ${BCC_MSG_EN[$k]} != *[Vv]erified* ]] || { echo "$k"; return 1; }
+  done
+  for k in "${!BCC_MSG_JA[@]}"; do
+    [[ ${BCC_MSG_JA[$k]} != *"検証済み"* ]] || { echo "$k"; return 1; }
+  done
+  [[ ${BCC_MSG_EN[conf_heur]} == *"builds tried"*"gcc 13"*"x86_64"* ]]
+  [[ ${BCC_MSG_JA[conf_heur]} == *"試したビルド"*"gcc 13"*"x86_64"* ]]
+}

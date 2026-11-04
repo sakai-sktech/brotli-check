@@ -350,8 +350,8 @@ BCC_MSG_EN[e_dicts]='copies of the Brotli dictionary: %s'
 BCC_MSG_JA[e_dicts]='Brotli の辞書のコピー: %s 個'
 BCC_MSG_EN[e_cmdline]='cmdline: %s'
 BCC_MSG_JA[e_cmdline]='コマンドライン: %s'
-BCC_MSG_EN[conf_heur]='medium (string heuristic verified on Brotli 1.2.0/1.2.1 builds and official Node.js and PyPI binaries)'
-BCC_MSG_JA[conf_heur]='中（文字列による推定。Brotli 1.2.0/1.2.1 のビルドと Node.js・PyPI の公式バイナリで検証済み）'
+BCC_MSG_EN[conf_heur]='medium (string heuristic, checked on the builds tried: Brotli 1.2.0/1.2.1 with gcc 13 on x86_64, and official Node.js and PyPI binaries)'
+BCC_MSG_JA[conf_heur]='中（文字列による推定。試したビルド（Brotli 1.2.0/1.2.1、gcc 13、x86_64）と Node.js・PyPI の公式バイナリで確かめた）'
 
 # --- information --------------------------------------------------------------
 BCC_MSG_EN[i_c01_none]='None of libbrotli1, brotli, libbrotli-dev, python3-brotli is installed.'

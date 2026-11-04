@@ -55,12 +55,13 @@ P1 calls only `BrotliDecoderDecompress`; P2 also calls `BrotliDecoderErrorString
 | PyPI brotlicffi 1.2.0.0 / 1.2.0.1 / 1.2.0.2 (abi3) | 16, no BS |
 | PyPI brotlicffi 1.2.1.0 | 17, BS |
 
-No counter-example (fixed, but other names present without BS) was found. The one case that
-cannot be decided is LTO + gc-sections when the program never calls
+Among these builds, no counter-example (fixed, but other names present without BS) was found,
+and the one case that could not be decided was LTO + gc-sections when the program never calls
 `BrotliDecoderErrorString`: then no name is left, and the tool reports `VENDORED_COPY`.
 The heuristic requires at least 8 names before it decides.
 
-Not built for this record: 1.0.10 and 1.1.1 binaries (their source carries the same marker).
+Not built for this record: 1.0.10 and 1.1.1 binaries (their source carries the same marker), and
+any build with a compiler other than gcc 13 or for an architecture other than x86_64.
 
 ## Downloads
 

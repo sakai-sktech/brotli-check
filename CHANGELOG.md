@@ -26,6 +26,11 @@
   for it. The file it points to is judged by the libbrotlidec it loads or by its decoder strings;
   with neither, the report names the link under information, and under "Not scanned" when that
   could not be told (docs/design.md 10.23, #19).
+- `EXPOSURE` reasons (C06, C07, C10, C15) say what was seen and what was not: that a package is
+  installed, that a configuration file names a Brotli decompressor, that a process listens beyond
+  loopback; not whether an application uses it, whether the running Envoy uses that file, or
+  whether it can be reached from outside. They no longer say "decodes ... automatically". The
+  README and the JSON schema say that no `EXPOSURE` is not proof that there is no path (#7).
 
 ## 0.1.0 - 2026-11-02
 

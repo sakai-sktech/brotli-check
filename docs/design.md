@@ -846,7 +846,9 @@ rejected alternative.
        integration run (`tests/integration/run.sh`), once per run: the tool runs on the test host
        against a container of the image, through the engine's unix socket (the script runs inside;
        both Node.js copies are judged) and through a TCP relay to the same socket (listed with the
-       connection; nothing runs inside). Found programs of the test host are not run: the question
+       connection; nothing runs inside; the relay serves only the test user's own sockets, by the owner
+       `/proc/net/tcp` gives, since a loopback port is open to every user of the machine and the
+       engine's socket gives control of the engine). Found programs of the test host are not run: the question
        is answered "n" on a pseudo-terminal, since `--yes` would run them on the developer's machine
        under `make integration`.
 22. **What a test showed is written with its conditions (2026-11-04, issue #11).** The verification

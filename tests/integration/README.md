@@ -30,7 +30,8 @@ Once per run, with the first image, C14 is tried through the real engine: the si
 runs on the test host with `--inspect-containers` against a container of the image that has
 both Node.js copies on its `PATH`. Through docker's unix socket the connection line must say so
 and both copies must be judged inside the container; through a TCP relay to the same socket
-(`relay.py`, `DOCKER_HOST=tcp://127.0.0.1:PORT`) the container must be listed with the connection
+(`relay.py`, `DOCKER_HOST=tcp://127.0.0.1:PORT`; it serves only sockets of the user running the
+tests, since the engine's socket gives control of the engine) the container must be listed with the connection
 and the reason under "Not scanned", with no finding from inside it (docs/design.md 10.20). The
 programs the tool finds on the test host are not run: the question is answered "n" on a
 pseudo-terminal (`script`). This step needs `ENGINE=docker` (the default) connected through a

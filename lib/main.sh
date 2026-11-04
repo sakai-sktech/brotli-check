@@ -253,7 +253,6 @@ bcc_run_checks() {
   bcc_note_exec
   bcc_check_c01
   bcc_check_c02
-  bcc_check_c03
   bcc_check_c04
   bcc_check_c05
   bcc_check_c06
@@ -265,6 +264,8 @@ bcc_run_checks() {
   bcc_check_c11
   bcc_check_c12
   bcc_check_c13
+  # C03 after the checks that judge the files on disk: its next step depends on them.
+  bcc_check_c03
   ((BCC_CONTAINERS)) && bcc_check_c14
   ((BCC_EXPOSURE)) && bcc_check_c15
   return 0

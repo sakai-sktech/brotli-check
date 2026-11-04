@@ -125,6 +125,215 @@ fake_proc() {
   [[ ${BCC_SKIPPED[*]} == *"processes that could not be read: 1"* ]]
 }
 
+# --- C03-C05: what a restart would load (issue #5) ---------------------------------
+# A RESTART_REQUIRED line takes its next step from what this run judged about the file now at
+# the deleted file's path: FIXED -> restart; VULNERABLE, NO_FIX_AVAILABLE, LIKELY_VULNERABLE ->
+# update first; anything else, no judgment, no file, another mount namespace -> check first.
+
+# A process PID (nginx) that maps the deleted files FILE...
+fake_proc_deleted() {
+  local pid=$1 f
+  shift
+  P="$BATS_TEST_TMPDIR/proc"
+  mkdir -p "$P/$pid"
+  printf 'btime 1761400000\n' >"$P/stat"
+  : >"$P/$pid/maps"
+  for f in "$@"; do
+    printf '7f00-7f10 r-xp 00000000 08:01 1234 %s (deleted)\n' "$f" >>"$P/$pid/maps"
+  done
+  printf '%s (nginx) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 5000 0\n' "$pid" >"$P/$pid/stat"
+  ln -s /usr/sbin/nginx "$P/$pid/exe"
+  BCC_PROC_ROOT=$P
+}
+
+# The tool and process PID in one mount namespace, or PID in the namespace NS.
+fake_mntns() {
+  mkdir -p "$P/self/ns" "$P/$1/ns"
+  ln -sfn 'mnt:[4026531841]' "$P/self/ns/mnt"
+  ln -sfn "${2:-mnt:[4026531841]}" "$P/$1/ns/mnt"
+}
+
+# Findings as "STATUS|ID|component|reason|next step".
+findings_reason_next() {
+  local f
+  for f in ${BCC_FINDINGS[@]+"${BCC_FINDINGS[@]}"}; do
+    bcc_split_tab "$f"
+    printf '%s|%s|%s|%s|%s\n' "${BCC_F[1]}" "${BCC_F[0]}" "${BCC_F[2]}" "${BCC_F[5]}" "${BCC_F[6]}"
+  done
+}
+
+# libbrotli1 at VERSION on Debian 13, owning the file $L (which exists).
+c01_trixie_owns_L() {
+  fake_dpkg_query
+  export FAKE_DPKG_LINES="ii \tlibbrotli1:amd64\t$1\tbrotli\t$1\n"
+  BCC_DEB_SERIES=debian:trixie
+  bcc_check_c01
+  L="$T/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.1.0"
+  make_fake_elf "$L"
+  # shellcheck disable=SC2317  # a stand-in called by the code under test
+  bcc_dpkg_owner() { [[ $1 == "$L" ]] && echo libbrotli1:amd64; }
+}
+
+@test "#5 C03: the package on disk is still unfixed: update first, a restart alone does not fix it" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  c01_trixie_owns_L 1.1.0-2
+  fake_proc_deleted 100 "$L"
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"VULNERABLE|C01|libbrotli1|"* ]]
+  [[ $output == *"RESTART_REQUIRED|C03|pid 100|Still maps a deleted file: $L (deleted). The file now at that path, as judged in this report: C01 libbrotli1: VULNERABLE.|Restarting alone does not fix it: the file on disk is not fixed either. First follow the next step of C01 libbrotli1, then restart this process or its service."* ]]
+}
+
+@test "#5 C03: the same in Japanese (the case of the issue)" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  BCC_LANG=ja
+  c01_trixie_owns_L 1.1.0-2
+  fake_proc_deleted 100 "$L"
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"RESTART_REQUIRED|C03|pid 100|削除済みのファイルを使い続けています: $L (deleted)。 同じパスにいまあるファイルの、この結果での判定: C01 libbrotli1: VULNERABLE。|再起動だけでは直らない（ディスク上もまだ修正されていない）。先に C01 libbrotli1 の行の次にやることを行い、その後でこのプロセス（またはサービス）を再起動する。"* ]]
+}
+
+@test "#5 C03: the package on disk is fixed: restart, as before" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  c01_trixie_owns_L 1.1.0-2+deb13u1
+  fake_proc_deleted 100 "$L"
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"FIXED|C01|libbrotli1|"* ]]
+  [[ $output == *"RESTART_REQUIRED|C03|pid 100|Still maps a deleted file: $L (deleted). The file now at that path, as judged in this report: C01 libbrotli1: FIXED.|Restart this process or its service." ]]
+}
+
+@test "#5 C03: a file this run did not judge, or no file at all: check the version, then restart" {
+  L="$T/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.1.0"
+  make_fake_elf "$L"
+  fake_proc_deleted 100 "$L" "$T/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.2.1"
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"(deleted). $L: This report has no judgment of the file now at that path. $T/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.2.1: There is no file at that path now.|Before restarting, check the version of the file a restart would use: if it is not fixed, update it first (a restart alone does not fix it)." ]]
+}
+
+@test "#5 C03: only a deleted libbrotlidec and nothing else known (Japanese, the first case of the issue)" {
+  BCC_LANG=ja
+  fake_proc_deleted 100 /nonexistent/x86_64-linux-gnu/libbrotlidec.so.1.2.1
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"|削除済みのファイルを使い続けています: /nonexistent/x86_64-linux-gnu/libbrotlidec.so.1.2.1 (deleted)。 同じパスにいまファイルはありません。|再起動の前に、再起動で使われるファイルの版を確かめる。修正版でなければ先に更新する（再起動だけでは直らない）。" ]]
+}
+
+@test "#5 C03: a process in another mount namespace is not compared with this host's file" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  c01_trixie_owns_L 1.1.0-2+deb13u1
+  fake_proc_deleted 100 "$L"
+  fake_mntns 100 'mnt:[4026532999]'
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"RESTART_REQUIRED|C03|pid 100|Still maps a deleted file: $L (deleted). It runs in another mount namespace (a container, snap or flatpak, for example), where the same path names another file: the files on this host were not compared.|Before restarting, check"* ]]
+  [[ $output != *"C01 libbrotli1: FIXED"* ]]
+}
+
+@test "#5 C03: a mount namespace that cannot be read is not taken for this host's" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  c01_trixie_owns_L 1.1.0-2+deb13u1
+  fake_proc_deleted 100 "$L"
+  fake_mntns 100
+  rm "$P/100/ns/mnt"
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"|Still maps a deleted file: $L (deleted). Whether it sees the same files as this tool (its mount namespace) could not be read: the files on this host were not compared.|Before restarting, check"* ]]
+}
+
+@test "#5 C03: a deleted _brotli*.so whose package C06 judged unfixed outweighs a fixed libbrotlidec" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  c01_trixie_owns_L 1.1.0-2+deb13u1
+  S="$T/srv/venv/lib/python3.12/site-packages"
+  mkdir -p "$S/Brotli-1.2.0.dist-info"
+  printf 'Name: Brotli\nVersion: 1.2.0\n' >"$S/Brotli-1.2.0.dist-info/METADATA"
+  make_fake_elf "$S/_brotli.cpython-312-x86_64-linux-gnu.so"
+  bcc_c06_entry "$S/Brotli-1.2.0.dist-info"
+  fake_proc_deleted 100 "$L" "$S/_brotli.cpython-312-x86_64-linux-gnu.so"
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"VULNERABLE|C06|Brotli|"* ]]
+  [[ $output == *"$L: The file now at that path, as judged in this report: C01 libbrotli1: FIXED."* ]]
+  [[ $output == *"$S/_brotli.cpython-312-x86_64-linux-gnu.so: The file now at that path, as judged in this report: C06 Brotli: VULNERABLE."* ]]
+  [[ $output == *"|Restarting alone does not fix it: the file on disk is not fixed either. First follow the next step of C06 Brotli, then restart this process or its service." ]]
+}
+
+@test "#5 C03: a private libbrotlidec judged by C09 counts too" {
+  F="$T/srv/app/lib/libbrotlidec.so.1.2.0"
+  mkdir -p "${F%/*}"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.0-nostrip.txt" >"$F"
+  bcc_c09_lib_entry "$F"
+  fake_proc_deleted 100 "$F"
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"RESTART_REQUIRED|C03|pid 100|Still maps a deleted file: $F (deleted). The file now at that path, as judged in this report: C09 libbrotlidec (shared): VULNERABLE.|Restarting alone does not fix it: the file on disk is not fixed either. First follow the next step of C09 libbrotlidec (shared), then restart"* ]]
+}
+
+@test "#5 C03: with several deleted files, one still unfixed on disk decides, whatever follows it" {
+  F="$T/srv/app/lib/libbrotlidec.so.1.2.0"
+  mkdir -p "${F%/*}"
+  tr '\n' '\0' <"$FIXTURES/c09/shared-1.2.0-nostrip.txt" >"$F"
+  bcc_c09_lib_entry "$F"
+  fake_proc_deleted 100 "$F" "$T/srv/zzz/libbrotlidec.so.1.2.1"
+  fake_mntns 100
+  bcc_check_c03
+  run findings_reason_next
+  [[ $output == *"$T/srv/zzz/libbrotlidec.so.1.2.1: There is no file at that path now.|Restarting alone does not fix it: the file on disk is not fixed either. First follow the next step of C09 libbrotlidec (shared), then restart"* ]]
+}
+
+@test "#5 C03: dpkg is asked once per path, however many processes map it" {
+  # bcc_dpkg_owner never asks about /tmp or /home; /etc/passwd stands for a file outside them.
+  cat >"$FAKEBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+[ "$1" = -S ] || exit 1
+echo S >>"$FAKE_DPKG_LOG"
+echo "libbrotli1:amd64: $2"
+EOF
+  chmod +x "$FAKEBIN/dpkg-query"
+  export FAKE_DPKG_LOG="$BATS_TEST_TMPDIR/dpkg.log"
+  BCC_C01_JUDGED[libbrotli1]=1
+  BCC_C01_STATUS[libbrotli1]=FIXED
+  local i
+  for i in 1 2 3; do
+    bcc_disk_state /etc/passwd
+    [ "$BCC_DS_CAT" = restart ]
+  done
+  [ "$(wc -l <"$FAKE_DPKG_LOG")" -eq 1 ]
+}
+
+@test "#5 C03 runs after the checks that judge the files on disk" {
+  local body c03 other
+  body=$(declare -f bcc_run_checks)
+  c03=$(grep -n 'bcc_check_c03' <<<"$body" | cut -d: -f1)
+  [ -n "$c03" ]
+  for other in bcc_check_c01 bcc_check_c06 bcc_check_c09_libs bcc_check_c09_deep bcc_check_c12 bcc_check_c13; do
+    [ "$(grep -n -w "$other" <<<"$body" | head -n 1 | cut -d: -f1)" -lt "$c03" ]
+  done
+}
+
+@test "#5: a program that loads the OS libbrotlidec is judged on disk with that package" {
+  # shellcheck disable=SC2317  # a stand-in called by the code under test
+  bcc_dpkg_owner() { case $1 in */system/*) echo libbrotli1:amd64 ;; *) return 1 ;; esac; }
+  BCC_C01_JUDGED[libbrotli1]=1
+  BCC_C01_STATUS[libbrotli1]=VULNERABLE
+  mkdir -p "$T/system/lib"
+  : >"$T/system/lib/libbrotlidec.so.1.1.0"
+  make_fake_elf "$T/usr/bin/node"
+  bcc_report_linked_lib C04 nodejs "$T/usr/bin/node" "$T/system/lib/libbrotlidec.so.1.1.0" readelf
+  bcc_disk_state "$T/usr/bin/node"
+  [ "$BCC_DS_CAT" = update ]
+  [ "$BCC_DS_REFS" = "C01 libbrotli1" ]
+}
+
 # --- C04 / C05 -------------------------------------------------------------------
 
 @test "C04: --no-exec takes the version from include/node/node_version.h" {
@@ -197,6 +406,94 @@ fake_proc() {
   PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
   run findings_brief
   [[ $output == *"RESTART_REQUIRED|C04|pid 4242|/opt/app/bin/node|"* ]]
+}
+
+@test "#5 C04: a deleted node whose path now holds an unfixed node: update first" {
+  BCC_NO_EXEC=1
+  N="$T/opt/node-v20.19.4-linux-x64/bin/node"
+  make_fake_elf "$N"
+  BCC_IDX_NODE=("$N")
+  P="$BATS_TEST_TMPDIR/proc"
+  mkdir -p "$P/4242"
+  ln -s "$N (deleted)" "$P/4242/exe"
+  BCC_PROC_ROOT=$P
+  fake_mntns 4242
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
+  run findings_reason_next
+  [[ $output == *"VULNERABLE|C04|node|"* ]]
+  [[ $output == *"RESTART_REQUIRED|C04|pid 4242|This process still runs an executable that was deleted on disk. The file now at that path, as judged in this report: C04 node: VULNERABLE.|Restarting alone does not fix it: the file on disk is not fixed either. First follow the next step of C04 node, then restart this process or its service."* ]]
+}
+
+@test "#5 C04: a deleted node whose path now holds a fixed node: restart" {
+  BCC_NO_EXEC=1
+  N="$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node"
+  make_fake_elf "$N" "$FIXTURES/c09/node-v24.22.1.txt"
+  BCC_HOMES=("$T/home/u")
+  P="$BATS_TEST_TMPDIR/proc"
+  mkdir -p "$P/4242"
+  ln -s "$N (deleted)" "$P/4242/exe"
+  BCC_PROC_ROOT=$P
+  fake_mntns 4242
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
+  run findings_reason_next
+  [[ $output == *"FIXED|C04|node|"* ]]
+  [[ $output == *"RESTART_REQUIRED|C04|pid 4242|This process still runs an executable that was deleted on disk. The file now at that path, as judged in this report: C04 node: FIXED.|Restart this process or its service."* ]]
+}
+
+@test "#5 C04: a deleted node whose path now holds a node judged UNKNOWN: check first" {
+  BCC_NO_EXEC=1
+  N="$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node"
+  make_fake_elf "$N"
+  BCC_HOMES=("$T/home/u")
+  P="$BATS_TEST_TMPDIR/proc"
+  mkdir -p "$P/4242"
+  ln -s "$N (deleted)" "$P/4242/exe"
+  BCC_PROC_ROOT=$P
+  fake_mntns 4242
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
+  run findings_reason_next
+  [[ $output == *"UNKNOWN|C04|node|"* ]]
+  [[ $output == *"RESTART_REQUIRED|C04|pid 4242|This process still runs an executable that was deleted on disk. The file now at that path, as judged in this report: C04 node: UNKNOWN.|Before restarting, check the version of the file a restart would use"* ]]
+}
+
+@test "#5: FIXED with a LIKELY_FIXED beside it is not enough for a plain restart" {
+  F="$T/srv/app/bin/prog"
+  make_fake_elf "$F"
+  bcc_note_disk "$F" C04 node FIXED
+  bcc_disk_state "$F"
+  [ "$BCC_DS_CAT" = restart ]
+  bcc_note_disk "$F" C04 "node (own copy)" LIKELY_FIXED
+  bcc_disk_state "$F"
+  [ "$BCC_DS_CAT" = check ]
+  [ "$BCC_DS_TEXT" = "The file now at that path, as judged in this report: C04 node: FIXED, C04 node (own copy): LIKELY_FIXED." ]
+}
+
+@test "#5 C04: a deleted node with no file at its path now: check first" {
+  BCC_NO_EXEC=1
+  P="$BATS_TEST_TMPDIR/proc"
+  mkdir -p "$P/4242"
+  ln -s "/nonexistent/app/bin/node (deleted)" "$P/4242/exe"
+  BCC_PROC_ROOT=$P
+  fake_mntns 4242
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
+  run findings_reason_next
+  [[ $output == *"RESTART_REQUIRED|C04|pid 4242|This process still runs an executable that was deleted on disk. There is no file at that path now.|Before restarting, check the version of the file a restart would use"* ]]
+}
+
+@test "#5 C05: a deleted bun whose path now holds an unfixed bun: update first" {
+  BCC_NO_EXEC=1
+  B="$T/home/u/.local/share/mise/installs/bun/1.3.0/bin/bun"
+  make_fake_elf "$B"
+  BCC_HOMES=("$T/home/u")
+  P="$BATS_TEST_TMPDIR/proc"
+  mkdir -p "$P/4243"
+  ln -s "$B (deleted)" "$P/4243/exe"
+  BCC_PROC_ROOT=$P
+  fake_mntns 4243
+  PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c05
+  run findings_reason_next
+  [[ $output == *"VULNERABLE|C05|bun|"* ]]
+  [[ $output == *"RESTART_REQUIRED|C05|pid 4243|This process still runs an executable that was deleted on disk. The file now at that path, as judged in this report: C05 bun: VULNERABLE.|Restarting alone does not fix it: the file on disk is not fixed either. First follow the next step of C05 bun, then restart this process or its service."* ]]
 }
 
 @test "C04: shims and scripts named node are not judged" {

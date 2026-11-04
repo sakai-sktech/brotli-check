@@ -746,3 +746,45 @@ rejected alternative.
        and it does not load libbrotli. The default run says nothing about it and `/usr/lib/dotnet` is
        not in the default roots; `--deep --roots /usr/lib/dotnet` gives `VENDORED_COPY`. A fair verdict
        needs rows for .NET's own versions, so it is a separate issue (#17).
+19. **RESTART_REQUIRED takes its next step from the file now at the same path (2026-11-04, issue
+    #5).** The status was defined as "the fix is on disk but a process still runs the old code", but
+    C03-C05 saw only that a process uses a deleted file. A process restarted onto a file that is still
+    unfixed would be taken for fixed. The status and what it counts (the summary's "Needs restart",
+    exit status 1) stay; its definition is now what is seen, and the line says what is on disk.
+    1. **What is at the path now is what this run already said about it.** Every finding about a file
+       records its status for that path (`bcc_note_disk`, from `bcc_add_finding`). Files judged
+       through something else are recorded where that happens: a package's files through C01 (by the
+       dpkg owner of the path, `bcc_c01_notes`), the extension modules and conda libraries C06
+       compared, and a program that loads libbrotlidec gets that library's judgment
+       (`bcc_note_loaded`; Debian's `nodejs` is judged through `libbrotli1`). The issue names C01,
+       C04, C05 and C06; C09's libraries (a private `libbrotlidec.so.1.2.0` under `/opt`) follow
+       from the same rule, since every finding is recorded. The deleted file itself is not read:
+       whatever the old code was, the next step is the same.
+    2. **Three next steps.** Every judgment FIXED: restart, as before. Any VULNERABLE,
+       NO_FIX_AVAILABLE or LIKELY_VULNERABLE: a restart alone does not fix it; follow that line first
+       (named by ID and component), then restart. Anything else (UNKNOWN, LIKELY_FIXED,
+       VENDORED_COPY, no judgment, no file at the path now): check the version a restart would use,
+       then restart. LIKELY_VULNERABLE goes with "update" because the summary already counts it as
+       needing an update; LIKELY_FIXED goes with "check" because its own line says to ask the vendor.
+       A process with several deleted files gets the strongest (update, then check, then restart).
+    3. **A process in another mount namespace is not compared** (not in the issue). A process in a
+       container, a snap or a flatpak names its files by paths that lead to other files on this host;
+       without this, a container whose image is unfixed would be told "restart" because the host's
+       library is fixed. `/proc/<pid>/ns/mnt` is compared with the tool's own; different, or not
+       readable: not compared, and the line says to check first. Reading it needs the same
+       permission as the maps C03 reads.
+    4. **Order.** C03 now runs after C13, once C06 and C09 have judged; C04 and C05 report deleted
+       executables after judging their candidates. The text report groups findings by ID, so it does
+       not change; in JSON, C03's findings now come after C13's (the order of `findings` was never
+       specified).
+    5. **Wording.** "replaced" became "deleted": a file can be removed with nothing in its place.
+       The reason gives each judgment as "ID component: STATUS", so the line it rests on can be
+       found. Not finding a deleted file is not proof that nothing needs a restart
+       (`docs/limitations.md`).
+    Rejected: following the soname (`libbrotlidec.so.1`) to what a restart would load, instead of
+    the same path. It is closer to what a restart does, but the issue asks for the same path, and
+    when the file name changed, "no file there now; check the version" is still true. Rejected:
+    reading a container process's files through `/proc/<pid>/root` (reaching into containers is
+    what #6 is deciding). Accepted: a process whose old file had another name than the new one
+    (`libbrotlidec.so.1.1.0` replaced by `.1.2.1`) is told to check first even when the new library
+    is fixed.

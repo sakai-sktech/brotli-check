@@ -89,7 +89,7 @@ removed or renamed field changes the major part of `tool_version`.
 | `VULNERABLE` | Known affected version; update needed |
 | `FIXED` | Version that contains the fix |
 | `NO_FIX_AVAILABLE` | The distributor has not released a fix yet |
-| `RESTART_REQUIRED` | The fix is on disk but a process still runs the old code |
+| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). Whether the file now at that path is fixed is not part of the status: `reason` gives what this report judged about it (or that it did not, or that there is no file, or that the process is in another mount namespace), and `next_step` follows from that: restart; update first; or check the version, then restart |
 | `VENDORED_COPY` | Carries its own decoder; version must be checked by a person |
 | `LIKELY_FIXED`, `LIKELY_VULNERABLE` | Judged by the verified string heuristic; see `confidence` |
 | `EXPOSURE` | A path by which attacker data could reach a decoder (not a vulnerability) |

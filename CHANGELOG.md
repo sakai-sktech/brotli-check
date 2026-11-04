@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `RESTART_REQUIRED`: the line now gives what this report judged about the file now at the
+  deleted file's path, and the next step follows from it: restart when that file is fixed; update
+  first when it is not (a restart alone does not fix it); check the version first when nothing
+  judged it, when there is no file there, or when the process runs in another mount namespace (a
+  container, snap or flatpak). The status is defined as what is seen: a process still using a
+  deleted Brotli-related file. "Replaced" became "deleted" in the reasons. In JSON, C03's findings
+  now come after C13's (docs/design.md 10.19, #5).
 - README: get v0.1.0 from its release, in a new directory, with the download and the checksum
   check joined so that a failure stops the rest; reading and running are separate steps, and the
   commands that run the file check the checksum again. The checksum confirms an intact download,

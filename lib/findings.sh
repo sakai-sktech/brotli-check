@@ -16,6 +16,9 @@ bcc_init_findings() {
   declare -gA BCC_PRIVGRP_CACHE=()
   declare -gA BCC_JUDGED=()
   declare -gA BCC_C01_JUDGED=()
+  # Links to a program of another name that bcc_candidates did not take, per check.
+  BCC_OTHER_ID=() BCC_OTHER_FOUND=() BCC_OTHER_REAL=()
+  declare -gA BCC_OTHER_KEYS=()
   # Filled by C06, read by C09; declared here so that every entry point has them as
   # associative arrays (an undeclared one would evaluate a path key arithmetically).
   declare -gA BCC_C06_SITES=() BCC_C06_CONDA_FILES=()

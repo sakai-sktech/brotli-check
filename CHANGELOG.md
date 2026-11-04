@@ -13,6 +13,12 @@
   Node.js binaries, PyPI wheels; 1.0.x, 1.1.x, other compilers and architectures not tried), and
   Fig. 02 calls exit status 1 the intended result. The JSON `confidence` of `LIKELY_*` lines names
   the builds tried instead of saying "verified" (docs/design.md 10.22, #11).
+- A `node`, `bun`, `curl`, `envoy`, server or browser found by its name that is a link to a
+  program of another name (a version manager's shim such as `node -> mise`, snap's launcher in
+  `/snap/bin`) is no longer dropped without a word. It is still not run, and no version is read
+  for it. The file it points to is judged by the libbrotlidec it loads or by its decoder strings;
+  with neither, the report names the link under information, and under "Not scanned" when that
+  could not be told (docs/design.md 10.23, #19).
 
 ## 0.1.0 - 2026-11-02
 

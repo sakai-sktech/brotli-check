@@ -735,7 +735,7 @@ rejected alternative.
        libbrotlidec libraries of one program is judged (two in one process are rare, and callers take
        one path); a `node` that is a link to a program of another name is not taken, and not listed (the
        filter exists for version-manager shims, 10.12, and telling a shim from a runtime is the real
-       work); glibc-hwcaps directories are tried in name order rather than glibc's priority (the right
+       work; 10.23 names such links and judges what their files carry); glibc-hwcaps directories are tried in name order rather than glibc's priority (the right
        order needs the CPU's supported levels).
     8. **Declined: `--output` writes a temporary file first.** It is created beside the requested name
        in the directory that was just checked, linked to that name so that nothing is overwritten
@@ -762,3 +762,41 @@ rejected alternative.
        official Node.js binaries and PyPI wheels") stays as released; it names the builds. The
        integration tests were not run again for this: the table keeps the images and data of
        2026-10-27, and the page says that CI checks the same expected verdicts on every push.
+23. **A link to a program of another name is named in the report, and judged only by what its
+    file carries (2026-11-04, issue #19).** `bcc_candidates` does not take a `node` (or `bun`,
+    `curl`, `envoy`, a server, a browser) whose link resolves to a file of another name: a
+    multi-call shim (`node -> mise`) would answer `--version` for itself (10.12). It dropped such a
+    link silently, so a runtime under another name (`node -> runtime`) left no trace, not even
+    under "Not scanned" (10.18.7).
+    1. **What is kept.** Such a link is still not a candidate: it is not on the list of programs to
+       run, and no version is read for it by running it, from a header or from its path. (The
+       header next to a `/usr/bin/mise` would be `/usr/include/node/node_version.h`, there on a host
+       with the Node.js headers: reading it would take mise for that Node.js.)
+    2. **What the file carries decides, not what it is.** This CVE does not need a shim told from a
+       runtime; it needs to know whether the file holds or loads the C decoder. The link's file is
+       looked at as `--deep` looks at an ELF file: one that loads libbrotlidec is judged by that
+       library (and by its own copy, if any), one with decoder markers by its strings. The finding
+       is under the check that found the link, with the file's own name as the component (it is not
+       called `node`) and the link in the reason. A file with neither is information ("not judged
+       as node: that file carries no Brotli decoder and does not load libbrotlidec"). When that
+       could not be told - the file not read to its end, or its libraries not followed - the link is
+       listed as not scanned, the unread file first. A second link to a file already judged points
+       to its lines.
+    3. **Measured on the developer's workstation (Ubuntu 24.04).** Three such links:
+       `~/.local/share/mise/shims/node -> ~/.local/bin/mise` (164 MB, Rust: no decoder markers, one
+       copy of the Brotli dictionary - a Rust decoder, outside this CVE), and `/snap/bin/firefox`
+       and `/snap/bin/chromium -> /usr/lib/snapd/snapd` (35 MB, Go: neither). The official Node.js
+       26.4.0 next to it carries markers. Reading them took 1.2 s for mise and 0.25 s for snapd (once
+       per link). Run at the same time with `--no-exec`, this branch and `main` differed only in the
+       three information lines.
+    4. **Every caller.** The filter is shared, so C04, C05, C08, C10, C11 and C13 report such links;
+       on Ubuntu with snaps, `firefox` and `chromium` in `/snap/bin` are links to snapd. A link is
+       named once, by its directory's real path (`/bin/x` and `/usr/bin/x` on a merged `/usr` are
+       one). `bcc_candidates` now runs in the calling shell and fills `BCC_LIST`: in a pipe, it had
+       nowhere to keep the links.
+    5. **Not changed.** Scripts of any name are dropped without a word, as before: a script holds no
+       decoder, and the runtimes that the script shims of asdf or nodenv start are found where they
+       are installed, under the search roots (the index takes any executable named `node` there).
+    Rejected: running the file with `--version` (the regression of 10.12, `mise --version` read as
+    a node), and listing every such link as not scanned without looking at it (a shim would then
+    read as a gap in what was looked at).

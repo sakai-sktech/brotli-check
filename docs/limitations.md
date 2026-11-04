@@ -39,9 +39,14 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   the runtime's version against Microsoft's or your distributor's advisory ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)).
 - **A program that loads several libraries named `libbrotlidec*`.** Only the first is judged. The
   others are found only if they are under the search roots ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).
-- **A `node`, `bun` or similar that is a link to a program of another name** (`node -> runtime`). It
-  is not taken, so that version-manager shims are not judged as the runtime, and it is not listed
-  ([#19](https://github.com/sakai-sktech/brotli-check/issues/19)).
+- **A `node`, `bun`, browser or similar that is a link to a program of another name** (a version
+  manager's shim `node -> mise`, snap's `/snap/bin/firefox -> snapd`, or a runtime under another
+  name). It is not run and no version is read for it, so that a shim is not judged as the runtime.
+  The file it points to is judged only by what it carries: the libbrotlidec it loads, or a decoder's
+  strings (see "The string heuristic" below). A runtime installed under another name is therefore
+  judged without its version, and may be `VENDORED_COPY`. A file with neither is named under
+  information, and one that could not be read to its end, or whose libraries could not be followed,
+  under "Not scanned". A script of any name is not looked at.
 - **`glibc-hwcaps` directories in a RUNPATH or RPATH.** They are tried in name order, where glibc
   prefers the highest level the CPU supports. With copies at several levels, the one judged and
   described may not be the one that loads ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).

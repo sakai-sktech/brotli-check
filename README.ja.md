@@ -164,7 +164,8 @@ root で動かすときは（ツリーも、あなたのディレクトリと同
 必要なもの: bash 4.2 以上、coreutils、findutils、grep、sed、awk。binutils（`readelf`）は任意で、無い場合は
 一部のリンクの判定の精度が落ち、結果にその旨が出ます。入手に curl（git と make はソースのツリーのときだけ）。
 `--containers` に docker か podman、`--exposure` に ss（iproute2）。Python は使いません。このツール自身は
-ネットワークにつなぎません（`--containers` で使う docker・podman と、実行を許したプログラムは別です）。
+ネットワークにつなぎません（`--containers` で使う docker・podman と、実行を許したプログラムは別です。docker・podman の
+接続先は結果に出ます）。
 
 ## 結果の読み方
 
@@ -221,8 +222,8 @@ root で動かすときは（ツリーも、あなたのディレクトリと同
 | `--deep` | 探す場所の中の ELF ファイルから、同梱のデコーダーを文字列で探す | 印の消えた静的コピー、アーカイブの中、512 MiB 以上のファイル、実行属性も `.so`・`.node` の名前も無いファイル。ディスク全体ではない |
 | `--projects` | node_modules の中の関係するパッケージ（手がかり） | アプリが使っているか |
 | `--exposure` | node・python・bun・envoy のループバック以外の待ち受け（手がかり） | 外から届くか（ファイアウォール・経路） |
-| `--containers` | 動いているコンテナの一覧と、イメージの数 | コンテナの中、止まっているコンテナ、イメージの中 |
-| `--inspect-containers` | 動いているコンテナの中のパッケージ・Node.js・PyPI | 止まっているコンテナ、イメージの中。Alpine などの apk のパッケージ |
+| `--containers` | 動いているコンテナの一覧と、イメージの数。docker・podman の接続先 | コンテナの中、止まっているコンテナ、イメージの中 |
+| `--inspect-containers` | 動いているコンテナの中のパッケージ・Node.js・PyPI。接続先がこのホストのとき（unix ソケット、サービスを介さない podman）だけ | 止まっているコンテナ、イメージの中。Alpine などの apk のパッケージ。ほかの接続先のコンテナの中 |
 | `--no-exec` | 見つけたプログラムを起動しない | 版が決まらず `UNKNOWN` が増えることがある。点検用のシステムコマンドは動く |
 | `sudo` | 他のユーザーのホームとプロセス | 全部を見たことにはならない。実行を許したプログラムは root で動く |
 
@@ -260,10 +261,17 @@ root で動かすときは（ツリーも、あなたのディレクトリと同
 `--no-exec` でも、点検用のシステムコマンド（dpkg-query、readelf、ss、snap、flatpak、`--containers` のときの
 docker・podman）は動きます。
 
-**コンテナの接続先。** `--containers` と `--inspect-containers` は、docker・podman をいまの接続設定のまま
-使います。`DOCKER_HOST` や docker の context が別のホストを指していれば、そのホストのコンテナを見て、
-`--inspect-containers` ならその中でコマンドを動かします。このホストのコンテナを見るときは、接続先がこのホストの
-ソケットであることを確かめてから動かしてください。
+**コンテナの接続先。** `--containers` と `--inspect-containers` は、docker・podman をいまの接続設定のまま使い、
+どこにつないだかを docker・podman に聞いて結果に出します（例: `docker の接続先: unix:///var/run/docker.sock（このホストの
+unix ソケット）。`）。`DOCKER_HOST` や docker の context が別のホストを指していれば、一覧と数はそのホストのものです。
+接続先と一緒に出るので、結果を読むときに確かめてください。
+
+コンテナの中で確認のスクリプトを動かす（`--inspect-containers`）のは、接続先がこのホストの unix ソケット（`unix://`）
+のときと、podman がサービスを介さずにこのホストで動いているときだけです。それ以外は中で何も実行せず、接続先と理由を
+「走査しなかった範囲」に出します。`tcp://localhost` も、ssh のトンネルの先が別のホストのことがあるので中は見ません。
+サービスにつないでいる podman（`CONTAINER_HOST` など）も、つなぎ先のアドレスを podman が示さないので中は見ません。
+別のホストのソケットを ssh などでこのホストの unix ソケットに引いてきた場合は、このホストのものと見分けられません。
+Docker Desktop のエンジンは、このホストの仮想マシンの中で動き、unix ソケットでつながるので、中を見ます。
 
 ## 判定の根拠
 
@@ -330,7 +338,6 @@ testing（forky）は修正の移行を待っていました。
 いまの版で分かっている問題です。直したら、この一覧から消します。
 
 - `RESTART_REQUIRED` の行が、ディスク上がまだ未修正でも再起動だけを勧める（[#5](https://github.com/sakai-sktech/brotli-check/issues/5)）
-- コンテナの接続先を確かめず、結果にも出さない（[#6](https://github.com/sakai-sktech/brotli-check/issues/6)）
 - `EXPOSURE` の理由の文が、パッケージがあるだけで「展開する構成」と言い切る（[#7](https://github.com/sakai-sktech/brotli-check/issues/7)）
 - テキストの結果に `FIXED` の根拠の種類が出ない（[#9](https://github.com/sakai-sktech/brotli-check/issues/9)）
 - dpkg-query の失敗などで点検の一部ができなくても、終了コードが `0` になる（[#10](https://github.com/sakai-sktech/brotli-check/issues/10)）

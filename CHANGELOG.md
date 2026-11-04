@@ -6,6 +6,14 @@
   check joined so that a failure stops the rest; reading and running are separate steps, and the
   commands that run the file check the checksum again. The checksum confirms an intact download,
   not who made the file. The source tree, at the tag, is described as the other way (#4).
+- Containers (C14): the report shows where docker or podman connects, as the engine states it
+  (`docker context inspect`, `podman info`). Containers are listed and counted whatever the
+  connection, but the check script of `--inspect-containers` runs inside them only through a unix
+  socket on this host, or with podman running them itself, and on the docker context that was
+  checked; otherwise the connection and the reason are listed under "Not scanned". The help and
+  the report header no longer say "read-only"; for-clinics and figure 01 tell what the tool itself
+  does from what the programs it runs may do. The integration run tries C14 through a real
+  engine, by its unix socket and by a TCP relay to it (docs/design.md 10.20, #6).
 
 ## 0.1.0 - 2026-11-02
 

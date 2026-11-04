@@ -62,7 +62,7 @@ body {
 /* フッタ: 左=文脈(何の資料か) 右=作成者・出典 */
 .foot {
   margin-top: 2.5mm; padding-top: 1.5mm; border-top: 0.3mm solid var(--line);
-  display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--ink-sub);
+  display: flex; justify-content: space-between; gap: 4mm; font-size: 7.5pt; color: var(--ink-sub);
 }
 /* 追加: コード片(コマンド・識別子)は等幅で */
 code { font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace; font-size: 0.92em; background: rgba(28,39,51,0.06); padding: 0 0.6mm; border-radius: 0.6mm; }
@@ -185,14 +185,14 @@ code { white-space: nowrap; }
   <ol>
     <li><b>弱点は展開側（デコーダー）にあり、攻撃者のデータが展開されるときに届く。</b>届き方は、圧縮されたリクエスト、ホストが取りに行って自動で展開する応答（<code>fetch()</code>・URL のプレビュー・Web の収集・AI エージェント）、展開 API を直接呼ぶ処理とさまざま。このツールはコピーの<b>棚卸し</b>までで、そこにデータが届くかは判定しない（判断は使う人）。上流は 2026-10-21 に修正した（<span class="nw">GHSA-9v8h-qqgm-4m35</span>）。</li>
     <li><b>同梱コピーは製品ごとの更新が要る</b>（<span class="accent">OS の更新では直らない</span>）。修正版の例: Node.js 22.23.4・24.22.1・26.12.1、Bun 1.4.4、PyPI の Brotli 1.2.1。文字列による推定は Brotli 1.2.0／1.2.1 の自前ビルド、Node.js 公式バイナリ、PyPI の wheel で確かめ、エラー名の表が削られたビルドは修正済みとせず <code>VENDORED_COPY</code>（要確認）と出す。OS のパッケージは Ubuntu（USN-8956-1）も Debian（DLA-4855-1・DSA-6582-1）も修正版が出ている。</li>
-    <li><b>読み取り専用で、「安全」とは表示しない。事実を示し、判断はあなたがする。</b>書き込むのは標準出力と <code>--output</code> だけで、ネットワークも攻撃データも使わない。見つけたプログラムは、選ばれたものだけを版の引数 1 つ（<code>--version</code> など）で、<code>/</code> から・環境変数を空・標準入力を閉じ・制限時間と出力の上限つきで動かす。端末が無ければ <code>--yes</code> か <code>--no-exec</code> が要る。何を動かし、何を動かさなかったかは結果に出る。<code>EXPOSURE</code> は届く経路の手がかりで、脆弱性ではない。侵入の有無は調べない。</li>
+    <li><b>ツール自身はソフトも設定も変えず、「安全」とは表示しない。事実を示し、判断はあなたがする。</b>書き込むのは標準出力と <code>--output</code> だけで、ツール自身はネットワークにつながず、攻撃データも使わない。見つけたプログラムは、選ばれたものだけを版の引数 1 つ（<code>--version</code> など）で、<code>/</code> から・環境変数を空・標準入力を閉じ・制限時間と出力の上限つきで、あなたの権限で動かす（その動きまでは止めない）。端末が無ければ <code>--yes</code> か <code>--no-exec</code> が要る。何を動かし、何を動かさなかったかは結果に出る。コンテナは docker・podman の接続先と一緒に出し、中を見るのは接続先がこのホストの unix ソケットのときだけ。<code>EXPOSURE</code> は届く経路の手がかりで、脆弱性ではない。侵入の有無は調べない。</li>
   </ol>
   <div class="keymsg">OS の更新が直すのは OS のコピーだけで、同梱コピーは版と文字列で一つずつ洗い出す。</div>
   <div class="rx"><b>処方箋</b>SHA256 を確かめてから <code>sudo bash brotli-cve-check --lang ja</code> を走らせ、実行してよいか尋ねられたら一覧の事実を読んで選び、「更新が必要なもの」「再起動が必要なもの」から更新・再起動する。</div>
 </div>
 
 <div class="foot">
-  <span>図解 01｜2026-10-27 作成（既知データも同日時点）</span>
+  <span>図解 01｜2026-10-27 作成（データも同日）・11-04 改訂</span>
   <span>出典: GHSA-9v8h-qqgm-4m35・USN-8956-1・brotli-cve-check v0.1.0 の docs</span>
 </div>
 

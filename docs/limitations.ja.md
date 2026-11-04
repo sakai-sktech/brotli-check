@@ -41,6 +41,10 @@ English: [limitations.md](limitations.md)
 - **snap／flatpak 以外で入れた Electron アプリ**は `--deep` のときだけ見つかります。
 - **Alpine ベースのコンテナ**（apk）は、中のパッケージを判定しません（`--inspect-containers` が扱うのは
   Debian/Ubuntu ベースのイメージと、Node.js・PyPI のコピー）。
+- **このホストの unix ソケット以外でつないだコンテナ**（`DOCKER_HOST`、別の先を指す docker の context や podman、
+  `tcp://localhost`、サービスにつないでいる podman）は、接続先と一緒に一覧と数を出しますが、中では何も実行しません。
+  別のホストのソケットを ssh などでこのホストの unix ソケットに引いてきた場合は、このホストのものと見分けられません。
+  podman の互換の `docker`（podman-docker）は接続先を答えないので、そのコンテナの中も見ません。
 - Linux のみ。パッケージの判定は Debian・Ubuntu とその派生のみ。
 
 ## root でないとき
@@ -111,8 +115,9 @@ English: [limitations.md](limitations.md)
 ものです: symlink は置かれた場所で辿り、ライブラリは glibc の ld.so と同じ順（必要とする側とその読み込み元の
 DT_RPATH、DT_RUNPATH、ld.so のキャッシュ、既定のディレクトリ）で探しますが、実行してから開くもの（dlopen、設定
 ファイル）は見えず、`$LIB` のような記号は展開しません（そのことも事実に書きます）。実行は `/` から、環境変数を
-空にし、制限時間と出力の上限を付けて行います。`--inspect-containers` は、実行中のコンテナの中で決まった読み取り
-専用のスクリプトを実行します（その指定が同意です）。
+空にし、制限時間と出力の上限を付けて行います。`--inspect-containers` は、実行中のコンテナの中で決まった
+スクリプトを実行します（そこでファイルを読み、見つけた `node` を `--version` で動かします）。接続先がこのホストの unix
+ソケットのときだけで、その指定が同意です。
 
 システムの道具（`readelf`・`stat`・`dpkg-query` など）は `/usr/sbin`・`/usr/bin`・`/sbin`・`/bin`（root しか
 変更できなければ `/usr/local/sbin`・`/usr/local/bin` も）から使い、呼び出し側の `PATH` からは使いません。
@@ -136,4 +141,5 @@ root 所有で sticky bit 付きなら可）が条件です。そのため root 
 ## 結果が意味しないこと
 
 - 侵入の有無の確認ではありません。修正版に更新しても、更新前の侵入の痕跡は消えません。
-- 他のホストや、動いていなかったコンテナについては何も言いません。
+- 他のホストや、動いていなかったコンテナについては何も言いません。別のホストへの接続で一覧したコンテナはそのホストのもので、
+  結果には接続先が一緒に出ます。

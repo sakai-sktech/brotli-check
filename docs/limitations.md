@@ -10,6 +10,11 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   plus the system Python and library directories. Use `--roots` for other places.
 - **Inside archives and images that are not running**: `.asar`, `.jar`, `.zip`, AppImage and
   squashfs files, container images without a running container, VM disks, backups.
+- **Inside stopped containers and container images.** `--containers` counts them and lists the
+  numbers under "Not scanned"; nothing is run or read inside them, with or without
+  `--inspect-containers`. A running container is looked inside (with `--inspect-containers`) as
+  the container, not as the image it was started from. A count that could not be taken is
+  listed as such, never as 0.
 - **Static copies without markers.** `--deep` recognizes a bundled decoder by its exported
   symbol names (`BrotliDecoderDecompressStream`, ...) or its error-name strings. A fully
   stripped, link-time-optimized binary that does not use `BrotliDecoderErrorString` can carry
@@ -21,6 +26,10 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   dpkg's records are only as honest as whoever wrote them); and of the cgo bindings only `cbrotli`
   is looked for, so a Go program with a C Brotli through another binding, stripped, is not seen.
   A static curl that was not run is `UNKNOWN` for the same reason.
+- **Files `--deep` does not open.** It reads the files under the search roots that are executable
+  or named `*.so`, `*.so.*` or `*.node`, are ELF and are below 512 MiB (larger ones are listed
+  under "Not scanned"). It is not a search of the whole disk: a decoder in a file of another name
+  without the executable bit is not seen.
 - **Network file systems** (NFS, CIFS, sshfs, ...) unless `--include-remote`.
 - **Search roots that are symbolic links** are searched at their targets (the report says so);
   other symbolic links are never followed.
@@ -172,9 +181,9 @@ redirect a root-written file elsewhere. To keep a root scan in your home, redire
 
 - Not an intrusion check. Updating does not remove traces of a compromise that happened
   before the update.
-- Not a statement about other hosts, or about containers that were not running. Containers
-  listed through a connection to another host are that host's; the report shows the connection
-  with them.
+- Not a statement about other hosts, or about what is inside containers that were not running
+  and inside images (only their number is reported). Containers listed through a connection to
+  another host are that host's; the report shows the connection with them.
 - Not a list of every process that needs a restart. The restart checks (C03-C05) see processes that
   still use a deleted `libbrotlidec*` or `_brotli*.so`, or run a deleted node or bun. A process
   running another program that carries its own copy of the decoder is not among them, and no such

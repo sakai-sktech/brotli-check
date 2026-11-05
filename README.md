@@ -237,8 +237,8 @@ For automation, read not only the exit status but also `skipped` (not scanned) a
 | `--deep` | Searches the ELF files under the roots for bundled decoders by their strings | Static copies without markers, the inside of archives, files of 512 MiB or more, files with neither an executable bit nor a `.so` / `.node` name. Not the whole disk |
 | `--projects` | Related packages in node_modules (hints) | Whether an application uses them |
 | `--exposure` | Non-loopback listening sockets of node, python, bun and envoy (hints) | Whether they can be reached from outside (firewall, routing). Programs that do not listen but fetch and decode responses |
-| `--containers` | The list of running containers and the number of images, and where docker or podman connects | The inside of containers, stopped containers, the inside of images |
-| `--inspect-containers` | Packages, Node.js and PyPI inside running containers, only when they are reached through this host (a unix socket, or podman with no service) | Stopped containers, the inside of images, apk packages (Alpine and the like), the inside of containers reached any other way |
+| `--containers` | The list of running containers, the number of stopped containers and of images, and where docker or podman connects | The inside of running containers (see `--inspect-containers`). The inside of stopped containers and images: they are only counted, and listed with their number under "Not scanned" |
+| `--inspect-containers` | Packages, Node.js and PyPI inside running containers, only when they are reached through this host (a unix socket, or podman with no service) | The inside of stopped containers and images (still only counted), apk packages (Alpine and the like), the inside of containers reached any other way |
 | `--no-exec` | Starts none of the programs it finds | More `UNKNOWN` where no version can be read. The system tools it checks with still run |
 | `sudo` | Other users' homes and processes | Not everything is then seen. Programs you allow to run run as root |
 
@@ -296,6 +296,11 @@ socket on this host (with ssh, for example) cannot be told from this host's own.
 Desktop's engine runs in a virtual machine on this host and is reached through a unix socket, so
 its containers are looked inside.
 
+Stopped containers and images are counted and never looked inside, with or without
+`--inspect-containers`. Their numbers are listed under "Not scanned" (for example
+`C14 (stopped containers) | inside of stopped containers (3 counted): ...`), so that the list
+of running containers is not taken for all of them.
+
 ## What a verdict rests on
 
 Version numbers are not trusted blindly:
@@ -350,9 +355,9 @@ Check for intrusion separately; this tool does not.
 
 ## Limitations and advisory data
 
-See [docs/limitations.md](docs/limitations.md). In short: copies inside archives and images that
-are not running can be missed; without root, other users' processes and homes are not visible;
-the advisory data is a snapshot.
+See [docs/limitations.md](docs/limitations.md). In short: copies inside archives, stopped
+containers and images are not looked at; without root, other users' processes and homes are not
+visible; the advisory data is a snapshot.
 
 All known versions live in [data/advisories.tsv](data/advisories.tsv), with the primary
 source URL and the retrieval date on every row. The report shows the data's snapshot date and

@@ -32,7 +32,9 @@ both Node.js copies on its `PATH`. Through docker's unix socket the connection l
 and both copies must be judged inside the container; through a TCP relay to the same socket
 (`relay.py`, `DOCKER_HOST=tcp://127.0.0.1:PORT`; it serves only sockets of the user running the
 tests, since the engine's socket gives control of the engine) the container must be listed with the connection
-and the reason under "Not scanned", with no finding from inside it (docs/design.md 10.20). The
+and the reason under "Not scanned", with no finding from inside it (docs/design.md 10.20). A
+second container of the image, run to its end, must be counted under "Not scanned" with the images
+and give no finding (10.24; only the entries are checked, since the numbers depend on the host). The
 programs the tool finds on the test host are not run: the question is answered "n" on a
 pseudo-terminal (`script`). This step needs `ENGINE=docker` (the default) connected through a
 unix socket, `script` (util-linux) and `python3`; otherwise it says SKIP or FAIL.

@@ -39,6 +39,15 @@
   the report header no longer say "read-only"; for-clinics and figure 01 tell what the tool itself
   does from what the programs it runs may do. The integration run tries C14 through a real
   engine, by its unix socket and by a TCP relay to it (docs/design.md 10.20, #6).
+- Containers (C14): `--containers` also counts the stopped containers, and the stopped containers
+  and the images are listed with their number under "Not scanned" (`C14 (stopped containers)`,
+  `C14 (images)`), also when no container runs; nothing inside them is run or read, with or
+  without `--inspect-containers`. A count that could not be taken is shown as `?` with the call
+  that failed, no longer as 0 images. The "Not scanned" lines for running containers say
+  "running containers". `--help` says which files `--deep` reads (executable or named `*.so`,
+  `*.so.*`, `*.node`; ELF below 512 MiB; not the whole disk) and that `--containers` lists the
+  running containers and only counts the rest; the limitations say the same (docs/design.md
+  10.24, #8).
 
 ## 0.1.0 - 2026-11-02
 

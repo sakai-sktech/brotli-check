@@ -107,7 +107,9 @@ is `UNKNOWN` and is listed under "Not scanned".
 
 A version read from a file rather than from the program (a directory name, `node_version.h`,
 package metadata, a library's file name) gives `FIXED` only when the file's strings confirm the
-fix in a single copy of Brotli; otherwise the result is `UNKNOWN` and says what was missing. The
+fix in a single copy of Brotli. Such a `FIXED` line, too, says where the version came from, what
+was found (in which file the fix's error name is) and what was not determined (whether all
+decoder code in the file is fixed). Otherwise the result is `UNKNOWN` and says what was missing. The
 same goes when there is no file to compare (Python's extension module `_brotli.*so` or
 `brotlicffi/_brotlicffi*.so`; conda's `lib/libbrotlidec.so.*`, not counting symbolic links). A
 distribution whose file names or places differ from these is `UNKNOWN` even when it is fixed.

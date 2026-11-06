@@ -174,7 +174,8 @@ Meaning of `status`:
   until 2026-10-27);
   the result says so
 - `unknown` — the data cannot decide (Node.js 10 and earlier, which may predate the bundled
-  Brotli) → UNKNOWN
+  Brotli; Envoy 1.17 and earlier, whose source has no Brotli) → UNKNOWN; the reason states that
+  ground (some versions or builds of the line have no Brotli), not a pointer to the evidence (10.25)
 
 ### 5.2 Freshness
 
@@ -977,3 +978,48 @@ rejected alternative.
     layers, or an image scanner where the images are built); one call with a state field (it needs
     each engine's state names and its support of the field; the difference of two lists of IDs
     needs neither).
+25. **A FIXED line says where its version came from, and one read from a file what its strings
+    showed and what they do not; its next step is for that line (2026-11-06, issue #9).** Every
+    FIXED reason read "At or above the fixed version X." whether the version came from the
+    distributor's package, from running the program, or from a directory name confirmed by strings;
+    where it came from was in the JSON `evidence` only (for C06 not even there). The next step of a
+    FIXED line was empty, except C01's ("No update needed. ..."), C14's ("rebuild the image") and
+    that of a flatpak browser ("flatpak update"); the last two contradicted the status.
+    1. **The basis is a phrase given where the version is read.** `bcc_judge` takes a fifth
+       argument, BASIS (a `b_*` message), and a FIXED reason is "At or above the fixed version X
+       (BASIS)." Three kinds: a package's record (C01 and C14 the distribution package; C12
+       `snap list`, `flatpak list`; C13 dpkg's record of a browser's package), a program's output
+       (`NAME --version`, also inside a container), and a file (the directory name,
+       `node_version.h`, package metadata, the conda record, a library's file name,
+       `application.ini`). A unit test checks that every `bcc_judge` call in `lib/` passes one. The
+       per-path record of 10.19 (`BCC_DISK_JUDGED`, `bcc_note_disk`) was looked at first: it holds
+       which line judged a file (ID, component, status) and is filled when the finding is added,
+       after its reason is written, so it cannot tell where a version came from. The phrase is made
+       where that is known (the `method` of C04, C05 and C13; each check's own source).
+    2. **A version from a file says what its strings showed and what they do not,** as a
+       `LIKELY_FIXED` line does: "Found: the error name added by the fix (_ERROR_FORMAT_BLOCK_SWITCH)
+       among the decoder strings of this file. Not determined: whether all decoder code in the file
+       is fixed (...)". `bcc_crosscheck_fixed` rebuilds the reason from `bcc_judge`'s (`BCC_J_BASE`)
+       with the files confirmed so far (`BCC_J_CONFIRMED`): two modules of one PyPI package give one
+       sentence of each kind, and when a later file disagrees, the UNKNOWN keeps what was found and
+       drops what only a FIXED leaves open. When the strings are in another file than the line's
+       (C06's extension module and conda library, Firefox's `libxul.so`), the sentence names it.
+       The "Not determined" sentence is shared with `LIKELY_FIXED` (`r_fixed_unseen`, split out of
+       `r_heur_fixed`; that line reads as before). An UNKNOWN made from a FIXED by the cross-check
+       keeps the basis, so "the version may be wrong" and "the version above is the only basis" now
+       say which version.
+    3. **The next step of FIXED is for that line only** (requester's decision, 2026-11-06): "No
+       update needed for this line (other lines and the ranges not scanned are separate)."
+       `bcc_judge` sets it; C01 adds its restart sentence after it; C14 and flatpak give it instead
+       of "rebuild the image" and "flatpak update" (a VULNERABLE line inside a container still says
+       to rebuild).
+    4. **Rows the data cannot decide say why** (a note of wave 1, in a comment on #9).
+       `r_data_unknown` said "(see evidence)", which the text report does not show. It now gives the
+       ground both `unknown` rows share (Node.js 10 and earlier, Envoy 1.17 and earlier): some
+       versions or builds of the line have no Brotli, and the data does not tell which. The same
+       treatment `derived_eol` and `derived_bundled` got in #2.
+    Rejected: the data row's note in the reason (English only, and long); one message per component
+    for `unknown` (it would copy facts of the data file into the catalog); naming the line's own
+    file again (its path is on the line); the basis on VULNERABLE lines too (not asked for; such a
+    line needs an update whatever the version came from); a separate field in JSON (`reason`
+    carries the basis in both outputs; a new field changes the schema).

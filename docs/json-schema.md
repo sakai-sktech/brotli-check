@@ -87,7 +87,7 @@ removed or renamed field changes the major part of `tool_version`.
 | Value | Meaning |
 |---|---|
 | `VULNERABLE` | Known affected version; update needed |
-| `FIXED` | Version that contains the fix |
+| `FIXED` | The version obtained meets the fixed-version condition of the advisory data. `reason` says where the version came from: a package's record, a program's output, or a file whose decoder strings confirmed the fix (then `reason` also says what was found and what was not). `next_step` is for this line only: other lines and `skipped` are separate |
 | `NO_FIX_AVAILABLE` | The distributor has not released a fix yet |
 | `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). Whether the file now at that path is fixed is not part of the status: `reason` gives what this report judged about it (or that it did not, or that there is no file, or that the process is in another mount namespace), and `next_step` follows from that: restart; update first; or check the version, then restart |
 | `VENDORED_COPY` | Carries its own decoder; version must be checked by a person |

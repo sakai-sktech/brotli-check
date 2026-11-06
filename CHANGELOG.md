@@ -48,6 +48,17 @@
   `*.so.*`, `*.node`; ELF below 512 MiB; not the whole disk) and that `--containers` lists the
   running containers and only counts the rest; the limitations say the same (docs/design.md
   10.24, #8).
+- `FIXED` reasons say where the version came from: "At or above the fixed version X (the
+  distribution package version)", "(output of node --version)", "(version from the directory
+  name)", and likewise for snap, flatpak, dpkg's record of a browser's package, package metadata,
+  conda records, library file names and `application.ini`, inside containers too. A version read
+  from a file, which needs the decoder's strings to confirm the fix, also says what was found (in
+  which file the fix's error name is) and what was not determined (whether all decoder code in
+  the file is fixed), as `LIKELY_FIXED` does. The next step of every `FIXED` line is "No update
+  needed for this line (other lines and the ranges not scanned are separate)"; C01 keeps its
+  restart sentence after it, and `FIXED` lines inside containers and of flatpak browsers no longer
+  say to rebuild the image or to run flatpak update. `UNKNOWN` from the data (Node.js 10 and
+  earlier, Envoy 1.17 and earlier) says why instead of "see evidence" (docs/design.md 10.25, #9).
 
 ## 0.1.0 - 2026-11-02
 

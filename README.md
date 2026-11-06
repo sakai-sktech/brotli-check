@@ -201,7 +201,7 @@ Each finding is one line:
 | `UNKNOWN` | Could not be judged. A version at or above the fix ends up here too when a file could not confirm it, and so does a version before the affected range an advisory states, because the advisory does not say whether it is affected. The reason is always given | Read the reason. For a version before the range: update it (the line says to what) |
 | `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (a related package, an entry in a configuration file, a listening socket). The reason says what was seen (the package is installed, the file has the entry, the process listens) and what was not (whether an application uses it, whether the running program uses that file, whether it can be reached from outside). Not a vulnerability by itself. No `EXPOSURE` is not proof that there is no path: a response the host fetches and decodes does not show as a listening socket | Prioritize the updates it points to |
 | `NOT_APPLICABLE` | The file has no decoder markers and does not load libbrotlidec, and one of these backs that up: a distribution package whose sources were read (nginx, Apache, HAProxy; told by name, maintainer and version form, with the file as installed), a Go program whose build info does not name cbrotli (other cgo bindings are not looked for), or a curl whose `curl -V` lists no brotli. Not proof that there is no decoder; the reason says what it rests on. Any other package or a build of your own that merely shows no markers is `UNKNOWN` | None for that file |
-| `FIXED` | The version obtained meets the fixed-version condition of the advisory data. A version read from a file counts only when the decoder's strings confirm the fix too. How strong that is depends on where the version came from (see "[What a verdict rests on](#what-a-verdict-rests-on)") | No update needed for this line |
+| `FIXED` | The version obtained meets the fixed-version condition of the advisory data. The reason says where the version came from: a package's record, a program's output, or a file (see "[What a verdict rests on](#what-a-verdict-rests-on)"). A version read from a file counts only when the decoder's strings confirm the fix too; the reason then also says what was found and what was not | No update needed for this line. Other lines and the ranges not scanned are separate (the line says so too) |
 
 The summary at the end is four lines for non-specialists and the intrusion disclaimer:
 
@@ -314,20 +314,21 @@ Version numbers are not trusted blindly:
 - A pre-release of exactly the fixed version (`1.4.4-rc.1`, Firefox `150.0a1`, ...) is not taken
   for the release; it is `UNKNOWN`.
 
-A `FIXED` rests on one of three kinds of evidence:
+A `FIXED` rests on one of three kinds of evidence, and its reason says which, in brackets after
+the fixed version:
 
-| Evidence | Example | What it says |
-|---|---|---|
-| Distribution package version | `libbrotli1` in C01 | At or above the version the distributor named as fixed |
-| A program's output | `node --version` | The program answered so (see "[Running programs to read versions](#running-programs-to-read-versions)") |
-| A file plus strings | A version from a path or package metadata, and the strings of the decoder in the file | The version read from files is at or above the fixed one, and the decoder's strings show the fix too |
+| Evidence | Checks | In the reason (examples) | What it says |
+|---|---|---|---|
+| A package's record | C01 and C14 (distribution packages), C12 (snap, flatpak), C13 (a browser's package, when it is not run) | "(the distribution package version)", "(the version snap list gives)", "(the version dpkg records for the package chromium)" | The package manager records a version at or above the fixed one. C01 and C14 compare it with the version the distributor named as fixed |
+| A program's output | C04, C05, C10, C13, C14 (Node.js inside a container) | "(output of node --version)" | The program answered so (see "[Running programs to read versions](#running-programs-to-read-versions)") |
+| A file plus strings | C04, C05 (header, directory name), C06 (package metadata, conda record), C09 and C12 (a library's file name), C13 (`application.ini`) | "(version from the directory name). Found: the error name added by the fix (...) among the decoder strings of this file. Not determined: whether all decoder code in the file is fixed (...)" | The version read from files is at or above the fixed one, and the decoder's strings show the fix too. Whether every decoder in the file is fixed is not known, and the reason says so |
 
 A version read from a file (a directory name, a header, package metadata) gives `FIXED` only
-when the decoder's strings confirm the fix. With no file to compare (Python's extension module,
-conda's shared library) the result is `UNKNOWN`. Python inside a container is `UNKNOWN` even at
-or above the fix, because the strings are not compared there. In the text report today, the
-reason reads "At or above the fixed version X." whatever the evidence; where the version came
-from is in the JSON `evidence`.
+when the decoder's strings confirm the fix. When those strings are in another file (Python's
+extension module, conda's shared library, Firefox's `libxul.so`), the reason names it. With no
+file to compare the result is `UNKNOWN`. Python inside a container is `UNKNOWN` even at or above
+the fix, because the strings are not compared there; its reason, too, says where the version
+came from.
 
 **The string heuristic.** For a bundled copy whose version is unknown, the decoder's error-name
 strings are used: the fix added `_ERROR_FORMAT_BLOCK_SWITCH` (error -17). This was checked on
@@ -376,7 +377,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- The text report does not show which kind of evidence a `FIXED` rests on ([#9](https://github.com/sakai-sktech/brotli-check/issues/9))
 - The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
 - A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it
 - Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))

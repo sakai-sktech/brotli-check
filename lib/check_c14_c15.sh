@@ -196,6 +196,16 @@ bcc_c14_count_stopped() {
   printf '%d' "$n"
 }
 
+# The next step of a package or Node.js line from bcc_judge inside a container: nothing for a
+# FIXED one (n_fixed), else rebuilding the image (updating the host does not reach it).
+bcc_c14_next() {
+  if [[ $BCC_J_STATUS == FIXED ]]; then
+    printf '%s' "$BCC_J_NEXT"
+  else
+    bcc_msg n_rebuild_image
+  fi
+}
+
 # Usage: bcc_c14_inspect ENGINE ID NAME IMAGE [ENGINE-ARGS...]
 # Only for containers reached through this host (bcc_check_c14); ENGINE-ARGS keep the call on
 # the connection that was checked.
@@ -230,8 +240,8 @@ bcc_c14_inspect() {
           deb_py_ver=${deb_py_ver%%-*}
           deb_py_ver=${deb_py_ver%%[+~]*}
         fi
-        bcc_judge "deb-src:$src" "$series" deb "$srcver"
-        bcc_add_finding C14 "$BCC_J_STATUS" "$pkg" "$where" "$ver" "$BCC_J_REASON" "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
+        bcc_judge "deb-src:$src" "$series" deb "$srcver" "$(bcc_msg b_deb_container)"
+        bcc_add_finding C14 "$BCC_J_STATUS" "$pkg" "$where" "$ver" "$BCC_J_REASON" "$(bcc_c14_next)" "$BCC_J_EVIDENCE" ""
         ;;
       NODE)
         local nver npath=${BCC_F[1]:-}
@@ -240,9 +250,9 @@ bcc_c14_inspect() {
           bcc_add_finding C14 UNKNOWN node "$where $npath" "" "$(bcc_msg r_version_unknown)" "$(bcc_msg n_check_vendor)" "" ""
           continue
         fi
-        bcc_judge node "${nver%%.*}" semver "$nver"
+        bcc_judge node "${nver%%.*}" semver "$nver" "$(bcc_msg b_exec_container "${npath##*/}")"
         bcc_add_finding C14 "$BCC_J_STATUS" node "$where $npath" "$nver" "$BCC_J_REASON $(bcc_msg r_c14_node_vs_os)" \
-          "$(bcc_msg n_rebuild_image)" "$BCC_J_EVIDENCE" ""
+          "$(bcc_c14_next)" "$BCC_J_EVIDENCE" ""
         ;;
       PY)
         local lname meta=${BCC_F[1]:-} pname=${BCC_F[2]:-} pver=${BCC_F[3]:-}
@@ -252,7 +262,7 @@ bcc_c14_inspect() {
         # here, at its own version; anything else here (brotlicffi, another Brotli by pip
         # --target) is judged by its own version.
         [[ $lname == brotli && -n $deb_py_ver && $pver == "$deb_py_ver" && $meta == /usr/lib/python3/dist-packages/* ]] && continue
-        bcc_judge "pypi:$lname" '*' pep440 "$pver"
+        bcc_judge "pypi:$lname" '*' pep440 "$pver" "$(bcc_msg b_metadata_container)"
         # The probe reads the metadata only, so "fixed" stays unconfirmed (see bcc_crosscheck_fixed).
         local pnext
         pnext=$(bcc_msg n_rebuild_image)

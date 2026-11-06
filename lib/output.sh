@@ -62,13 +62,9 @@ bcc_render_text() {
       printf '[INFO] %s | %s\n' "${BCC_F[0]}" "${BCC_F[1]}"
     done
   fi
-  if ((${#BCC_SKIPPED[@]})); then
-    printf '\n== %s ==\n' "$(bcc_msg title_skipped)"
-    for f in "${BCC_SKIPPED[@]}"; do
-      bcc_split_tab "$f"
-      printf '[SKIPPED] %s | %s\n' "${BCC_F[0]}" "${BCC_F[1]}"
-    done
-  fi
+  # What could not be scanned first: it is what makes a run without findings exit 2.
+  bcc_render_skipped_text failed title_failed FAILED
+  bcc_render_skipped_text chosen title_skipped SKIPPED
   printf '\n== %s ==\n' "$(bcc_msg title_summary)"
   bcc_msg s_update "$BCC_SUM_UPDATE"
   printf '\n'
@@ -76,7 +72,9 @@ bcc_render_text() {
   printf '\n'
   bcc_msg s_review "$BCC_SUM_REVIEW"
   printf '\n'
-  bcc_msg s_skipped "$(bcc_skipped_scopes)"
+  bcc_msg s_failed "$(bcc_skipped_scopes failed)"
+  printf '\n'
+  bcc_msg s_skipped "$(bcc_skipped_scopes chosen)"
   printf '\n'
   if ((BCC_EXIT == 0)); then
     bcc_msg s_clean
@@ -102,15 +100,32 @@ bcc_line_safe() {
   printf '%s' "$s"
 }
 
+# Usage: bcc_render_skipped_text KIND TITLE-KEY TAG - one section of the skipped ranges of KIND.
+bcc_render_skipped_text() {
+  local f printed=0
+  for f in ${BCC_SKIPPED[@]+"${BCC_SKIPPED[@]}"}; do
+    bcc_split_tab "$f"
+    [[ ${BCC_F[2]:-} == "$1" ]] || continue
+    if ((!printed)); then
+      printf '\n== %s ==\n' "$(bcc_msg "$2")"
+      printed=1
+    fi
+    printf '[%s] %s | %s\n' "$3" "${BCC_F[0]}" "${BCC_F[1]}"
+  done
+}
+
+# Usage: bcc_skipped_scopes KIND - the scopes of the skipped ranges of KIND, for the summary.
 bcc_skipped_scopes() {
   local f
   local -a scopes=()
   for f in ${BCC_SKIPPED[@]+"${BCC_SKIPPED[@]}"}; do
     bcc_split_tab "$f"
-    scopes+=("${BCC_F[0]}")
+    [[ ${BCC_F[2]:-} == "$1" ]] && scopes+=("${BCC_F[0]}")
   done
   if ((${#scopes[@]})); then
     printf '%s\n' "${scopes[@]}" | awk '!seen[$0]++' | paste -sd, - | sed 's/,/, /g'
+  elif [[ $1 == failed ]]; then
+    bcc_msg s_failed_none
   else
     bcc_msg s_skipped_none
   fi
@@ -172,7 +187,8 @@ bcc_render_json() {
     bcc_split_tab "$f"
     ((first)) || printf ','
     first=0
-    printf '{"scope":%s,"reason":%s}' "$(bcc_json_str "${BCC_F[0]}")" "$(bcc_json_str "${BCC_F[1]:-}")"
+    printf '{"scope":%s,"reason":%s,"kind":%s}' "$(bcc_json_str "${BCC_F[0]}")" "$(bcc_json_str "${BCC_F[1]:-}")" \
+      "$(bcc_json_str "${BCC_F[2]:-}")"
   done
   printf '],"findings":['
   first=1

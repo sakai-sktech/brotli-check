@@ -415,8 +415,8 @@ bcc_note_exec() {
   done
   ((n == 0)) && return 0
   if ((BCC_NO_EXEC)); then
-    bcc_skip "--no-exec" "$(bcc_msg skip_opt_noexec)"
+    bcc_skip chosen "--no-exec" "$(bcc_msg skip_opt_noexec)"
   else
-    bcc_skip "exec" "$(bcc_msg skip_exec_declined "$n")"
+    bcc_skip chosen "exec" "$(bcc_msg skip_exec_declined "$n")"
   fi
 }

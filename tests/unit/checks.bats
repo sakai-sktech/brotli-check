@@ -587,6 +587,7 @@ EOF
   bcc_check_c04
   [[ ${BCC_FINDINGS[*]:-} != *"$T/bin/big"* ]]
   [[ ${BCC_SKIPPED[*]} == *"$T/shims/node"$'\t'"a link to $T/bin/big, a program of another name: that file could not be read to the end"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"carries a Brotli decoder is not known"$'\t'"failed"* ]]
 }
 
 @test "C04: a link of another name whose libraries could not be followed is listed as not scanned (#19)" {
@@ -601,6 +602,7 @@ EOF
   bcc_check_c04
   [[ ${BCC_FINDINGS[*]:-} != *"$T/bin/mise"* ]]
   [[ ${BCC_SKIPPED[*]} == *"$T/shims/node"$'\t'"a link to $T/bin/mise, a program of another name: that file carries no Brotli decoder, but whether it loads libbrotlidec could not be followed to the end"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"could not be followed to the end"$'\t'"failed"* ]]
 }
 
 @test "C04: a link of another name to a file that loads libbrotlidec is judged by that library (#19)" {

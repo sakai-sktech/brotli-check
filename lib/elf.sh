@@ -103,9 +103,10 @@ bcc_crosscheck_no_file() {
   return 0
 }
 
-# A file whose strings could not be read to the end is listed as not scanned (once).
+# A file whose strings could not be read to the end is listed as not scanned (once), for
+# failure: it was to be judged.
 bcc_note_incomplete() {
-  bcc_skip "$1" "$(bcc_msg skip_incomplete "$BCC_MAX_ELF_MB")"
+  bcc_skip failed "$1" "$(bcc_msg skip_incomplete "$BCC_MAX_ELF_MB")"
 }
 
 # Split one RPATH or RUNPATH value of OBJECT into BCC_DIRS ($ORIGIN expanded). Problems are

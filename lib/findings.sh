@@ -94,12 +94,41 @@ bcc_add_info() {
   BCC_INFO+=("$(bcc_clean_field "$1")"$'\t'"$(bcc_clean_field "$2")")
 }
 
-# bcc_skip SCOPE REASON - a range that was not scanned (first reason per scope wins).
+# bcc_skip KIND SCOPE REASON - a range that was not scanned (first reason per kind and scope
+# wins). Stored as "scope<TAB>reason<TAB>kind". KIND is one of (issue #10, docs/design.md 10.26):
+#   chosen  left out by how the tool was run: an option not given (or given: --exclude,
+#           --no-exec), programs not chosen to run, not running as root (and what this user
+#           therefore could not read), file systems the walk does not enter unless asked, what
+#           an option only counts (stopped containers, images), an optional tool (readelf)
+#   failed  the run set out to look at it and could not: a command failed or is missing, a
+#           time limit, a file not read to the end or over the size limit, what root could not
+#           read, a place named on the command line that is not there, a container not looked
+#           inside although --inspect-containers asked for it
+# A failed range makes the exit status 2 when no finding makes it 1 (bcc_exit_code).
 bcc_skip() {
-  local key=$1
+  local kind=$1 key="$1|$2"
+  case $kind in
+    chosen | failed) ;;
+    *) bcc_die "internal error: unknown kind of skipped range '$kind'" ;;
+  esac
   [[ -z ${BCC_SKIP_KEYS[$key]:-} ]] || return 0
   BCC_SKIP_KEYS[$key]=1
-  BCC_SKIPPED+=("$(bcc_clean_field "$1")"$'\t'"$(bcc_clean_field "$2")")
+  BCC_SKIPPED+=("$(bcc_clean_field "$2")"$'\t'"$(bcc_clean_field "$3")"$'\t'"$kind")
+}
+
+# The kind of a range this user could not read for lack of permission: not running as root is
+# the runner's choice (the "root" entry says so), while what root cannot read is a failure.
+bcc_denied_kind() {
+  if ((BCC_IS_ROOT)); then printf failed; else printf chosen; fi
+}
+
+# Number of skipped ranges of KIND.
+bcc_count_skipped() {
+  local want=$1 f n=0
+  for f in ${BCC_SKIPPED[@]+"${BCC_SKIPPED[@]}"}; do
+    [[ ${f##*$'\t'} == "$want" ]] && n=$((n + 1))
+  done
+  printf '%d' "$n"
 }
 
 bcc_count_status() {
@@ -118,13 +147,14 @@ bcc_summarize() {
   BCC_SUM_REVIEW=$(($(bcc_count_status NO_FIX_AVAILABLE) + $(bcc_count_status VENDORED_COPY) + $(bcc_count_status UNKNOWN) + $(bcc_count_status LIKELY_FIXED)))
 }
 
-# 0: none of VULNERABLE/RESTART_REQUIRED/NO_FIX_AVAILABLE (not proof of safety)
+# 0: none of the below (not proof of safety: ranges left out by choice are not counted)
 # 1: VULNERABLE or RESTART_REQUIRED present
-# 2: otherwise NO_FIX_AVAILABLE, VENDORED_COPY, LIKELY_*, or UNKNOWN present
+# 2: otherwise NO_FIX_AVAILABLE, VENDORED_COPY, LIKELY_*, or UNKNOWN present, or a range that
+#    could not be scanned (a skipped range of kind "failed")
 bcc_exit_code() {
   if (($(bcc_count_status VULNERABLE) + $(bcc_count_status RESTART_REQUIRED) > 0)); then
     printf 1
-  elif (($(bcc_count_status NO_FIX_AVAILABLE) + $(bcc_count_status VENDORED_COPY) + $(bcc_count_status UNKNOWN) + $(bcc_count_status LIKELY_VULNERABLE) + $(bcc_count_status LIKELY_FIXED) > 0)); then
+  elif (($(bcc_count_status NO_FIX_AVAILABLE) + $(bcc_count_status VENDORED_COPY) + $(bcc_count_status UNKNOWN) + $(bcc_count_status LIKELY_VULNERABLE) + $(bcc_count_status LIKELY_FIXED) + $(bcc_count_skipped failed) > 0)); then
     printf 2
   else
     printf 0

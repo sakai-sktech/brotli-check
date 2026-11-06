@@ -9,7 +9,7 @@ BCC_C01_PACKAGES="libbrotli1 brotli libbrotli-dev python3-brotli"
 bcc_check_c01() {
   BCC_C01_LIB_STATUS=""
   if ! bcc_have dpkg-query; then
-    bcc_skip C01 "$(bcc_msg skip_no_dpkg)"
+    bcc_skip failed C01 "$(bcc_msg skip_no_dpkg)"
     return
   fi
   local line st pkg ver src srcver next any=0 out rc=0
@@ -20,7 +20,7 @@ bcc_check_c01() {
   # shellcheck disable=SC2086  # package list is a fixed word list
   out=$(bcc_sys dpkg-query -W -f "$fmt" $BCC_C01_PACKAGES) || rc=$?
   if ((rc > 1)); then
-    bcc_skip C01 "$(bcc_msg skip_dpkg_failed "$rc")"
+    bcc_skip failed C01 "$(bcc_msg skip_dpkg_failed "$rc")"
     return
   fi
   while IFS= read -r line; do
@@ -68,7 +68,7 @@ bcc_check_c02() {
   local fmt='${db:Status-Abbrev}\t${binary:Package}\t${Depends}, ${Pre-Depends}\n'
   out=$(bcc_sys dpkg-query -W -f "$fmt") || rc=$?
   if ((rc > 1)); then
-    bcc_skip C02 "$(bcc_msg skip_dpkg_failed "$rc")"
+    bcc_skip failed C02 "$(bcc_msg skip_dpkg_failed "$rc")"
     return 0
   fi
   while IFS= read -r line; do
@@ -239,5 +239,10 @@ bcc_check_c03() {
     bcc_add_finding C03 RESTART_REQUIRED "pid $pid" "$exe" "" "$(bcc_msg r_c03_deleted_lib "$hit") $BCC_RA_REASON" \
       "$BCC_RA_NEXT" "$(bcc_proc_evidence "$d")" ""
   done
-  ((unreadable == 0)) || bcc_skip "C03 $proc" "$(bcc_msg skip_proc_unreadable "$unreadable")"
+  ((unreadable == 0)) && return 0
+  if ((BCC_IS_ROOT)); then
+    bcc_skip failed "C03 $proc" "$(bcc_msg skip_proc_unreadable_root "$unreadable")"
+  else
+    bcc_skip chosen "C03 $proc" "$(bcc_msg skip_proc_unreadable "$unreadable")"
+  fi
 }

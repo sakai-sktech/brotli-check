@@ -85,7 +85,7 @@ bcc_check_c14() {
     bcc_have "$e" && { engine=$e; break; }
   done
   if [[ -z $engine ]]; then
-    bcc_skip C14 "$(bcc_msg skip_no_engine)"
+    bcc_skip failed C14 "$(bcc_msg skip_no_engine)"
     return
   fi
   # The connection comes first and is always reported, also when the engine then fails.
@@ -118,13 +118,14 @@ bcc_check_c14() {
   local ps
   if ! ps=$(timeout -k 2 "$BCC_TIMEOUT" env LC_ALL=C "$engine" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"} \
     ps --format '{{.ID}}\t{{.Image}}\t{{.Names}}' </dev/null 2>/dev/null); then
-    bcc_skip "C14 $engine" "$(bcc_msg skip_engine_denied "$engine")"
+    bcc_skip failed "C14 $engine" "$(bcc_msg skip_engine_denied "$engine")"
     return
   fi
   # Stopped containers and images are counted and never looked inside, with or without
   # --inspect-containers (issue #8, docs/design.md 10.24). The number goes to "Not scanned",
   # so that the list of running containers is not read as all of them; a count that could not
-  # be taken is said so there, never given as 0.
+  # be taken is said so there, never given as 0. What is counted is what --containers covers,
+  # so it is left out by choice; a count that failed is a failure (issue #10, 10.26).
   local all images nstopped="?" nimages="?"
   if all=$(bcc_sys "$engine" ${BCC_C14_ARGS[@]+"${BCC_C14_ARGS[@]}"} ps -a --format '{{.ID}}'); then
     nstopped=$(bcc_c14_count_stopped "$ps" "$all")
@@ -135,24 +136,25 @@ bcc_check_c14() {
   bcc_add_info C14 "$(bcc_msg i_c14_inventory "$engine" "$(grep -c . <<<"$ps" || true)" "$nstopped" "$nimages")"
   bcc_add_info C14 "$(bcc_msg i_c14_rebuild)"
   if [[ $nstopped == '?' ]]; then
-    bcc_skip "C14 (stopped containers)" "$(bcc_msg skip_c14_stopped_uncounted "$engine")"
+    bcc_skip failed "C14 (stopped containers)" "$(bcc_msg skip_c14_stopped_uncounted "$engine")"
   elif ((nstopped > 0)); then
-    bcc_skip "C14 (stopped containers)" "$(bcc_msg skip_c14_stopped "$nstopped")"
+    bcc_skip chosen "C14 (stopped containers)" "$(bcc_msg skip_c14_stopped "$nstopped")"
   fi
   if [[ $nimages == '?' ]]; then
-    bcc_skip "C14 (images)" "$(bcc_msg skip_c14_images_uncounted "$engine")"
+    bcc_skip failed "C14 (images)" "$(bcc_msg skip_c14_images_uncounted "$engine")"
   elif ((nimages > 0)); then
-    bcc_skip "C14 (images)" "$(bcc_msg skip_c14_images "$nimages")"
+    bcc_skip chosen "C14 (images)" "$(bcc_msg skip_c14_images "$nimages")"
   fi
   [[ -n $ps ]] || return 0
   # Containers reached any other way are listed and counted, but nothing runs inside them:
-  # they may be another host's (issue #6). This holds with or without --inspect-containers.
+  # they may be another host's (issue #6). This holds with or without --inspect-containers; when
+  # that option asked to look inside, not doing so is a failure (issue #10).
   if ((!local_host)); then
     while IFS= read -r line; do
       bcc_split_tab "$line"
       bcc_add_info C14 "$(bcc_msg i_c14_not_inspected_conn "${BCC_F[2]:-}" "${BCC_F[1]:-}")"
     done <<<"$ps"
-    bcc_skip C14 "$not_local"
+    if ((BCC_INSPECT_CONTAINERS)); then bcc_skip failed C14 "$not_local"; else bcc_skip chosen C14 "$not_local"; fi
     return
   fi
   if ((!BCC_INSPECT_CONTAINERS)); then
@@ -160,11 +162,11 @@ bcc_check_c14() {
       bcc_split_tab "$line"
       bcc_add_info C14 "$(bcc_msg i_c14_not_inspected "${BCC_F[2]:-}" "${BCC_F[1]:-}")"
     done <<<"$ps"
-    bcc_skip C14 "$(bcc_msg skip_c14_inside)"
+    bcc_skip chosen C14 "$(bcc_msg skip_c14_inside)"
     return
   fi
   if ((BCC_NO_EXEC)); then
-    bcc_skip C14 "$(bcc_msg skip_c14_noexec)"
+    bcc_skip chosen C14 "$(bcc_msg skip_c14_noexec)"
     return
   fi
   while IFS= read -r line; do
@@ -212,7 +214,7 @@ bcc_c14_next() {
 bcc_c14_inspect() {
   local engine=$1 id=$2 name=$3 image=$4 out line series="" where ended=0 deb_py_ver=""
   if ! out=$(timeout -k 2 "$BCC_TIMEOUT" "$engine" "${@:5}" exec "$id" sh -c "$BCC_C14_PROBE" </dev/null 2>/dev/null); then
-    bcc_skip "container $name" "$(bcc_msg skip_c14_exec_failed)"
+    bcc_skip failed "container $name" "$(bcc_msg skip_c14_exec_failed)"
     return
   fi
   where="container $name ($image)"
@@ -222,7 +224,7 @@ bcc_c14_inspect() {
       END) ended=1 ;;
       PKGRC)
         # 1 only means a package is not installed; 2 and above: the database was not read.
-        [[ ${BCC_F[1]:-} =~ ^[01]$ ]] || bcc_skip "container $name (dpkg)" "$(bcc_msg skip_c14_dpkg_failed "${BCC_F[1]:-?}")"
+        [[ ${BCC_F[1]:-} =~ ^[01]$ ]] || bcc_skip failed "container $name (dpkg)" "$(bcc_msg skip_c14_dpkg_failed "${BCC_F[1]:-?}")"
         ;;
       OS)
         case ${BCC_F[1]:-} in
@@ -274,19 +276,19 @@ bcc_c14_inspect() {
         ;;
     esac
   done <<<"$out"
-  ((ended)) || bcc_skip "container $name" "$(bcc_msg skip_c14_incomplete)"
+  ((ended)) || bcc_skip failed "container $name" "$(bcc_msg skip_c14_incomplete)"
 }
 
 # C15: who listens beyond loopback? Only a hint for prioritizing.
 bcc_check_c15() {
   if ! bcc_have ss; then
-    bcc_skip C15 "$(bcc_msg skip_no_ss)"
+    bcc_skip failed C15 "$(bcc_msg skip_no_ss)"
     return
   fi
   local line local_addr procinfo pname pid any_hidden=0 out rc=0
   out=$(bcc_sys ss -ltnpH) || rc=$?
   if ((rc != 0)); then
-    bcc_skip C15 "$(bcc_msg skip_cmd_failed ss "$rc")"
+    bcc_skip failed C15 "$(bcc_msg skip_cmd_failed ss "$rc")"
     return 0
   fi
   while IFS= read -r line; do
@@ -308,5 +310,5 @@ bcc_check_c15() {
     esac
     bcc_add_finding C15 EXPOSURE "$pname (pid $pid)" "$local_addr" "" "$(bcc_msg r_c15_listen)" "$(bcc_msg n_c15)" "" ""
   done <<<"$out"
-  ((any_hidden == 0 || BCC_IS_ROOT)) || bcc_skip C15 "$(bcc_msg skip_c15_hidden)"
+  ((any_hidden == 0 || BCC_IS_ROOT)) || bcc_skip chosen C15 "$(bcc_msg skip_c15_hidden)"
 }

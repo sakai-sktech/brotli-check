@@ -192,9 +192,22 @@ EOF
   [ -z "$(find "$T" -maxdepth 1 -name 'ran-*')" ]
 }
 
-@test "a root named with --roots that does not exist is listed as not scanned" {
+@test "a root named with --roots that does not exist could not be scanned: never exit 0 (#10)" {
   run "$BIN" --roots "$T/srv,$T/nope" --no-exec
-  [[ $output == *"[SKIPPED] $T/nope | does not exist"* ]]
+  [ "$status" -eq 1 ] || [ "$status" -eq 2 ]
+  [[ $output == *"== Could not be scanned =="$'\n'"[FAILED] $T/nope | does not exist"* ]]
+  # (The host's own checks may add other scopes to the line.)
+  [[ $output == *"Could not be scanned: "*"$T/nope"*$'\n'"Not scanned: "* ]]
+  command -v python3 >/dev/null || return 0
+  run --separate-stderr "$BIN" --roots "$T/srv,$T/nope" --no-exec --json
+  printf '%s' "$output" | python3 -I -c '
+import json, sys
+d = json.load(sys.stdin)
+s = [x for x in d["skipped"] if x["scope"].endswith("/nope")]
+assert s and s[0]["kind"] == "failed", s
+assert d["exit_code"] in (1, 2), d["exit_code"]
+assert all(x["kind"] in ("chosen", "failed") for x in d["skipped"]), d["skipped"]'
+  [ "$status" -eq 1 ] || [ "$status" -eq 2 ]
 }
 
 @test "--data: a FIFO is refused at once (never opened); others' write access is warned about" {

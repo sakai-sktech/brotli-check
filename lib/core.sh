@@ -183,7 +183,7 @@ bcc_init_homes() {
     if [[ -r $h && -x $h ]]; then
       BCC_HOMES+=("$h")
     else
-      bcc_skip "$h" "$(bcc_msg skip_home_unreadable)"
+      bcc_skip "$(bcc_denied_kind)" "$h" "$(bcc_msg skip_home_unreadable)"
     fi
   done < <(bcc_homes)
 }
@@ -205,7 +205,7 @@ bcc_init_remote_mounts() {
     mp=$(printf '%b' "$mp") # mountinfo escapes spaces as \040
     if [[ $fs =~ $BCC_REMOTE_FS_RE ]] && ((!BCC_INCLUDE_REMOTE)); then
       BCC_REMOTE_MOUNTS+=("$mp")
-      bcc_skip "$mp" "$(bcc_msg skip_remote_fs)"
+      bcc_skip chosen "$mp" "$(bcc_msg skip_remote_fs)"
     else
       BCC_MOUNTS+=("$mp")
       BCC_MOUNT_TYPES+=("$fs")
@@ -243,7 +243,8 @@ bcc_mounts_below() {
 # calls CALLBACK with each match. Local-disk file systems mounted below a root are walked
 # as roots of their own; other mounts below are recorded as not scanned (one line per kind).
 # find's error messages come back through the same stream, so unreadable directories are
-# counted (BCC_FIND_ERRORS, BCC_FIND_ERROR_EXAMPLE; bcc_find_status reports them).
+# counted (BCC_FIND_ERRORS, BCC_FIND_ERROR_EXAMPLE; bcc_find_status reports them), and those
+# refused for lack of permission among them (BCC_FIND_DENIED).
 # Returns find's status (124 = timeout).
 bcc_find_each() {
   local cb=$1 p rc=0 r fs mp
@@ -251,6 +252,7 @@ bcc_find_each() {
   local -a roots=() expr=() prune=()
   local -A other=() other_n=() seen_root=()
   BCC_FIND_ERRORS=0
+  BCC_FIND_DENIED=0
   BCC_FIND_ERROR_EXAMPLE=""
   while (($#)); do
     if [[ $1 == -- ]]; then
@@ -280,7 +282,7 @@ bcc_find_each() {
     done < <(bcc_mounts_below "$r")
   done
   for fs in ${other[@]+"${!other[@]}"}; do
-    bcc_skip "${other[$fs]}" "$(bcc_msg skip_other_fs "$fs" "${other_n[$fs]}")"
+    bcc_skip chosen "${other[$fs]}" "$(bcc_msg skip_other_fs "$fs" "${other_n[$fs]}")"
   done
   for p in /proc /sys /dev /run ${BCC_EXCLUDES[@]+"${BCC_EXCLUDES[@]}"} ${BCC_REMOTE_MOUNTS[@]+"${BCC_REMOTE_MOUNTS[@]}"}; do
     [[ -n $p ]] || continue
@@ -296,6 +298,7 @@ bcc_find_each() {
         # A file that vanished during the walk is not a gap in coverage.
         [[ $p == *"No such file or directory" ]] && continue
         BCC_FIND_ERRORS=$((BCC_FIND_ERRORS + 1))
+        [[ $p == *": Permission denied" ]] && BCC_FIND_DENIED=$((BCC_FIND_DENIED + 1))
         if [[ -z $BCC_FIND_ERROR_EXAMPLE && $p =~ ^__BCC_FIND_ERR=find:\ \'(.*)\':\  ]]; then
           BCC_FIND_ERROR_EXAMPLE=${BASH_REMATCH[1]}
         fi
@@ -311,13 +314,16 @@ bcc_find_each() {
 }
 
 # Records a timeout, and directories find could not read, of the last bcc_find_each as
-# skipped scopes. Usage: bcc_find_status RC SCOPE
+# skipped scopes. Directories only refused to a user who is not root are left out by that
+# choice; any other error (or any error as root) is a failure. Usage: bcc_find_status RC SCOPE
 bcc_find_status() {
+  local kind=failed
   if (($1 == 124 || $1 == 137)); then
-    bcc_skip "$2" "$(bcc_msg skip_timeout "$BCC_TIMEOUT")"
+    bcc_skip failed "$2" "$(bcc_msg skip_timeout "$BCC_TIMEOUT")"
   fi
   if ((${BCC_FIND_ERRORS:-0} > 0)); then
-    bcc_skip "$2 (find)" "$(bcc_msg skip_find_errors "$BCC_FIND_ERRORS" "${BCC_FIND_ERROR_EXAMPLE:-?}")"
+    ((BCC_IS_ROOT || BCC_FIND_ERRORS > ${BCC_FIND_DENIED:-0})) || kind=chosen
+    bcc_skip "$kind" "$2 (find)" "$(bcc_msg skip_find_errors "$BCC_FIND_ERRORS" "${BCC_FIND_ERROR_EXAMPLE:-?}")"
   fi
 }
 

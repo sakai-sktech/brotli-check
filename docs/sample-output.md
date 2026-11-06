@@ -3,9 +3,10 @@
 Captured on 2026-11-06, with the advisory data of this version (snapshot 2026-11-02), from the
 integration image for Ubuntu 24.04 (`tests/integration/`), scanned as root with
 `--roots /opt,/srv --yes` (no terminal in the container, so the consent to run the listed programs
-is given in advance). The tool is the source tree after issue #9, not yet released (its header still
-says 0.1.0). The image holds Node.js 22.23.3 and 22.23.4 from nodejs.org, PyPI Brotli 1.2.0 (with
-urllib3) and 1.2.1 in two virtual environments, and the distribution's nginx, Apache and HAProxy.
+is given in advance). The tool is the source tree after issue #10, not yet released (its header
+still says 0.1.0); its single-file build (`make dist`) was mounted over the image's copy. The image
+holds Node.js 22.23.3 and 22.23.4 from nodejs.org, PyPI Brotli 1.2.0 (with urllib3) and 1.2.1 in
+two virtual environments, and the distribution's nginx, Apache and HAProxy.
 Exit status: 1.
 
 The first section lists the programs the tool ran to read their versions, their output, and the
@@ -24,6 +25,10 @@ the fix (docs/design.md 2.1).
 
 This image has no process using a deleted file (`RESTART_REQUIRED`), no link to a program of another
 name, and the run gives no `--containers`, so the lines for those do not appear here.
+
+The summary has five lines. Everything the run set out to look at was looked at, so "Could not be
+scanned" is "none" and there is no section of that name; the four checks left out by the options
+given are under "Not scanned" (no `root` line: the scan ran as root).
 
 ## English (default)
 
@@ -44,15 +49,15 @@ Search roots: /opt,/srv | options: --yes
     - /opt/node-v22.23.4-linux-x64/bin/node belongs to tester
 
 == C01 OS packages (Debian/Ubuntu) ==
-[FIXED] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | At or above the fixed version 1.1.0-2ubuntu0.1 (the distribution package version). | No update needed for this line (other lines and the ranges not scanned are separate). If it was updated recently, restart the services that use it (C03).
-[FIXED] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | At or above the fixed version 1.1.0-2ubuntu0.1 (the distribution package version). | No update needed for this line (other lines and the ranges not scanned are separate). If it was updated recently, restart the services that use it (C03).
+[FIXED] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | At or above the fixed version 1.1.0-2ubuntu0.1 (the distribution package version). | No update needed for this line (other lines, and the ranges not scanned or that could not be scanned, are separate). If it was updated recently, restart the services that use it (C03).
+[FIXED] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | At or above the fixed version 1.1.0-2ubuntu0.1 (the distribution package version). | No update needed for this line (other lines, and the ranges not scanned or that could not be scanned, are separate). If it was updated recently, restart the services that use it (C03).
 
 == C04 Node.js ==
 [VULNERABLE] C04 | node | /opt/node-v22.23.3-linux-x64/bin/node | 22.23.3 | Below the fixed version 22.23.4. | Update to 22.23.4 or later.
-[FIXED] C04 | node | /opt/node-v22.23.4-linux-x64/bin/node | 22.23.4 | At or above the fixed version 22.23.4 (output of node --version). | No update needed for this line (other lines and the ranges not scanned are separate).
+[FIXED] C04 | node | /opt/node-v22.23.4-linux-x64/bin/node | 22.23.4 | At or above the fixed version 22.23.4 (output of node --version). | No update needed for this line (other lines, and the ranges not scanned or that could not be scanned, are separate).
 
 == C06 Python packages (PyPI, conda) ==
-[FIXED] C06 | brotli | /srv/venv-new/lib/python3.12/site-packages/brotli-1.2.1.dist-info | 1.2.1 | At or above the fixed version 1.2.1 (version from the package metadata). Found: the error name added by the fix (_ERROR_FORMAT_BLOCK_SWITCH) among the decoder strings of /srv/venv-new/lib/python3.12/site-packages/_brotli.cpython-312-x86_64-linux-gnu.so. Not determined: whether all decoder code in the file is fixed (the linker merges equal strings, so an unfixed copy sharing them would not show). | No update needed for this line (other lines and the ranges not scanned are separate).
+[FIXED] C06 | brotli | /srv/venv-new/lib/python3.12/site-packages/brotli-1.2.1.dist-info | 1.2.1 | At or above the fixed version 1.2.1 (version from the package metadata). Found: the error name added by the fix (_ERROR_FORMAT_BLOCK_SWITCH) among the decoder strings of /srv/venv-new/lib/python3.12/site-packages/_brotli.cpython-312-x86_64-linux-gnu.so. Not determined: whether all decoder code in the file is fixed (the linker merges equal strings, so an unfixed copy sharing them would not show). | No update needed for this line (other lines, and the ranges not scanned or that could not be scanned, are separate).
 [VULNERABLE] C06 | brotli | /srv/venv-old/lib/python3.12/site-packages/brotli-1.2.0.dist-info | 1.2.0 | Below the fixed version 1.2.1. | In the environment that owns /srv/venv-old/lib/python3.12/site-packages, run: pip install -U "brotli>=1.2.1"
 [EXPOSURE] C06 | python-http-clients | /srv/venv-old/lib/python3.12/site-packages | - | Brotli is installed here, so these HTTP clients decode a br response when they receive one: urllib3. Whether an application fetches from outside with them is not checked. | Not a vulnerability by itself: update the decoder it uses (other findings) with priority.
 
@@ -81,6 +86,7 @@ Search roots: /opt,/srv | options: --yes
 Needs update: 2
 Needs restart: 0
 Needs human review: 0
+Could not be scanned: none
 Not scanned: C09 --deep, C07 --projects, C14 --containers, C15 --exposure
 This tool does not check for intrusion. Updating to a fixed version does not remove traces of an intrusion that happened before the update.
 ```
@@ -104,15 +110,15 @@ brotli-cve-check 0.1.0 - CVE-2026-111497（Brotli デコーダー）のローカ
     - /opt/node-v22.23.4-linux-x64/bin/node は tester の所有
 
 == C01 OS パッケージ（Debian/Ubuntu） ==
-[FIXED] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 修正版 1.1.0-2ubuntu0.1 以上です（配布元パッケージの版）。 | この行については更新は不要（ほかの行と走査しなかった範囲は別）。 最近更新したなら、使っているサービスを再起動する（C03）。
-[FIXED] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 修正版 1.1.0-2ubuntu0.1 以上です（配布元パッケージの版）。 | この行については更新は不要（ほかの行と走査しなかった範囲は別）。 最近更新したなら、使っているサービスを再起動する（C03）。
+[FIXED] C01 | libbrotli1 | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 修正版 1.1.0-2ubuntu0.1 以上です（配布元パッケージの版）。 | この行については更新は不要（ほかの行と、走査しなかった範囲・走査できなかった範囲は別）。 最近更新したなら、使っているサービスを再起動する（C03）。
+[FIXED] C01 | python3-brotli | dpkg (ubuntu:noble) | 1.1.0-2ubuntu0.1 | 修正版 1.1.0-2ubuntu0.1 以上です（配布元パッケージの版）。 | この行については更新は不要（ほかの行と、走査しなかった範囲・走査できなかった範囲は別）。 最近更新したなら、使っているサービスを再起動する（C03）。
 
 == C04 Node.js ==
 [VULNERABLE] C04 | node | /opt/node-v22.23.3-linux-x64/bin/node | 22.23.3 | 修正版 22.23.4 より古い版です。 | 22.23.4 以上に更新する。
-[FIXED] C04 | node | /opt/node-v22.23.4-linux-x64/bin/node | 22.23.4 | 修正版 22.23.4 以上です（node --version の出力）。 | この行については更新は不要（ほかの行と走査しなかった範囲は別）。
+[FIXED] C04 | node | /opt/node-v22.23.4-linux-x64/bin/node | 22.23.4 | 修正版 22.23.4 以上です（node --version の出力）。 | この行については更新は不要（ほかの行と、走査しなかった範囲・走査できなかった範囲は別）。
 
 == C06 Python のパッケージ（PyPI・conda） ==
-[FIXED] C06 | brotli | /srv/venv-new/lib/python3.12/site-packages/brotli-1.2.1.dist-info | 1.2.1 | 修正版 1.2.1 以上です（版はパッケージのメタデータから）。 分かったこと: /srv/venv-new/lib/python3.12/site-packages/_brotli.cpython-312-x86_64-linux-gnu.so のデコーダーの文字列に、修正で追加されたエラー名（_ERROR_FORMAT_BLOCK_SWITCH）がある。 分からないこと: ファイルの中のデコーダーがすべて修正済みかどうか（同じ文字列はリンカーが 1 つにまとめるため、それを共有する未修正のコピーは見えない）。 | この行については更新は不要（ほかの行と走査しなかった範囲は別）。
+[FIXED] C06 | brotli | /srv/venv-new/lib/python3.12/site-packages/brotli-1.2.1.dist-info | 1.2.1 | 修正版 1.2.1 以上です（版はパッケージのメタデータから）。 分かったこと: /srv/venv-new/lib/python3.12/site-packages/_brotli.cpython-312-x86_64-linux-gnu.so のデコーダーの文字列に、修正で追加されたエラー名（_ERROR_FORMAT_BLOCK_SWITCH）がある。 分からないこと: ファイルの中のデコーダーがすべて修正済みかどうか（同じ文字列はリンカーが 1 つにまとめるため、それを共有する未修正のコピーは見えない）。 | この行については更新は不要（ほかの行と、走査しなかった範囲・走査できなかった範囲は別）。
 [VULNERABLE] C06 | brotli | /srv/venv-old/lib/python3.12/site-packages/brotli-1.2.0.dist-info | 1.2.0 | 修正版 1.2.1 より古い版です。 | /srv/venv-old/lib/python3.12/site-packages を持つ環境で pip install -U "brotli>=1.2.1" を実行する。
 [EXPOSURE] C06 | python-http-clients | /srv/venv-old/lib/python3.12/site-packages | - | この環境には Brotli が入っているので、次の HTTP クライアントは br の応答を受け取ると展開します: urllib3。 アプリがこれらで外から取得しているかは見ていません。 | それ自体は脆弱性ではない。使っているデコーダー（ほかの所見）の更新を優先する。
 
@@ -141,6 +147,7 @@ brotli-cve-check 0.1.0 - CVE-2026-111497（Brotli デコーダー）のローカ
 更新が必要なもの: 2 件
 再起動が必要なもの: 0 件
 人の確認が必要なもの: 0 件
+走査できなかった範囲: なし
 走査しなかった範囲: C09 --deep, C07 --projects, C14 --containers, C15 --exposure
 このツールは侵入の有無を調べません。修正版に更新しても、更新前の侵入の痕跡は消えません。
 ```

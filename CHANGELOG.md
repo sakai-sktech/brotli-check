@@ -59,6 +59,21 @@
   restart sentence after it, and `FIXED` lines inside containers and of flatpak browsers no longer
   say to rebuild the image or to run flatpak update. `UNKNOWN` from the data (Node.js 10 and
   earlier, Envoy 1.17 and earlier) says why instead of "see evidence" (docs/design.md 10.25, #9).
+- **The meaning of exit status 2 changes.** A range that the run set out to look at but could
+  not now makes the exit status `2` even with no finding (`1` stays `1`); before, such a run
+  exited `0` and said that nothing was found, for example when dpkg-query failed and no
+  distribution package was judged. Ranges left out by how the tool was run (options not given,
+  `--exclude`, `--no-exec`, programs not chosen, not running as root, network and other file
+  systems below the roots, stopped containers and images, which are only counted) are still not
+  counted. A missing program the check needs counts as could not be scanned: no dpkg (not
+  Debian/Ubuntu), no ss with `--exposure`, neither docker nor podman with `--containers`; so does
+  a root named with `--roots` that does not exist, and what root could not read. Automation that
+  gives `--containers` to hosts without an engine now gets `2` from them. The text report lists
+  these under a new section "Could not be scanned" (`[FAILED]`) before "Not scanned" (`[SKIPPED]`),
+  and the summary has a fifth line, "Could not be scanned: ..." ("none" when there is nothing).
+  JSON `skipped[]` entries carry `"kind": "chosen"` or `"failed"`. As root, unread processes are
+  no longer told to run as root. The `FIXED` next step names both kinds of ranges (docs/design.md
+  10.26, #10).
 
 ## 0.1.0 - 2026-11-02
 

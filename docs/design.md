@@ -1023,3 +1023,64 @@ rejected alternative.
     file again (its path is on the line); the basis on VULNERABLE lines too (not asked for; such a
     line needs an update whatever the version came from); a separate field in JSON (`reason`
     carries the basis in both outputs; a new field changes the schema).
+26. **What could not be scanned is told apart from what was left out by choice, and makes the exit
+    status 2 (2026-11-06, issue #10).** The exit status counted findings only, and every range not
+    scanned was one list: a run where dpkg-query failed judged no distribution package, yet exited
+    0 and said "No known vulnerable component was found in the scanned ranges". Automation that
+    reads only the exit status took such a run for a clean one. Counting every range not scanned
+    was rejected when the issue was opened (a run with no options always lists four, so every run
+    would exit 2, as in 10.17's rejected "UNKNOWN for everything"). The requester's rule: "what was
+    not looked at is not said to have been; what could not be looked at is reported with its
+    reason. Keep it simple."
+    1. **Two kinds.** `bcc_skip KIND SCOPE REASON`, where KIND is `chosen` (left out by how the
+       tool was run) or `failed` (the run set out to look at it and could not); any other kind is
+       an internal error, and a unit test checks that every call in `lib/` names one. A scope is
+       kept once per kind, so a later failure of a scope first left out by choice is not dropped.
+       `chosen`: options not given, `--exclude`, `--no-exec`, programs not chosen to run, not running
+       as root, network file systems (`--include-remote`) and other kinds of file systems below the
+       roots (`--roots`), what `--containers` only counts (stopped containers, images; requester's
+       decision, 2026-11-06: they were added in 10.24 after the issue was written, and counting them
+       would make every `--containers` run on a host with an image exit 2), not looking inside
+       containers without `--inspect-containers` or with `--no-exec`, and readelf not installed
+       (what it leaves undecided already is an UNKNOWN finding or a `failed` entry). `failed`: a
+       command that failed (dpkg-query for C01 and C02, `snap list`, `flatpak list`, `ss`, the
+       engine's `ps`, `ps -a` and `images`, the check script in a container, dpkg-query inside it),
+       a time limit, a file not read to its end, `--deep`'s files over the size limit (no option
+       takes them in), a link of another name not followed to its end, `grep` errors of `--deep`, a
+       container not looked inside although `--inspect-containers` asked (its connection is not
+       this host's).
+    2. **A missing program or place that was asked for is a failure** (requester's decision,
+       2026-11-06): no dpkg (not Debian/Ubuntu: no distribution package is judged, as when
+       dpkg-query fails), no ss with `--exposure`, neither docker nor podman with `--containers`,
+       and a root named with `--roots` that does not exist (a mistyped name must not pass as a
+       clean run; missing default roots are still dropped quietly). The accepted cost, written in
+       the README: automation that gives `--containers` to every host gets 2 from hosts without an
+       engine. `--envoy-config` follows the same rule: a name that does not exist or is not a
+       regular file is `failed`.
+    3. **Not root decides what this user could not read** (`bcc_denied_kind`). Other users' homes,
+       processes (C03), directories that `find` was refused (`Permission denied` only; any other
+       error is `failed`, so `bcc_find_each` counts `BCC_FIND_DENIED` apart), files `--deep` could
+       not read, an unreadable search root or `--envoy-config` file, and other users' sockets (C15)
+       are `chosen` when not running as root (the `root` entry says so) and `failed` as root. As
+       root, C03 no longer says "run as root" (`skip_proc_unreadable_root`).
+    4. **Exit status.** 2 when no finding gives 1 and there is a `failed` entry; 1 stays 1. The
+       summary's "Needs human review" still counts findings, so with a failed range it may be 0
+       while the exit status is 2; the JSON schema says so.
+    5. **Report.** The text has a section "Could not be scanned" (`[FAILED]` lines) before "Not
+       scanned" (`[SKIPPED]`), and the summary is five lines: "Could not be scanned: ..." ("none"
+       when there is nothing) comes before "Not scanned: ..." (requester's decision, 2026-11-06:
+       for the readers of `docs/for-clinics.ja.md`, asking the vendor and redoing the check are
+       different actions, so they are different lines). In Japanese the two are 走査できなかった範囲
+       and 走査しなかった範囲. JSON `skipped[]` entries carry `"kind": "chosen" | "failed"` (a new
+       field; nothing removed or renamed). The FIXED next step of 10.25.3 now names both: "other
+       lines, and the ranges not scanned or that could not be scanned, are separate". The help, the
+       README's exit status table, the JSON schema, `docs/for-clinics.ja.md`, Fig. 02 and the sample
+       output follow.
+    Rejected: counting every range not scanned (above); a third kind for what no run looks at
+    (stopped containers and images, files over the size limit): the exit status needs two, and
+    each falls by what it is for the run (the counts are all that `--containers` offers, while a
+    file over the limit is one the search was asked to cover and did not); taking every directory
+    `find` could not read as `chosen` when not root (an I/O error is not explained by that
+    choice); counting failed ranges into "Needs human review" (the count is of findings, and the
+    action differs); telling "permission denied" from "daemon not running" when `docker ps` fails
+    (the message differs between versions; either way the list asked for was not taken).

@@ -52,13 +52,33 @@ bcc_elf_resolve() {
 # UNKNOWN, saying what was found and what was not: strings without the fix's name, more than
 # one copy, no error names at all, or a file that could not be read to the end (also listed
 # as not scanned). Acts on BCC_J_* from bcc_judge, in the main shell.
-# Usage: bcc_crosscheck_fixed FILE
+# A FIXED that stands says what the strings showed and what they do not (docs/design.md 10.25),
+# as a LIKELY_FIXED line does: the reason is rebuilt from bcc_judge's (BCC_J_BASE) with every
+# file confirmed so far (BCC_J_CONFIRMED), so several files still give one sentence of each kind.
+# NAMED: the file is not the one on the finding's line (an extension module, a library), so the
+# reason names it.
+# Usage: bcc_crosscheck_fixed FILE [NAMED]
 bcc_crosscheck_fixed() {
-  local f=$1 res
+  local f=$1 named=${2:-} res files="" c
   [[ $BCC_J_STATUS == FIXED ]] || return 0
+  [[ -n ${BCC_J_BASE:-} ]] || BCC_J_BASE=$BCC_J_REASON
   res=$(bcc_brotli_heuristic "$f")
+  # (An empty entry: the file on the finding's line.)
+  if [[ ${res%%$'\t'*} == LIKELY_FIXED ]]; then
+    if [[ -n $named ]]; then BCC_J_CONFIRMED+=("$f"); else BCC_J_CONFIRMED+=(""); fi
+  fi
+  for c in ${BCC_J_CONFIRMED[@]+"${BCC_J_CONFIRMED[@]}"}; do [[ -z $c ]] || files+="${files:+, }$c"; done
+  BCC_J_REASON=$BCC_J_BASE
+  if [[ -n $files ]]; then
+    BCC_J_REASON+=" $(bcc_msg r_crosscheck_fixed "$files")"
+  elif ((${#BCC_J_CONFIRMED[@]})); then
+    BCC_J_REASON+=" $(bcc_msg r_crosscheck_fixed_self)"
+  fi
   case ${res%%$'\t'*} in
-    LIKELY_FIXED) return 0 ;;
+    LIKELY_FIXED)
+      BCC_J_REASON+=" $(bcc_msg r_fixed_unseen)"
+      return 0
+      ;;
     LIKELY_VULNERABLE) BCC_J_REASON=$(bcc_msg r_crosscheck_conflict "$BCC_J_REASON") ;;
     MULTIPLE_COPIES) BCC_J_REASON="$BCC_J_REASON $(bcc_msg r_heur_multiple)" ;;
     INCOMPLETE)

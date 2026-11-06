@@ -171,7 +171,7 @@ bcc_c09_lib_entry() {
     return 0
   fi
   series=${ver%.*}
-  bcc_judge brotli "$series" semver "$ver"
+  bcc_judge brotli "$series" semver "$ver" "$(bcc_msg b_filename)"
   # A file name saying "fixed" needs the strings to confirm it (bcc_crosscheck_fixed: one
   # copy, the fix's error name); an outright disagreement is reported as such below.
   [[ $BCC_J_STATUS == FIXED && $hstatus != LIKELY_VULNERABLE ]] && bcc_crosscheck_fixed "$f"

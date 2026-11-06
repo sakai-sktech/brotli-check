@@ -61,7 +61,7 @@ bcc_c06_entry() {
     bcc_c06_exposure "$site"
     return 0
   fi
-  bcc_judge "$comp" '*' pep440 "$ver"
+  bcc_judge "$comp" '*' pep440 "$ver" "$(bcc_msg b_metadata)"
   # The metadata's "fixed" is confirmed against this package's own extension module (another
   # package's module in the same site says nothing about this one). $site is taken literally:
   # a "[" or "*" in a path is part of a name, not a pattern.
@@ -71,7 +71,7 @@ bcc_c06_entry() {
   for ext in "$site"/$pattern; do
     [[ -f $ext ]] || continue
     exts+=("$ext")
-    bcc_crosscheck_fixed "$ext"
+    bcc_crosscheck_fixed "$ext" named
   done
   ((${#exts[@]})) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_ext "$ver" "$pattern")" "$(bcc_msg n_missing_file)"
   # C09 leaves this package's extension module to this finding.
@@ -125,7 +125,7 @@ bcc_c06_conda() {
   fi
   ver=${BASH_REMATCH[1]}
   series=${ver%.*}
-  bcc_judge brotli "$series" semver "$ver"
+  bcc_judge brotli "$series" semver "$ver" "$(bcc_msg b_conda)"
   # The record is a file name in the environment; its "fixed" is confirmed against the
   # library it describes (lib/libbrotlidec.so.*).
   local env lib
@@ -135,7 +135,7 @@ bcc_c06_conda() {
   for lib in "$env"/lib/libbrotlidec.so.*; do
     [[ -f $lib && ! -L $lib ]] || continue
     libs+=("$lib")
-    bcc_crosscheck_fixed "$lib"
+    bcc_crosscheck_fixed "$lib" named
     # C09 leaves to this finding the files compared here, and no others: a static archive or
     # a stray copy in the same lib/ says nothing to this record, nor it to them.
     BCC_C06_CONDA_FILES[$lib]=1

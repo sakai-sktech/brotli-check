@@ -24,7 +24,7 @@ bcc_check_c10() {
       continue
     fi
     series=$(cut -d. -f1-2 <<<"$ver")
-    bcc_judge envoy "$series" semver "$ver"
+    bcc_judge envoy "$series" semver "$ver" "$(bcc_msg b_exec "${bin##*/}")"
     next=$BCC_J_NEXT
     if [[ $BCC_J_STATUS == VULNERABLE ]]; then
       if [[ $BCC_J_FIXED == - ]]; then
@@ -200,12 +200,12 @@ bcc_check_c12() {
       case $name in
         node)
           series=${ver%%.*}
-          bcc_judge node "${series#v}" semver "$ver"
+          bcc_judge node "${series#v}" semver "$ver" "$(bcc_msg b_snap)"
           bcc_add_finding C12 "$BCC_J_STATUS" "snap:node" "/snap/node" "$ver" "$BCC_J_REASON" \
             "$([[ $BCC_J_STATUS == VULNERABLE ]] && bcc_msg n_snap_refresh node || printf '%s' "$BCC_J_NEXT")" "$BCC_J_EVIDENCE" ""
           ;;
         chromium | firefox)
-          bcc_browser_judge "$name" "$ver"
+          bcc_browser_judge "$name" "$ver" "$(bcc_msg b_snap)"
           bcc_add_finding C12 "$BCC_J_STATUS" "snap:$name" "/snap/$name" "$ver" "$BCC_J_REASON" \
             "$([[ $BCC_J_STATUS == VULNERABLE ]] && bcc_msg n_snap_refresh "$name" || printf '%s' "$BCC_J_NEXT")" "$BCC_J_EVIDENCE" ""
           ;;
@@ -231,8 +231,8 @@ bcc_check_c12() {
       inst=${BCC_F[2]:-}
       [[ -n $id ]] || continue
       case $id in
-        org.chromium.Chromium | com.google.Chrome) bcc_browser_judge chromium "$ver" ;;
-        org.mozilla.firefox) bcc_browser_judge firefox "$ver" ;;
+        org.chromium.Chromium | com.google.Chrome) bcc_browser_judge chromium "$ver" "$(bcc_msg b_flatpak)" ;;
+        org.mozilla.firefox) bcc_browser_judge firefox "$ver" "$(bcc_msg b_flatpak)" ;;
         *)
           dir=/var/lib/flatpak/app/$id/current/active/files
           [[ $inst == user ]] && dir=""
@@ -273,19 +273,19 @@ bcc_c12_runtime_lib() {
   fi
   ver=${BASH_REMATCH[1]}
   series=${ver%.*}
-  bcc_judge brotli "$series" semver "$ver"
+  bcc_judge brotli "$series" semver "$ver" "$(bcc_msg b_filename)"
   bcc_crosscheck_fixed "$f"
   bcc_add_finding C12 "$BCC_J_STATUS" "flatpak-runtime:$rt" "$f" "$ver" "$BCC_J_REASON" \
     "$(bcc_judge_advises_update && bcc_msg n_flatpak_update || printf '%s' "$BCC_J_NEXT")" "$BCC_J_EVIDENCE" ""
 }
 
-# bcc_browser_judge chromium|firefox VERSION  (sets BCC_J_*)
+# bcc_browser_judge chromium|firefox VERSION BASIS  (sets BCC_J_*; BASIS as for bcc_judge)
 # Firefox ESR is recognized by "esr" in the version string. Firefox Nightly and Beta
 # (150.0a1, 150.0b3, Debian's 150.0~b3) are pre-releases: 150.0a1 is not 150.0. Chromium
 # numbers its channels with plain four-part versions; a Debian-style "~" suffix
 # (148.0.7778.0~rc1) is a pre-release all the same.
 bcc_browser_judge() {
-  local kind=$1 raw=$2 ver major build rest
+  local kind=$1 raw=$2 basis=${3:-} ver major build rest
   ver=$(bcc_version_extract "$raw")
   if [[ -z $ver ]]; then
     BCC_J_STATUS=UNKNOWN
@@ -306,9 +306,9 @@ bcc_browser_judge() {
       fi
       rest=${raw#*"$ver"}
       if [[ $rest =~ ^~([0-9A-Za-z.]+) ]]; then
-        bcc_judge chromium '*' semver "$ver-${BASH_REMATCH[1]}"
+        bcc_judge chromium '*' semver "$ver-${BASH_REMATCH[1]}" "$basis"
       else
-        bcc_judge chromium '*' semver "$ver"
+        bcc_judge chromium '*' semver "$ver" "$basis"
       fi
       # 148 builds before branch 7778 predate the Brotli roll.
       build=$(cut -d. -f3 <<<"$ver")
@@ -324,9 +324,9 @@ bcc_browser_judge() {
         ver+="-${BASH_REMATCH[1]}"
       fi
       if [[ $raw == *esr* ]]; then
-        bcc_judge firefox-esr "$major" semver "$ver"
+        bcc_judge firefox-esr "$major" semver "$ver" "$basis"
       else
-        bcc_judge firefox '*' semver "$ver"
+        bcc_judge firefox '*' semver "$ver" "$basis"
       fi
       ;;
   esac
@@ -356,13 +356,13 @@ bcc_c13_candidates() {
 }
 
 bcc_check_c13() {
-  local i kind bin out ver owner ini method
+  local i kind bin out ver owner ini method basis
   bcc_c13_candidates
   for i in ${BCC_C13_CANDS[@]+"${!BCC_C13_CANDS[@]}"}; do
       bin=${BCC_C13_CANDS[i]}
       kind=${BCC_C13_KINDS[i]}
       BCC_JUDGED[$bin]=1
-      ver="" method=exec
+      ver="" method=exec owner=""
       if out=$(bcc_probe "$bin" --version); then
         if [[ $kind == chromium ]]; then
           ver=$(bcc_version_from_output "$out" 'Chrom[a-z]* ([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(~[0-9A-Za-z.]+)?)') || ver=""
@@ -386,12 +386,13 @@ bcc_check_c13() {
         bcc_report_by_strings C13 "${bin##*/}" "$bin" "" "$(bcc_msg r_version_unknown)"
         continue
       fi
-      bcc_browser_judge "$kind" "$ver"
+      basis=$(bcc_method_basis "$method" "$bin" "${owner%%,*}")
+      bcc_browser_judge "$kind" "$ver" "$basis"
       # application.ini is a file next to the browser: its version is confirmed against the
       # decoder (Firefox carries it in libxul.so).
       if [[ $method == ini ]]; then
         if [[ -f $(dirname -- "$bin")/libxul.so ]]; then
-          bcc_crosscheck_fixed "$(dirname -- "$bin")/libxul.so"
+          bcc_crosscheck_fixed "$(dirname -- "$bin")/libxul.so" named
         else
           bcc_crosscheck_fixed "$bin"
         fi

@@ -109,17 +109,36 @@ bcc_judge_advises_update() {
   [[ $BCC_J_STATUS == VULNERABLE ]] || ((BCC_J_OUT_OF_RANGE))
 }
 
-# bcc_judge COMPONENT SERIES KIND VERSION
+# bcc_method_basis METHOD PROGRAM [PACKAGE] - the BASIS for bcc_judge of a version read by
+# METHOD: exec (PROGRAM --version), header (node_version.h), path (the directory name), ini
+# (application.ini) or package (dpkg's record of PACKAGE).
+bcc_method_basis() {
+  case $1 in
+    exec) bcc_msg b_exec "${2##*/}" ;;
+    header) bcc_msg b_header ;;
+    path) bcc_msg b_dirname ;;
+    ini) bcc_msg b_ini ;;
+    package) bcc_msg b_dpkg "${3:-?}" ;;
+  esac
+}
+
+# bcc_judge COMPONENT SERIES KIND VERSION BASIS
 # Sets BCC_J_STATUS (FIXED | VULNERABLE | NO_FIX_AVAILABLE | UNKNOWN), BCC_J_REASON,
-# BCC_J_NEXT (empty: caller decides), BCC_J_EVIDENCE, BCC_J_FIXED, BCC_J_OUT_OF_RANGE.
+# BCC_J_NEXT (FIXED: nothing for this line; empty: caller decides), BCC_J_EVIDENCE, BCC_J_FIXED,
+# BCC_J_OUT_OF_RANGE. BASIS says where VERSION came from (a b_* message: the package, a
+# program's output, a file); a FIXED reason states it (docs/design.md 10.25). A version read
+# from a file is confirmed afterwards by bcc_crosscheck_fixed, which builds on BCC_J_BASE and
+# BCC_J_CONFIRMED.
 bcc_judge() {
-  local comp=$1 series=$2 kind=$3 ver=$4 rc=0 range
+  local comp=$1 series=$2 kind=$3 ver=$4 basis=${5:-} rc=0 range
   BCC_J_STATUS=UNKNOWN
   BCC_J_REASON=""
   BCC_J_NEXT=""
   BCC_J_EVIDENCE=""
   BCC_J_FIXED=""
   BCC_J_OUT_OF_RANGE=0
+  BCC_J_BASE=""
+  BCC_J_CONFIRMED=()
   if ! bcc_data_lookup "$comp" "$series"; then
     BCC_J_REASON=$(bcc_msg r_no_data "$comp" "${series:-?}")
     BCC_J_NEXT=$(bcc_msg n_check_vendor)
@@ -137,7 +156,13 @@ bcc_judge() {
         BCC_J_NEXT=$(bcc_msg n_prerelease "$BCC_D_FIXED")
       elif ((rc == 0)); then
         BCC_J_STATUS=FIXED
-        BCC_J_REASON=$(bcc_msg r_fixed_ge "$BCC_D_FIXED")
+        if [[ -n $basis ]]; then
+          BCC_J_REASON=$(bcc_msg r_fixed_ge_from "$BCC_D_FIXED" "$basis")
+        else
+          BCC_J_REASON=$(bcc_msg r_fixed_ge "$BCC_D_FIXED")
+        fi
+        # For this line only: other copies and the ranges not scanned are not covered by it.
+        BCC_J_NEXT=$(bcc_msg n_fixed)
       elif ((rc == 1)) && bcc_below_affected "$kind" "$ver"; then
         # Outside what the advisory states: it does not say this version is affected, nor that
         # it is not. Old either way, so an update is still the next step.

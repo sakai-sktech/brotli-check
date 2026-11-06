@@ -98,7 +98,7 @@ bcc_report_by_strings() {
   dicts=${BCC_F[3]:-0}
   case $status in
     LIKELY_FIXED)
-      bcc_add_finding "$id" LIKELY_FIXED "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_fixed "$dicts")" \
+      bcc_add_finding "$id" LIKELY_FIXED "$comp" "$path" "$ver" "$prefix $(bcc_msg r_heur_fixed "$dicts") $(bcc_msg r_fixed_unseen)" \
         "$(bcc_msg n_confirm_vendor)" "$(bcc_msg e_heur "$count" yes)" "$(bcc_msg conf_heur)"
       ;;
     LIKELY_VULNERABLE)
@@ -138,7 +138,7 @@ bcc_c04_candidates() {
 }
 
 bcc_check_c04() {
-  local bin owner link rc libpath method ver vm major pids next
+  local bin owner link rc libpath method ver vm major pids next basis
   bcc_c04_candidates
   bcc_scan_proc_exes node nodejs
   for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
@@ -175,7 +175,8 @@ bcc_check_c04() {
     ver=${BCC_F[0]}
     method=${BCC_F[1]}
     major=${ver%%.*}
-    bcc_judge node "$major" semver "$ver"
+    basis=$(bcc_method_basis "$method" "$bin")
+    bcc_judge node "$major" semver "$ver" "$basis"
     [[ $method == exec ]] || bcc_crosscheck_fixed "$bin"
     next=$BCC_J_NEXT
     if [[ $BCC_J_STATUS == VULNERABLE ]]; then
@@ -209,7 +210,7 @@ bcc_c05_candidates() {
 }
 
 bcc_check_c05() {
-  local bin out ver method pids next re='/([^/]+)/bin/bun$'
+  local bin out ver method pids next basis re='/([^/]+)/bin/bun$'
   bcc_c05_candidates
   bcc_scan_proc_exes bun
   for bin in ${BCC_C05_CANDS[@]+"${BCC_C05_CANDS[@]}"}; do
@@ -230,7 +231,8 @@ bcc_check_c05() {
       bcc_report_by_strings C05 bun "$bin" "" "$(bcc_msg r_version_unknown)"
       continue
     fi
-    bcc_judge bun '*' semver "$ver"
+    basis=$(bcc_method_basis "$method" "$bin")
+    bcc_judge bun '*' semver "$ver" "$basis"
     [[ $method == exec ]] || bcc_crosscheck_fixed "$bin"
     next=$BCC_J_NEXT
     if bcc_judge_advises_update; then

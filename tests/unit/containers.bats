@@ -92,7 +92,7 @@ EOS
   [[ $output == *"C14"$'\t'"Container web (img:1) was not inspected (see the connection of the engine above)."* ]]
   run skipped_text
   # Stopped containers and images are not looked inside on any connection (issue #8).
-  [ "$output" = "C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers"$'\n'"C14"$'\t'"inside of running containers: docker connects to ssh://admin@other-host, not to a unix socket on this host, so nothing was run inside them" ]
+  [ "$output" = "C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers"$'\t'"chosen"$'\n'"C14"$'\t'"inside of running containers: docker connects to ssh://admin@other-host, not to a unix socket on this host, so nothing was run inside them"$'\t'"failed" ]
   # The list is that host's, and nothing was run inside its containers.
   grep -q '^ssh://admin@other-host | --context default ps ' "$D/log"
   nothing_ran_inside ' exec ' "$D/log"
@@ -133,7 +133,7 @@ EOS
   grep -q '^unix:///var/run/docker.sock | --context default exec 0123abcd sh -c ' "$D/log"
   # The images are only counted, also when the containers were looked inside (issue #8).
   run skipped_text
-  [ "$output" = "C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers" ]
+  [ "$output" = "C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers"$'\t'"chosen" ]
 }
 
 @test "C14: DOCKER_HOST naming a unix socket is this host too" {
@@ -184,7 +184,7 @@ EOS
   [[ $output == *"Connection of docker: unix:///var/run/docker.sock (a unix socket on this host)."* ]]
   [[ $output == *"Container web (img:1) was not inspected (use --inspect-containers)."* ]]
   run skipped_text
-  [ "$output" = "C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers"$'\n'"C14"$'\t'"inside of running containers (use --inspect-containers)" ]
+  [ "$output" = "C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers"$'\t'"chosen"$'\n'"C14"$'\t'"inside of running containers (use --inspect-containers)"$'\t'"chosen" ]
 }
 
 @test "C14: without --inspect-containers, another host gives the connection as the reason" {
@@ -273,7 +273,7 @@ EOS
   run info_text
   [[ $output == *"C14"$'\t'"docker: 1 running containers, 2 stopped containers, 2 images."* ]]
   run skipped_text
-  [ "$output" = "C14 (stopped containers)"$'\t'"inside of stopped containers (2 counted): nothing is run or read inside them, with or without --inspect-containers"$'\n'"C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers" ]
+  [ "$output" = "C14 (stopped containers)"$'\t'"inside of stopped containers (2 counted): nothing is run or read inside them, with or without --inspect-containers"$'\t'"chosen"$'\n'"C14 (images)"$'\t'"inside of images (2 counted): images are not looked inside, with or without --inspect-containers"$'\t'"chosen" ]
   # Counted through the context that was checked; only the running one was looked inside.
   grep -q '^unix:///var/run/docker.sock | --context default ps -a --format {{.ID}}$' "$D/log"
   [ "$(grep -c ' exec ' "$D/log")" -eq 1 ]
@@ -373,4 +373,60 @@ EOS
   run skipped_text
   [[ $output == *"C14 (stopped containers)"$'\t'"止まっているコンテナの中（2 個。数えただけで、--inspect-containers でも中では何も実行せず何も読まない）"* ]]
   [[ $output == *"C14 (images)"$'\t'"イメージの中（2 個。数えただけで、--inspect-containers でもイメージの中は見ない）"* ]]
+}
+
+# --- kinds of what was not scanned (issue #10, docs/design.md 10.26) ---------------------------
+# Not looking inside is left out by choice when --inspect-containers was not given, and could not
+# be scanned when it was; what --containers only counts is its scope; a failed call is a failure.
+
+skipped_kinds() {
+  local f
+  for f in ${BCC_SKIPPED[@]+"${BCC_SKIPPED[@]}"}; do
+    bcc_split_tab "$f"
+    printf '%s|%s\n' "${BCC_F[2]}" "${BCC_F[0]}"
+  done
+}
+
+@test "#10 C14: no docker or podman, or an engine this user cannot use, could not be scanned" {
+  # shellcheck disable=SC2317  # a stand-in called by the code under test
+  bcc_have() { [[ $1 != docker && $1 != podman ]] && command -v -- "$1" >/dev/null 2>&1; }
+  bcc_check_c14
+  [ "$(skipped_kinds)" = "failed|C14" ]
+  [[ ${BCC_SKIPPED[*]} == *"neither docker nor podman is installed"* ]]
+  [ "$(bcc_exit_code)" -eq 2 ]
+  bcc_have() { command -v -- "$1" >/dev/null 2>&1; }
+  bcc_init_findings
+  : >"$D/ps-fails"
+  bcc_check_c14
+  [ "$(skipped_kinds)" = "failed|C14 docker" ]
+}
+
+@test "#10 C14: stopped containers and images counted are left out by choice; a count that failed could not be scanned" {
+  printf 'feed0001\n' >"$D/stopped"
+  bcc_check_c14
+  [ "$(skipped_kinds)" = "chosen|C14 (stopped containers)"$'\n'"chosen|C14 (images)" ]
+  [ "$(bcc_exit_code)" -eq 1 ]
+  bcc_init_findings
+  : >"$D/psa-fails"
+  : >"$D/images-fails"
+  BCC_INSPECT_CONTAINERS=0
+  bcc_check_c14
+  [ "$(skipped_kinds)" = "failed|C14 (stopped containers)"$'\n'"failed|C14 (images)"$'\n'"chosen|C14" ]
+}
+
+@test "#10 C14: another host: not looking inside could not be scanned only when --inspect-containers asked for it" {
+  DOCKER_HOST=ssh://admin@other-host bcc_check_c14
+  [[ $(skipped_kinds) == *"failed|C14" ]]
+  [ "$(bcc_exit_code)" -eq 2 ]
+  bcc_init_findings
+  BCC_INSPECT_CONTAINERS=0
+  DOCKER_HOST=ssh://admin@other-host bcc_check_c14
+  [ "$(skipped_kinds)" = "chosen|C14 (images)"$'\n'"chosen|C14" ]
+  [ "$(bcc_exit_code)" -eq 0 ]
+}
+
+@test "#10 C14: --inspect-containers with --no-exec is left out by choice" {
+  BCC_NO_EXEC=1
+  bcc_check_c14
+  [ "$(skipped_kinds)" = "chosen|C14 (images)"$'\n'"chosen|C14" ]
 }

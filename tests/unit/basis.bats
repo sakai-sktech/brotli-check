@@ -47,7 +47,7 @@ next_of() {
 
 FOUND_THIS='Found: the error name added by the fix (_ERROR_FORMAT_BLOCK_SWITCH) among the decoder strings of this file.'
 UNSEEN='Not determined: whether all decoder code in the file is fixed (the linker merges equal strings, so an unfixed copy sharing them would not show).'
-NEXT_FIXED='No update needed for this line (other lines and the ranges not scanned are separate).'
+NEXT_FIXED='No update needed for this line (other lines, and the ranges not scanned or that could not be scanned, are separate).'
 
 # --- the distribution's packages ------------------------------------------------------
 
@@ -69,7 +69,7 @@ NEXT_FIXED='No update needed for this line (other lines and the ranges not scann
   BCC_DEB_SERIES=ubuntu:noble
   bcc_check_c01
   [ "$(reason_of libbrotli1)" = "修正版 1.1.0-2ubuntu0.1 以上です（配布元パッケージの版）。" ]
-  [ "$(next_of libbrotli1)" = "この行については更新は不要（ほかの行と走査しなかった範囲は別）。 最近更新したなら、使っているサービスを再起動する（C03）。" ]
+  [ "$(next_of libbrotli1)" = "この行については更新は不要（ほかの行と、走査しなかった範囲・走査できなかった範囲は別）。 最近更新したなら、使っているサービスを再起動する（C03）。" ]
 }
 
 # --- a program's output ---------------------------------------------------------------
@@ -175,7 +175,7 @@ NEXT_FIXED='No update needed for this line (other lines and the ranges not scann
   BCC_C04_CANDS=("$T/home/u/.local/share/mise/installs/node/24.22.1/bin/node") BCC_C04_DONE=1
   PATH="$FAKEBIN:/usr/bin:/bin" bcc_check_c04
   [ "$(reason_of node)" = "修正版 24.22.1 以上です（版はディレクトリ名から）。 分かったこと: このファイルのデコーダーの文字列に、修正で追加されたエラー名（_ERROR_FORMAT_BLOCK_SWITCH）がある。 分からないこと: ファイルの中のデコーダーがすべて修正済みかどうか（同じ文字列はリンカーが 1 つにまとめるため、それを共有する未修正のコピーは見えない）。" ]
-  [ "$(next_of node)" = "この行については更新は不要（ほかの行と走査しなかった範囲は別）。" ]
+  [ "$(next_of node)" = "この行については更新は不要（ほかの行と、走査しなかった範囲・走査できなかった範囲は別）。" ]
 }
 
 @test "#9 C04: a version from node_version.h says it came from the header" {

@@ -567,6 +567,7 @@ EOF
   chmod +x "$FAKEBIN/docker"
   bcc_c14_inspect docker 0123abcd web img:1
   [[ ${BCC_SKIPPED[*]} == *"container web"$'\t'"the check script inside the container stopped before its end"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"findings for it may be missing"$'\t'"failed"* ]]
 }
 
 # --- Codex review, round 5 (2026-10-26) --------------------------------------------------
@@ -679,6 +680,7 @@ EOF
   BCC_ROOTS=("$T/srv")
   bcc_check_c09_deep
   [[ ${BCC_SKIPPED[*]} == *"C09 --deep (search)"$'\t'"some files could not be searched"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"bundled decoders in them may be missing"$'\t'"failed"* ]]
   cat >"$FAKEBIN/docker" <<'EOS'
 #!/bin/sh
 printf 'OS\tdebian\ttrixie\t\nPKGRC\t2\nEND\n'
@@ -686,6 +688,7 @@ EOS
   chmod +x "$FAKEBIN/docker"
   bcc_c14_inspect docker 0123abcd web img:1
   [[ ${BCC_SKIPPED[*]} == *"container web (dpkg)"$'\t'"dpkg-query failed inside the container (status 2)"* ]]
+  [[ ${BCC_SKIPPED[*]} == *"its packages were not judged"$'\t'"failed"* ]]
 }
 
 @test "round 5: a search root that is a symlink is walked at its target, and said so" {

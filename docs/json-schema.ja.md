@@ -19,10 +19,10 @@ UTF-8 の JSON オブジェクトを 1 行で出します。フィールドは�
 | `options` | 指定されたオプション。`no_exec` は `--no-exec`、`yes` は `--yes`（一覧のプログラムを尋ねずに実行した） |
 | `execution[]` | 版を読むために実行したいと挙げたプログラム（一覧の順）。`path`・`argument`・`check`、`ran`（実行したか）、実行したものは `exit_status` と `output`（4096 文字まで）、しなかったものは `not_run_because`（`not-chosen` か `no-exec`）、`facts`（尋ねる前に示した事実） |
 | `scanned_roots` | 探索した場所 |
-| `skipped[]` | **走査しなかった範囲**（`scope` と `reason`）。必ず出す |
+| `skipped[]` | **見ていない範囲**（`scope`・`reason`・`kind`）。必ず出す。`kind` は下表 |
 | `findings[]` | 所見。`id`（C01〜C15）、`status`、`component`、`path`、`version`、`reason`、`next_step`、`evidence`、`confidence` |
 | `info[]` | 所見ではない補足（件数や終了コードに影響しない） |
-| `summary` | `needs_update`（VULNERABLE＋LIKELY_VULNERABLE）、`needs_restart`（RESTART_REQUIRED）、`needs_review`（NO_FIX_AVAILABLE＋VENDORED_COPY＋UNKNOWN＋LIKELY_FIXED）、`by_status`（判定ごとの件数） |
+| `summary` | `needs_update`（VULNERABLE＋LIKELY_VULNERABLE）、`needs_restart`（RESTART_REQUIRED）、`needs_review`（NO_FIX_AVAILABLE＋VENDORED_COPY＋UNKNOWN＋LIKELY_FIXED。所見だけを数え、走査できなかった範囲は `skipped` にある）、`by_status`（判定ごとの件数） |
 | `exit_code` | 終了コード（下表） |
 | `disclaimer` | 侵入の有無は調べない旨 |
 
@@ -41,14 +41,28 @@ UTF-8 の JSON オブジェクトを 1 行で出します。フィールドは�
 | `UNKNOWN` | 判定できない。理由は `reason` |
 | `SKIPPED` | 予約。走査しなかった範囲は `skipped` に出す |
 
+## skipped
+
+見ていない範囲は 1 つずつ要素になります。`scope`（検出項目、パス、`root` などの名前）、`reason`、`kind`:
+
+| `kind` | 意味 | 終了コード |
+|---|---|---|
+| `chosen` | 実行のしかたで外れた。付けなかったオプション（付けたもの: `--exclude`・`--no-exec`）、実行に選ばなかったプログラム、root でないこと（とそのために読めなかったもの）、ネットワークファイルシステムと探す場所の下の別の種類のファイルシステム、オプションが数えるだけのもの（止まっているコンテナとイメージ）、readelf が無いこと（そのために決まらなかったものは `UNKNOWN` の所見か `failed` の要素になる）。テキストの結果では「走査しなかった範囲」、`[SKIPPED]` | 数えない |
+| `failed` | 見ようとしたのに見られなかった。コマンドの失敗、点検に要るプログラムが無い（dpkg、`--exposure` の ss、`--containers` の docker と podman）、時間切れ、最後まで読めなかったファイルや上限を超えるファイル、辿り切れなかったリンク、root でも読めなかったもの、`--roots`・`--envoy-config` で名指ししたのに無いもの、`--inspect-containers` を付けたのに中を見なかったコンテナ。テキストの結果では「走査できなかった範囲」、`[FAILED]` | `1` に当たるものが無ければ `2` |
+
+同じ `scope` は種類ごとに 1 つまでです。テキストの要約は種類ごとに 1 行で範囲を並べます（無いときは「走査できなかった範囲: なし」）。
+
 ## exit_code
 
 | 値 | 意味 |
 |---|---|
-| 0 | 走査した範囲に、1 と 2 に当たる判定が無い（安全の証明ではない） |
-| 1 | `VULNERABLE` または `RESTART_REQUIRED` がある |
-| 2 | 上記は無いが、`NO_FIX_AVAILABLE`・`VENDORED_COPY`・`LIKELY_*`・`UNKNOWN` がある |
+| 0 | 走査した範囲に 1 と 2 に当たる判定が無く、`kind` が `failed` の `skipped` も無い。`chosen` は数えないので、全部を見たという意味ではない（安全の証明でもない） |
+| 1 | `VULNERABLE` または `RESTART_REQUIRED` がある（`skipped` によらない） |
+| 2 | 上記は無いが、`NO_FIX_AVAILABLE`・`VENDORED_COPY`・`LIKELY_*`・`UNKNOWN` があるか、`kind` が `failed` の `skipped` がある（このとき `summary.needs_review` は 0 のこともある） |
 | 3 | ツール自体のエラー（不正なオプション、既知データを読めない、など） |
+
+自動化では `exit_code` とあわせて `skipped` と `options` を見てください。点検に要るプログラムが無いことは `failed` なので、
+docker も podman も無いホストに `--containers` を付ける（ss の無いホストに `--exposure` を付ける）と、毎回 2 になります。
 
 ## 注意
 

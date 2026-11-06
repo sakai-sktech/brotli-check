@@ -161,16 +161,17 @@ bcc_write_output() {
 }
 
 # Unreadable roots are reported. Missing default roots (/srv, /var/www) are normal and
-# dropped quietly; a missing root the user named is reported.
+# dropped quietly; a missing root the user named is reported as not scanned for failure: it
+# was asked for, and a mistyped name must not pass as a clean run (issue #10).
 bcc_check_roots() {
   local r
   local -a ok=()
   for r in ${BCC_ROOTS[@]+"${BCC_ROOTS[@]}"}; do
     if [[ ! -e $r ]]; then
-      [[ $BCC_ROOTS_RAW == "$BCC_DEFAULT_ROOTS" ]] || bcc_skip "$r" "$(bcc_msg skip_missing)"
+      [[ $BCC_ROOTS_RAW == "$BCC_DEFAULT_ROOTS" ]] || bcc_skip failed "$r" "$(bcc_msg skip_missing)"
       continue
     elif [[ ! -r $r || ! -x $r ]]; then
-      bcc_skip "$r" "$(bcc_msg skip_unreadable)"
+      bcc_skip "$(bcc_denied_kind)" "$r" "$(bcc_msg skip_unreadable)"
     else
       [[ -L $r ]] && bcc_add_info scan "$(bcc_msg i_root_symlink "$r" "$(bcc_realpath "$r")")"
       ok+=("$r")
@@ -226,20 +227,23 @@ bcc_load_data_source() {
   fi
 }
 
-# Ranges that were not scanned because an option was not given (or was given: --exclude).
+# Ranges that were not scanned because an option was not given (or was given: --exclude), or
+# because the tool does not run as root. Without readelf (optional), what could not be
+# followed is reported where it matters (UNKNOWN lines, or a failed range), so the entry
+# itself is not a failure.
 bcc_note_disabled() {
   local x
-  ((BCC_DEEP)) || bcc_skip "C09 --deep" "$(bcc_msg skip_opt_deep)"
-  ((BCC_PROJECTS)) || bcc_skip "C07 --projects" "$(bcc_msg skip_opt_projects)"
-  ((BCC_CONTAINERS)) || bcc_skip "C14 --containers" "$(bcc_msg skip_opt_containers)"
-  ((BCC_EXPOSURE)) || bcc_skip "C15 --exposure" "$(bcc_msg skip_opt_exposure)"
+  ((BCC_DEEP)) || bcc_skip chosen "C09 --deep" "$(bcc_msg skip_opt_deep)"
+  ((BCC_PROJECTS)) || bcc_skip chosen "C07 --projects" "$(bcc_msg skip_opt_projects)"
+  ((BCC_CONTAINERS)) || bcc_skip chosen "C14 --containers" "$(bcc_msg skip_opt_containers)"
+  ((BCC_EXPOSURE)) || bcc_skip chosen "C15 --exposure" "$(bcc_msg skip_opt_exposure)"
   for x in ${BCC_EXCLUDES[@]+"${BCC_EXCLUDES[@]}"}; do
-    bcc_skip "$x" "$(bcc_msg skip_excluded)"
+    bcc_skip chosen "$x" "$(bcc_msg skip_excluded)"
   done
   if ((!BCC_IS_ROOT)); then
-    bcc_skip "root" "$(bcc_msg skip_not_root)"
+    bcc_skip chosen "root" "$(bcc_msg skip_not_root)"
   fi
-  bcc_have readelf || bcc_skip "binutils" "$(bcc_msg skip_no_binutils)"
+  bcc_have readelf || bcc_skip chosen "binutils" "$(bcc_msg skip_no_binutils)"
   return 0
 }
 

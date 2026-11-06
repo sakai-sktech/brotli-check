@@ -48,8 +48,11 @@ removed or renamed field changes the major part of `tool_version`.
       "facts": ["/home/alice/.bun/bin/bun belongs to alice"] }
   ],
 
-  "skipped": [                          // ranges NOT scanned, always listed
-    { "scope": "C09 --deep", "reason": "generic search of ELF files ... (use --deep)" }
+  "skipped": [                          // ranges NOT scanned, always listed; see "skipped" below
+    { "scope": "C09 --deep", "reason": "generic search of ELF files ... (use --deep)",
+      "kind": "chosen" },               // left out by how the tool was run: not in exit_code
+    { "scope": "C01", "reason": "dpkg-query failed (status 2): ...",
+      "kind": "failed" }                // could not be scanned: exit_code 2 unless 1
   ],
 
   "findings": [
@@ -74,6 +77,7 @@ removed or renamed field changes the major part of `tool_version`.
     "needs_update": 1,                  // VULNERABLE + LIKELY_VULNERABLE
     "needs_restart": 0,                 // RESTART_REQUIRED
     "needs_review": 2,                  // NO_FIX_AVAILABLE + VENDORED_COPY + UNKNOWN + LIKELY_FIXED
+                                        // (findings only: a failed range is in "skipped")
     "by_status": { "VULNERABLE": 1, "FIXED": 3, "...": 0 }
   },
 
@@ -97,14 +101,31 @@ removed or renamed field changes the major part of `tool_version`.
 | `UNKNOWN` | Could not be judged; `reason` says why |
 | `SKIPPED` | Reserved; not-scanned ranges are reported in `skipped` |
 
+## skipped
+
+Every range not scanned is one entry: `scope` (a check, a path, or a name such as `root`),
+`reason`, and `kind`:
+
+| `kind` | Meaning | In `exit_code` |
+|---|---|---|
+| `chosen` | Left out by how the tool was run: an option not given (or given: `--exclude`, `--no-exec`), programs not chosen to run, not running as root (and what this user therefore could not read), network file systems and other kinds of file systems below the roots, what an option only counts (stopped containers, images), readelf not installed (what it leaves undecided is an `UNKNOWN` finding or a `failed` entry). Text report: "Not scanned", `[SKIPPED]` | Not counted |
+| `failed` | The run set out to look at it and could not: a command failed, or a program the check needs is missing (dpkg, ss for `--exposure`, docker and podman for `--containers`); a time limit; a file not read to the end or over the size limit; a link not followed to the end; what root could not read; a place named with `--roots` or `--envoy-config` that is not there; a container not looked inside although `--inspect-containers` asked for it. Text report: "Could not be scanned", `[FAILED]` | `2`, unless something gives `1` |
+
+A scope appears at most once for each kind. The text summary lists the scopes of each kind on a
+line of its own ("Could not be scanned: none" when there is none).
+
 ## exit_code
 
 | Value | Meaning |
 |---|---|
-| 0 | None of the statuses for 1 or 2 in the scanned ranges (not proof of safety) |
-| 1 | `VULNERABLE` or `RESTART_REQUIRED` present |
-| 2 | None of the above, but `NO_FIX_AVAILABLE`, `VENDORED_COPY`, `LIKELY_*` or `UNKNOWN` present |
+| 0 | None of the statuses for 1 or 2 in the scanned ranges, and no `skipped` entry of kind `failed`. Entries of kind `chosen` are not counted: 0 does not mean everything was looked at (not proof of safety) |
+| 1 | `VULNERABLE` or `RESTART_REQUIRED` present (whatever `skipped` holds) |
+| 2 | None of the above, but `NO_FIX_AVAILABLE`, `VENDORED_COPY`, `LIKELY_*` or `UNKNOWN` present, or a `skipped` entry of kind `failed` (then `summary.needs_review` may be 0) |
 | 3 | Error of the tool itself (bad option, unreadable data file, ...) |
+
+For automation, read `skipped` and `options` along with `exit_code`. A program the check needs
+that is missing is `failed`, so giving `--containers` to a host with neither docker nor podman
+(or `--exposure` to one without ss) gives 2 every time.
 
 ## Notes
 

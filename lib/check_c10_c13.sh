@@ -37,8 +37,14 @@ bcc_check_c10() {
   done
   bcc_report_other_names C10
   if [[ -n $BCC_ENVOY_CONFIG ]]; then
-    if [[ ! -f $BCC_ENVOY_CONFIG || ! -r $BCC_ENVOY_CONFIG ]]; then
-      bcc_skip "$BCC_ENVOY_CONFIG" "$(bcc_msg skip_unreadable)"
+    # Named on the command line: a name that is not a file is a failure (a mistyped name must
+    # not pass as a clean run); a file this user may not read, the choice of not being root.
+    if [[ ! -e $BCC_ENVOY_CONFIG ]]; then
+      bcc_skip failed "$BCC_ENVOY_CONFIG" "$(bcc_msg skip_missing)"
+    elif [[ ! -f $BCC_ENVOY_CONFIG ]]; then
+      bcc_skip failed "$BCC_ENVOY_CONFIG" "$(bcc_msg skip_not_file)"
+    elif [[ ! -r $BCC_ENVOY_CONFIG ]]; then
+      bcc_skip "$(bcc_denied_kind)" "$BCC_ENVOY_CONFIG" "$(bcc_msg skip_unreadable)"
     else
       local conf rc=0 size
       conf=$(bcc_read_file "$BCC_ENVOY_CONFIG" 67108864) || rc=$?
@@ -47,7 +53,7 @@ bcc_check_c10() {
         bcc_add_finding C10 EXPOSURE envoy-config "$BCC_ENVOY_CONFIG" "" "$(bcc_msg r_c10_config_br)" "$(bcc_msg n_exposure_hint)" "" ""
       elif ((rc != 0)) || [[ ! $size =~ ^[0-9]+$ ]] || ((size > 67108864)); then
         # Not found in what was read, but not all of it was read: no claim of absence.
-        bcc_skip "$BCC_ENVOY_CONFIG" "$(bcc_msg skip_incomplete 64)"
+        bcc_skip failed "$BCC_ENVOY_CONFIG" "$(bcc_msg skip_incomplete 64)"
       else
         bcc_add_info C10 "$(bcc_msg i_c10_config_none "$BCC_ENVOY_CONFIG")"
       fi
@@ -193,7 +199,7 @@ bcc_check_c12() {
     rc=0
     out=$(bcc_sys snap list) || rc=$?
     # (With no snaps installed, snap list says so on stderr and exits 0.)
-    ((rc == 0)) || bcc_skip "C12 snap" "$(bcc_msg skip_cmd_failed "snap list" "$rc")"
+    ((rc == 0)) || bcc_skip failed "C12 snap" "$(bcc_msg skip_cmd_failed "snap list" "$rc")"
     while IFS= read -r line; do
       read -r name ver rest <<<"$line"
       [[ -n $name && $name != Name ]] || continue
@@ -222,7 +228,7 @@ bcc_check_c12() {
     local id dir inst
     rc=0
     out=$(bcc_sys flatpak list --app --columns=application,version,installation) || rc=$?
-    ((rc == 0)) || bcc_skip "C12 flatpak" "$(bcc_msg skip_cmd_failed "flatpak list" "$rc")"
+    ((rc == 0)) || bcc_skip failed "C12 flatpak" "$(bcc_msg skip_cmd_failed "flatpak list" "$rc")"
     while IFS= read -r line; do
       [[ -n $line ]] || continue
       bcc_split_tab "$line"

@@ -27,8 +27,8 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   is looked for, so a Go program with a C Brotli through another binding, stripped, is not seen.
   A static curl that was not run is `UNKNOWN` for the same reason.
 - **Files `--deep` does not open.** It reads the files under the search roots that are executable
-  or named `*.so`, `*.so.*` or `*.node`, are ELF and are below 512 MiB (larger ones are listed
-  under "Not scanned"). It is not a search of the whole disk: a decoder in a file of another name
+  or named `*.so`, `*.so.*` or `*.node`, are ELF and are below 512 MiB (larger ones, which no option takes in, are listed
+  under "Could not be scanned"). It is not a search of the whole disk: a decoder in a file of another name
   without the executable bit is not seen.
 - **Network file systems** (NFS, CIFS, sshfs, ...) unless `--include-remote`.
 - **Search roots that are symbolic links** are searched at their targets (the report says so);
@@ -55,7 +55,7 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   strings (see "The string heuristic" below). A runtime installed under another name is therefore
   judged without its version, and may be `VENDORED_COPY`. A file with neither is named under
   information, and one that could not be read to its end, or whose libraries could not be followed,
-  under "Not scanned". A script of any name is not looked at.
+  under "Could not be scanned". A script of any name is not looked at.
 - **`glibc-hwcaps` directories in a RUNPATH or RPATH.** They are tried in name order, where glibc
   prefers the highest level the CPU supports. With copies at several levels, the one judged and
   described may not be the one that loads ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).
@@ -73,7 +73,9 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
 ## Without root
 
 Other users' processes (C03, C04 restart checks, C15 socket owners), `/root` and unreadable
-home directories are not visible. The report lists them under "Not scanned".
+home directories are not visible. The report lists them under "Not scanned" (not running as root
+was the choice, so they are not counted in the exit status; what root could not read either is
+listed under "Could not be scanned", with exit status 2).
 
 ## The string heuristic (LIKELY_FIXED / LIKELY_VULNERABLE)
 
@@ -103,7 +105,7 @@ more. Two decoders that share one dictionary, or a copy built with an external d
 not told apart; that is why a `LIKELY_FIXED` line says what was found (the fix's error name, the
 number of dictionaries) and what was not determined (whether all decoder code in the file is
 fixed). Files are read up to the size limit (512 MiB); a file that could not be read to the end
-is `UNKNOWN` and is listed under "Not scanned".
+is `UNKNOWN` and is listed under "Could not be scanned".
 
 A version read from a file rather than from the program (a directory name, `node_version.h`,
 package metadata, a library's file name) gives `FIXED` only when the file's strings confirm the

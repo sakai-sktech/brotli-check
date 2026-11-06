@@ -29,7 +29,8 @@ next step: it inventories one host.
   that updating the OS does **not** fix (Node.js, Bun, PyPI `Brotli` / `brotlicffi`, conda,
   Envoy, browsers, snap/flatpak apps, `libbrotlidec` files outside the package manager, ...);
 - which processes keep using deleted old files after an update;
-- what it could not judge, and why; and what it did not look at (always listed as "Not scanned").
+- what it could not judge, and why; what it did not look at, and what it set out to look at but
+  could not (always listed, as "Not scanned" and "Could not be scanned").
 
 **It does not tell you (and does not judge)**
 
@@ -123,7 +124,7 @@ bash brotli-cve-check --no-exec
 With `--no-exec`, programs it finds (node and the like) are not started to read their versions;
 versions come from files (package records, headers, paths, strings). The system tools it checks
 with (dpkg-query, readelf, ...) do run. When it is done, look at the summary at the end and at
-"Not scanned" (see "[Reading the result](#reading-the-result)"). `--lang ja` gives Japanese output.
+"Could not be scanned" and "Not scanned" (see "[Reading the result](#reading-the-result)"). `--lang ja` gives Japanese output.
 
 ### Then, if needed, look further
 
@@ -184,7 +185,8 @@ docker or podman connects is shown in the report).
 ## Reading the result
 
 First comes "Programs run to read their versions" (what ran, what it printed, what did not
-run), then the findings per check, information, "Not scanned", and the summary at the end.
+run), then the findings per check, information, "Could not be scanned", "Not scanned", and the
+summary at the end.
 Each finding is one line:
 
 ```
@@ -201,17 +203,34 @@ Each finding is one line:
 | `UNKNOWN` | Could not be judged. A version at or above the fix ends up here too when a file could not confirm it, and so does a version before the affected range an advisory states, because the advisory does not say whether it is affected. The reason is always given | Read the reason. For a version before the range: update it (the line says to what) |
 | `EXPOSURE` | A hint of a path by which attacker data could reach a decoder (a related package, an entry in a configuration file, a listening socket). The reason says what was seen (the package is installed, the file has the entry, the process listens) and what was not (whether an application uses it, whether the running program uses that file, whether it can be reached from outside). Not a vulnerability by itself. No `EXPOSURE` is not proof that there is no path: a response the host fetches and decodes does not show as a listening socket | Prioritize the updates it points to |
 | `NOT_APPLICABLE` | The file has no decoder markers and does not load libbrotlidec, and one of these backs that up: a distribution package whose sources were read (nginx, Apache, HAProxy; told by name, maintainer and version form, with the file as installed), a Go program whose build info does not name cbrotli (other cgo bindings are not looked for), or a curl whose `curl -V` lists no brotli. Not proof that there is no decoder; the reason says what it rests on. Any other package or a build of your own that merely shows no markers is `UNKNOWN` | None for that file |
-| `FIXED` | The version obtained meets the fixed-version condition of the advisory data. The reason says where the version came from: a package's record, a program's output, or a file (see "[What a verdict rests on](#what-a-verdict-rests-on)"). A version read from a file counts only when the decoder's strings confirm the fix too; the reason then also says what was found and what was not | No update needed for this line. Other lines and the ranges not scanned are separate (the line says so too) |
+| `FIXED` | The version obtained meets the fixed-version condition of the advisory data. The reason says where the version came from: a package's record, a program's output, or a file (see "[What a verdict rests on](#what-a-verdict-rests-on)"). A version read from a file counts only when the decoder's strings confirm the fix too; the reason then also says what was found and what was not | No update needed for this line. Other lines, and the ranges not scanned or that could not be scanned, are separate (the line says so too) |
 
-The summary at the end is four lines for non-specialists and the intrusion disclaimer:
+The summary at the end is five lines for non-specialists and the intrusion disclaimer:
 
 ```
 Needs update: 2
 Needs restart: 0
 Needs human review: 0
+Could not be scanned: none
 Not scanned: C09 --deep, C07 --projects, C14 --containers, C15 --exposure
 This tool does not check for intrusion. Updating to a fixed version does not remove traces of an intrusion that happened before the update.
 ```
+
+What was not looked at comes in two lists:
+
+- **Could not be scanned** (`[FAILED]` lines): what the run set out to look at but could not. A
+  command that failed (dpkg-query, snap, flatpak, ss, docker, ...); a program the check needs that
+  is missing (no dpkg, meaning not Debian/Ubuntu; no ss for `--exposure`; neither docker nor podman
+  for `--containers`); a time limit; a file not read to the end, or over the size limit (512 MiB);
+  a link not followed to the end; what root could not read; a place named with `--roots` or
+  `--envoy-config` that is not there; a container not looked inside although
+  `--inspect-containers` asked for it. "none" when there is nothing.
+- **Not scanned** (`[SKIPPED]` lines): what how the tool was run left out. Options not given,
+  `--exclude`, `--no-exec` and programs not chosen, not running as root (and the other users'
+  processes, homes, directories, files and sockets that this user therefore could not read),
+  network file systems and file systems of other kinds below the search roots, what is only
+  counted (stopped containers, images), and binutils not being installed (what it leaves
+  undecided is an `UNKNOWN` line or under "Could not be scanned").
 
 Run with no options, `--deep`, `--projects`, `--containers` and `--exposure` are always under
 "Not scanned". That line stays even when there are no findings.
@@ -220,13 +239,20 @@ Exit status:
 
 | Value | Meaning |
 |---|---|
-| `0` | No finding for `1` or `2`. Ranges not scanned are not counted: it does not mean everything was looked at, and it is not proof of safety |
-| `1` | `VULNERABLE` or `RESTART_REQUIRED` present |
-| `2` | None of the above, but something needs human review (`NO_FIX_AVAILABLE`, `VENDORED_COPY`, `LIKELY_*`, `UNKNOWN`) |
+| `0` | Nothing for `1` or `2`. Ranges not scanned (left out by how the tool was run) are not counted: it does not mean everything was looked at, and it is not proof of safety |
+| `1` | `VULNERABLE` or `RESTART_REQUIRED` present (also when a range could not be scanned) |
+| `2` | None of the above, but something needs human review (`NO_FIX_AVAILABLE`, `VENDORED_COPY`, `LIKELY_*`, `UNKNOWN`), or a range could not be scanned |
 | `3` | Error of the tool itself (bad option, unreadable data file, ...) |
 
-For automation, read not only the exit status but also `skipped` (not scanned) and `options`
-(the options given) in the JSON ([docs/json-schema.md](docs/json-schema.md)).
+For automation, read not only the exit status but also `skipped` (what could not be scanned and
+what was not scanned; `kind` is `failed` or `chosen`) and `options` (the options given) in the
+JSON ([docs/json-schema.md](docs/json-schema.md)). A `0` includes not having looked at what was
+left out by choice.
+
+A program the check needs that is missing counts as a range that could not be scanned. So
+automation that gives `--containers` to every host, also to hosts with neither docker nor podman,
+gets `2` from those hosts every time (and so does `--exposure` where ss is missing). Leave the
+option out for such hosts.
 
 ## How far it looks
 
@@ -289,7 +315,7 @@ are that host's. They come with the connection: check it when you read them.
 The check script runs inside containers (`--inspect-containers`) only when the connection is a
 unix socket on this host (`unix://`), or when podman runs on this host itself, with no service in
 between. Otherwise nothing runs inside them, and the connection and the reason are listed under
-"Not scanned". `tcp://localhost` is not looked inside either, since an ssh tunnel behind it may
+"Could not be scanned" (under "Not scanned" when `--inspect-containers` was not given). `tcp://localhost` is not looked inside either, since an ssh tunnel behind it may
 lead to another host; nor is podman as a client of a service (`CONTAINER_HOST` and the like),
 since podman does not state the service's address. A socket of another host brought to a unix
 socket on this host (with ssh, for example) cannot be told from this host's own. Docker
@@ -349,8 +375,8 @@ was not.
 3. Plan and carry out the updates, service restarts and container rebuilds. OS packages are
    fixed by apt; bundled copies stay until each product is updated, and containers until their
    images are rebuilt and replaced.
-4. Check again over the same ranges, and see that no update, `UNKNOWN`, heuristic line or
-   "Not scanned" range is left.
+4. Check again over the same ranges, and see that no update, `UNKNOWN`, heuristic line, or range
+   under "Could not be scanned" or "Not scanned" is left.
 
 Check for intrusion separately; this tool does not.
 
@@ -377,7 +403,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- The exit status is `0` even when part of the check could not be done, for example when dpkg-query fails ([#10](https://github.com/sakai-sktech/brotli-check/issues/10))
 - A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it
 - Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))
 

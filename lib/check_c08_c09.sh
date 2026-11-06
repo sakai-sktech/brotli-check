@@ -134,9 +134,9 @@ bcc_report_other_names() {
       BCC_JUDGED[$real]=1
       bcc_report_by_strings "$id" "$comp" "$real" "" "$(bcc_msg r_other_name "$found")"
     elif [[ ${BCC_F[6]} != complete ]]; then
-      bcc_skip "$found" "$(bcc_msg skip_other_name_incomplete "$real" "$BCC_MAX_ELF_MB")"
+      bcc_skip failed "$found" "$(bcc_msg skip_other_name_incomplete "$real" "$BCC_MAX_ELF_MB")"
     elif ((rc != 1)); then
-      bcc_skip "$found" "$(bcc_msg skip_other_name_links "$real")"
+      bcc_skip failed "$found" "$(bcc_msg skip_other_name_links "$real")"
     else
       bcc_add_info "$id" "$(bcc_msg i_other_name "$found" "$real" "${found##*/}")"
     fi
@@ -246,8 +246,9 @@ bcc_check_c09_deep() {
     -type f \( -perm -u=x -o -name '*.so' -o -name '*.so.*' -o -name '*.node' \) \
     \( -size "-$((BCC_MAX_ELF_MB * 1024))k" -o \( -printf '__BCC_BIG=%p\0' -false \) \)
   bcc_find_status $? "C09 --deep"
-  ((BCC_C09_BIG == 0)) || bcc_skip "C09 --deep (size)" "$(bcc_msg skip_c09_big "$BCC_C09_BIG" "$BCC_MAX_ELF_MB" "$BCC_C09_BIG_EXAMPLE")"
-  ((BCC_C09_UNREADABLE == 0)) || bcc_skip "C09 --deep (unreadable)" "$(bcc_msg skip_c09_unreadable "$BCC_C09_UNREADABLE")"
+  # No option takes a file over the size limit in: a person has to look at it (failed).
+  ((BCC_C09_BIG == 0)) || bcc_skip failed "C09 --deep (size)" "$(bcc_msg skip_c09_big "$BCC_C09_BIG" "$BCC_MAX_ELF_MB" "$BCC_C09_BIG_EXAMPLE")"
+  ((BCC_C09_UNREADABLE == 0)) || bcc_skip "$(bcc_denied_kind)" "C09 --deep (unreadable)" "$(bcc_msg skip_c09_unreadable "$BCC_C09_UNREADABLE")"
   ((${#BCC_C09_FILES[@]})) || return 0
   local f needed rc=0 errs=0
   while IFS= read -r -d '' f; do
@@ -288,9 +289,9 @@ bcc_check_c09_deep() {
     printf '__BCC_GREP_RC=%d\0' "$?"
   )
   if ((rc == 124 || rc == 137)); then
-    bcc_skip "C09 --deep (search)" "$(bcc_msg skip_timeout "$BCC_TIMEOUT")"
+    bcc_skip failed "C09 --deep (search)" "$(bcc_msg skip_timeout "$BCC_TIMEOUT")"
   elif ((rc != 0 || errs > 0)); then
-    bcc_skip "C09 --deep (search)" "$(bcc_msg skip_c09_grep_errors)"
+    bcc_skip failed "C09 --deep (search)" "$(bcc_msg skip_c09_grep_errors)"
   fi
   return 0
 }

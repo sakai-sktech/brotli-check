@@ -53,9 +53,13 @@ Output
   --lang ja|en            language (default en)
   --version, --help
 
-Exit status: 0 nothing needing action in the scanned ranges (not proof of safety),
+Exit status: 0 nothing needing action in the scanned ranges, and nothing that could not be
+scanned (ranges left out by the options, by --exclude or by not running as root are not
+counted: 0 does not mean everything was looked at, and is not proof of safety),
 1 VULNERABLE or RESTART_REQUIRED, 2 needs review (NO_FIX_AVAILABLE, VENDORED_COPY,
-LIKELY_*, UNKNOWN), 3 error of the tool itself.
+LIKELY_*, UNKNOWN) or a range could not be scanned (a command failed or is missing, a time
+limit, a file too large, ...), 3 error of the tool itself.
+For automation, read "skipped" (with its "kind") and "options" in --json too.
 This tool does not check for intrusion.
 '
 BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダー）のローカル点検
@@ -94,9 +98,12 @@ BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダ�
   --lang ja|en            言語（既定 en）
   --version, --help
 
-終了コード: 0 走査した範囲で対応が必要なものは無い（安全の証明ではない）、
-1 VULNERABLE または RESTART_REQUIRED がある、2 人の確認が必要（NO_FIX_AVAILABLE・
-VENDORED_COPY・LIKELY_*・UNKNOWN）、3 ツール自体のエラー。
+終了コード: 0 走査した範囲で対応が必要なものは無く、走査できなかった範囲も無い
+（オプション・--exclude・root でないことで外した範囲は数えない。全部を見たという意味
+ではなく、安全の証明でもない）、1 VULNERABLE または RESTART_REQUIRED がある、
+2 人の確認が必要（NO_FIX_AVAILABLE・VENDORED_COPY・LIKELY_*・UNKNOWN）か、
+走査できなかった範囲がある（コマンドの失敗や不在、時間切れ、大きすぎるファイルなど）、
+3 ツール自体のエラー。自動化では --json の skipped（kind も）と options もあわせて見る。
 このツールは侵入の有無を調べません。
 '
 
@@ -152,6 +159,8 @@ BCC_MSG_EN[title_exec]='Programs run to read their versions'
 BCC_MSG_JA[title_exec]='版を読むために実行したプログラム'
 BCC_MSG_EN[title_info]='Information'
 BCC_MSG_JA[title_info]='情報'
+BCC_MSG_EN[title_failed]='Could not be scanned'
+BCC_MSG_JA[title_failed]='走査できなかった範囲'
 BCC_MSG_EN[title_skipped]='Not scanned'
 BCC_MSG_JA[title_skipped]='走査しなかった範囲'
 BCC_MSG_EN[title_summary]='Summary'
@@ -164,6 +173,10 @@ BCC_MSG_EN[s_restart]='Needs restart: %s'
 BCC_MSG_JA[s_restart]='再起動が必要なもの: %s 件'
 BCC_MSG_EN[s_review]='Needs human review: %s'
 BCC_MSG_JA[s_review]='人の確認が必要なもの: %s 件'
+BCC_MSG_EN[s_failed]='Could not be scanned: %s'
+BCC_MSG_JA[s_failed]='走査できなかった範囲: %s'
+BCC_MSG_EN[s_failed_none]='none'
+BCC_MSG_JA[s_failed_none]='なし'
 BCC_MSG_EN[s_skipped]='Not scanned: %s'
 BCC_MSG_JA[s_skipped]='走査しなかった範囲: %s'
 BCC_MSG_EN[s_skipped_none]='(none listed)'
@@ -342,8 +355,8 @@ BCC_MSG_JA[r_c15_listen]='ループバック以外のアドレスで待ち受け
 # --- next steps ---------------------------------------------------------------
 BCC_MSG_EN[n_update_pkg]='Update the package (apt-get install --only-upgrade %s) to %s or later, then restart the services that use it (C03).'
 BCC_MSG_JA[n_update_pkg]='apt-get install --only-upgrade %s で %s 以上に更新し、使っているサービスを再起動する（C03）。'
-BCC_MSG_EN[n_fixed]='No update needed for this line (other lines and the ranges not scanned are separate).'
-BCC_MSG_JA[n_fixed]='この行については更新は不要（ほかの行と走査しなかった範囲は別）。'
+BCC_MSG_EN[n_fixed]='No update needed for this line (other lines, and the ranges not scanned or that could not be scanned, are separate).'
+BCC_MSG_JA[n_fixed]='この行については更新は不要（ほかの行と、走査しなかった範囲・走査できなかった範囲は別）。'
 BCC_MSG_EN[n_restart_after_update]='If it was updated recently, restart the services that use it (C03).'
 BCC_MSG_JA[n_restart_after_update]='最近更新したなら、使っているサービスを再起動する（C03）。'
 BCC_MSG_EN[n_restart]='Restart this process or its service.'
@@ -480,12 +493,16 @@ BCC_MSG_EN[skip_timeout]='timed out after %s seconds (use --timeout)'
 BCC_MSG_JA[skip_timeout]='%s 秒で打ち切り（--timeout で延長）'
 BCC_MSG_EN[skip_proc_unreadable]='processes that could not be read: %s (other users; run as root)'
 BCC_MSG_JA[skip_proc_unreadable]='%s 個のプロセスを読めなかった（他ユーザーのもの。root で実行すると対象になる）'
+BCC_MSG_EN[skip_proc_unreadable_root]='processes that could not be read even as root: %s'
+BCC_MSG_JA[skip_proc_unreadable_root]='%s 個のプロセスを root でも読めなかった'
 BCC_MSG_EN[skip_no_dpkg]='dpkg is not available (not Debian/Ubuntu)'
 BCC_MSG_JA[skip_no_dpkg]='dpkg が無い（Debian/Ubuntu ではない）'
 BCC_MSG_EN[skip_missing]='does not exist'
 BCC_MSG_JA[skip_missing]='存在しない'
 BCC_MSG_EN[skip_unreadable]='not readable'
 BCC_MSG_JA[skip_unreadable]='読めない'
+BCC_MSG_EN[skip_not_file]='not a regular file'
+BCC_MSG_JA[skip_not_file]='通常のファイルではない'
 BCC_MSG_EN[skip_no_engine]='neither docker nor podman is installed'
 BCC_MSG_JA[skip_no_engine]='docker も podman も入っていない'
 BCC_MSG_EN[skip_engine_denied]='%s cannot be used by this user (permission or daemon not running)'

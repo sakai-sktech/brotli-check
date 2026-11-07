@@ -7,7 +7,8 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
 ## Copies the tool can miss
 
 - **Outside the search roots.** By default `/opt, /usr/local, /srv, /var/www, /home, /root`
-  plus the system Python and library directories. Use `--roots` for other places.
+  plus the system Python and library directories and .NET's `/usr/share/dotnet`. Use `--roots`
+  for other places.
 - **Inside archives and images that are not running**: `.asar`, `.jar`, `.zip`, AppImage and
   squashfs files, container images without a running container, VM disks, backups.
 - **Inside stopped containers and container images.** `--containers` counts them and lists the
@@ -40,12 +41,30 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
 - **Other implementations.** Go (`andybalholm/brotli`), Rust (`brotli-decompressor`) and Java
   decoders are separate code bases and are not checked; whether they are affected by this CVE is
   not covered here.
-- **.NET.** The .NET runtime is not a separate code base: it builds Google's C decoder into
-  `libSystem.IO.Compression.Native.so`, and Ubuntu lists it for this CVE
-  ([USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)). The tool does not look for it by
-  name, and `/usr/lib/dotnet` is not in the default roots, so a default run says nothing about it.
-  To list it: `--deep --roots /usr/lib/dotnet` (seen on Ubuntu 24.04, as `VENDORED_COPY`). Check
-  the runtime's version against Microsoft's or your distributor's advisory ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)).
+- **.NET: what is judged, and what is left.** The .NET runtime builds Google's C decoder into
+  `libSystem.IO.Compression.Native.so` (`System.IO.Compression.Native.so` before .NET 5) and does
+  not load libbrotli, so updating the OS's libbrotli does not fix it. The tool finds that library
+  by name under the search roots and in `/usr/lib/dotnet` and `/usr/share/dotnet`, and judges it
+  by .NET's own version: a file of Ubuntu's .NET packages by the package's version, any other by
+  the version its build stamped into the file (`@(#)Version 8.0.3326.52219` is 8.0.33). What
+  remains:
+  - **.NET 8's library carries no decoder error names**, so its strings cannot show the fix
+    (those of .NET 9 and 10 can, and must agree with the stamp). A `FIXED` .NET 8 outside
+    Ubuntu's packages rests on the stamp alone, and its reason says so.
+  - **Self-contained applications** carry their own copy of the library next to the application.
+    It is found by name and judged like the runtime; updating the installed .NET does not change
+    it, so the next step is a release of the application built with a fixed .NET.
+    **Single-file applications and NativeAOT executables** carry the decoder inside the
+    executable, and so do the apphost packs and NativeAOT packages they are built from: only
+    `--deep` looks there, and it judges them by their strings alone (a .NET 8 build is then
+    `VENDORED_COPY`).
+  - The runtime packs in NuGet's packages folder (`~/.nuget/packages`) are build inputs: they are
+    counted with the other package-manager caches, not reported.
+  - Older patch versions of a runtime installed from Microsoft's archives stay side by side with
+    the new one, and each is reported.
+  - A preview of .NET 11 that has no `.version` file next to it (inside an application) is
+    `UNKNOWN`: a preview and the release carry the same stamp.
+  - .NET in snaps and inside containers is not looked at.
 - **A program that loads several libraries named `libbrotlidec*`.** Only the first is judged. The
   others are found only if they are under the search roots ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).
 - **A `node`, `bun`, browser or similar that is a link to a program of another name** (a version

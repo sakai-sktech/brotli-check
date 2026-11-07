@@ -55,6 +55,47 @@ bcc_numcmp() {
   printf 0
 }
 
+# Pre-release precedence (SemVer 2.0.0, 11): dot-separated identifiers from the left; numeric
+# ones compare as numbers and sort below alphanumeric ones, which compare in ASCII order; when
+# all shared ones are equal, the shorter list sorts first. Needed when a fixed version is itself
+# a pre-release (.NET 11.0.0-rc.3.26522.148: rc.2 is before it, preview.7 too).
+bcc_prerelease_cmp() {
+  local LC_ALL=C
+  local -a a=() b=()
+  local i n x y c
+  IFS=. read -r -a a <<<"$1"
+  IFS=. read -r -a b <<<"$2"
+  n=${#a[@]}
+  ((${#b[@]} < n)) && n=${#b[@]}
+  for ((i = 0; i < n; i++)); do
+    x=${a[i]}
+    y=${b[i]}
+    if [[ $x =~ ^[0-9]+$ && $y =~ ^[0-9]+$ ]]; then
+      c=$(bcc_numcmp "$x" "$y")
+      [[ $c == 0 ]] || { printf '%s' "$c"; return; }
+    elif [[ $x =~ ^[0-9]+$ ]]; then
+      printf -- -1
+      return
+    elif [[ $y =~ ^[0-9]+$ ]]; then
+      printf 1
+      return
+    elif [[ $x < $y ]]; then
+      printf -- -1
+      return
+    elif [[ $x > $y ]]; then
+      printf 1
+      return
+    fi
+  done
+  if ((${#a[@]} < ${#b[@]})); then
+    printf -- -1
+  elif ((${#a[@]} > ${#b[@]})); then
+    printf 1
+  else
+    printf 0
+  fi
+}
+
 bcc_semver_cmp() {
   local re='^v?([0-9]+(\.[0-9]+)*)(-([0-9A-Za-z.-]+))?' ra pa rb pb c
   [[ $1 =~ $re ]] || { printf '?'; return; }
@@ -70,6 +111,8 @@ bcc_semver_cmp() {
     printf -- -1
   elif [[ -z $pa && -n $pb ]]; then
     printf 1
+  elif [[ -n $pa ]]; then
+    bcc_prerelease_cmp "$pa" "$pb"
   else
     printf 0
   fi
@@ -117,11 +160,14 @@ bcc_pep440_cmp() {
 # Is VERSION a pre-release (rc, alpha, beta, nightly, dev) of exactly the release FIXED?
 # Such a build may have been made before the fix landed, so it is neither VULNERABLE nor
 # FIXED. Pre-releases of earlier releases sort below FIXED and of later ones above it as
-# usual. Debian versions are left to dpkg. Usage: bcc_is_prerelease_of KIND VERSION FIXED
+# usual. When FIXED is itself a pre-release, the advisory named the pre-release that has the
+# fix, and the earlier ones are simply before it. Debian versions are left to dpkg.
+# Usage: bcc_is_prerelease_of KIND VERSION FIXED
 bcc_is_prerelease_of() {
   local kind=$1 v=$2 fixed=$3 core fcore suffix
   case $kind in
     semver)
+      [[ $fixed != *-* ]] || return 1
       [[ $v =~ ^v?([0-9]+(\.[0-9]+)*)-[0-9A-Za-z.-]+ ]] || return 1
       core=${BASH_REMATCH[1]}
       fcore=${fixed#v}

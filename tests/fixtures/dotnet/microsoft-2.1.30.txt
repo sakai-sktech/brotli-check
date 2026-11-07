@@ -1,0 +1,14 @@
+@(#)Version 4.6.30411.02 @BuiltBy: root-688bc4198cb8 @Branch: release/2.1-MSRC @SrcCode: https://github.com/dotnet/corefx/tree/06a86ddfefa9042b22f2bcefc9e32088e077df78
+BrotliDecoderCreateInstance
+BrotliDecoderDecompress
+BrotliDecoderDecompressStream
+BrotliDecoderDestroyInstance
+BrotliDecoderErrorString
+BrotliDecoderGetErrorCode
+BrotliDecoderHasMoreOutput
+BrotliDecoderIsFinished
+BrotliDecoderIsUsed
+BrotliDecoderSetParameter
+BrotliDecoderTakeOutput
+BrotliDecoderVersion
+timedownlifeleftbackcodedatashowonlysitecity

@@ -28,6 +28,26 @@ setup() {
   [ "$(bcc_semver_cmp 1.4.4 1.4.4-canary.1)" = 1 ]
 }
 
+@test "#17 semver: pre-releases of one release are ordered by their identifiers (SemVer 11)" {
+  [ "$(bcc_semver_cmp 11.0.0-rc.2.26504.105 11.0.0-rc.3.26522.148)" = -1 ]
+  [ "$(bcc_semver_cmp 11.0.0-rc.3.26522.148 11.0.0-rc.3.26522.148)" = 0 ]
+  [ "$(bcc_semver_cmp 11.0.0-preview.7.26381.103 11.0.0-rc.1.26425.128)" = -1 ]
+  [ "$(bcc_semver_cmp 11.0.0-rc.10.1 11.0.0-rc.9.1)" = 1 ]
+  # SemVer's own example order: alpha < alpha.1 < alpha.beta < beta < beta.2 < beta.11 < rc.1
+  local -a order=(1.0.0-alpha 1.0.0-alpha.1 1.0.0-alpha.beta 1.0.0-beta 1.0.0-beta.2 1.0.0-beta.11 1.0.0-rc.1 1.0.0)
+  local i
+  for ((i = 0; i + 1 < ${#order[@]}; i++)); do
+    [ "$(bcc_semver_cmp "${order[i]}" "${order[i + 1]}")" = -1 ]
+    [ "$(bcc_semver_cmp "${order[i + 1]}" "${order[i]}")" = 1 ]
+  done
+}
+
+@test "#17 a pre-release of a fixed version is UNKNOWN, unless the fixed version is itself a pre-release" {
+  bcc_is_prerelease_of semver 1.4.4-rc.1 1.4.4
+  run bcc_is_prerelease_of semver 11.0.0-rc.2.26504.105 11.0.0-rc.3.26522.148
+  [ "$status" -eq 1 ]
+}
+
 @test "semver: unparsable input is reported, not guessed" {
   [ "$(bcc_semver_cmp abc 1.0.0)" = "?" ]
   run bcc_version_ge semver abc 1.0.0

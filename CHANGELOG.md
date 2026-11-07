@@ -74,6 +74,19 @@
   JSON `skipped[]` entries carry `"kind": "chosen"` or `"failed"`. As root, unread processes are
   no longer told to run as root. The `FIXED` next step names both kinds of ranges (docs/design.md
   10.26, #10).
+- A program that loads more than one library named `libbrotlidec*` (the OS one and a private one,
+  for example) gets every one judged, no longer the first alone; one file reached under two
+  names, or needed by two libraries, counts once, and a name already loaded is not looked up
+  again, as ld.so does. `glibc-hwcaps` subdirectories (`x86-64-v3` and the like) are tried in the
+  order the system's loader gives for this CPU, no longer by name, in RUNPATH and RPATH
+  directories, the ld.so cache and the default directories, and the facts on the list of
+  programs to run name only the ones it searches. To learn that order the tool runs the system's
+  loader once with `--help`, from `/` with an empty environment, also with `--no-exec` (only when
+  only root can change it, and glibc 2.33 or later). For a program that names another loader, or
+  when the loader could not be asked, every copy in those subdirectories is judged and the report
+  says that which one loads could not be told. The older hwcaps subdirectories of glibc 2.36 and
+  earlier (`tls`, `x86_64`, ...) are not looked at; the limitations say so (docs/design.md 10.28,
+  #18).
 
 ## 0.1.0 - 2026-11-02
 

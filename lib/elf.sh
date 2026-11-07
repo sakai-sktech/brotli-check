@@ -31,16 +31,147 @@ bcc_ldcache_load() {
   BCC_LDCACHE_LOADED=1
 }
 
-# Resolve a soname from the ld.so cache, then the default directories (the RPATH/RUNPATH
-# part of the search is bcc_dep_find's). Usage: bcc_elf_resolve SONAME
+# The system's loader, per architecture. Only it is asked for its glibc-hwcaps order (below),
+# and that order is used only for programs that name it in PT_INTERP and for libraries (which
+# name none: this host's programs load them). Another loader may search otherwise.
+BCC_SYS_LOADERS="/lib64/ld-linux-x86-64.so.2 /lib/ld-linux-aarch64.so.1"
+
+# The glibc-hwcaps subdirectories the system's loader searches, highest priority first, as the
+# loader itself says ("ld.so --help", glibc 2.33 and later; docs/design.md 10.28): it picks the
+# highest level the CPU supports, so the order cannot be read from the names. Asked once per run
+# in the main shell (bcc_run_checks), from "/" with an empty environment (GLIBC_TUNABLES can
+# mask levels), and only of a loader that no one but root can change and whose file names
+# --glibc-hwcaps-mask (added in 2.33, with --help): an older one takes "--help" for a program to
+# load. Sets BCC_HWCAPS_LOADER (its real path; empty when it could not be asked) and BCC_HWCAPS
+# (empty when it searches none).
+bcc_hwcaps_load() {
+  [[ -z ${BCC_HWCAPS_LOADED:-} ]] || return 0
+  local l real n out
+  BCC_HWCAPS_LOADED=1
+  BCC_HWCAPS_LOADER=""
+  BCC_HWCAPS=()
+  for l in $BCC_SYS_LOADERS; do
+    real=$(bcc_realpath "$l") || continue
+    [[ -f $real ]] || continue
+    bcc_safe_to_exec "$real" 0 >/dev/null || continue
+    n=$(bcc_read_file "$real" 16777216 | LC_ALL=C grep -a -c -F -e --glibc-hwcaps-mask) || n=0
+    [[ $n =~ ^[1-9][0-9]*$ ]] || continue
+    out=$(cd / && bcc_sys env -i "$real" --help) || continue
+    bcc_hwcaps_parse "$out" || continue
+    BCC_HWCAPS_LOADER=$real
+    return 0
+  done
+  BCC_HWCAPS=()
+  return 0
+}
+
+# The glibc-hwcaps part of "ld.so --help" into BCC_HWCAPS: the names under "Subdirectories of
+# glibc-hwcaps directories, in priority order:" marked "(supported, searched)", in that order. A
+# name without the mark (masked, or a level the CPU lacks) is not searched. "No subdirectories of
+# glibc-hwcaps directories are searched." leaves it empty. Status 1 when the text says neither.
+bcc_hwcaps_parse() {
+  local line in=0 said=0 re='^  ([A-Za-z0-9_-]+) \(supported, searched\)$'
+  BCC_HWCAPS=()
+  while IFS= read -r line; do
+    if ((in)); then
+      [[ -n $line ]] || break
+      if [[ $line =~ $re ]]; then BCC_HWCAPS+=("${BASH_REMATCH[1]}"); fi
+      continue
+    fi
+    case $line in
+      'Subdirectories of glibc-hwcaps directories, in priority order:') in=1 said=1 ;;
+      'No subdirectories of glibc-hwcaps directories are searched.') said=1 ;;
+    esac
+  done <<<"$1"
+  ((said))
+}
+
+# Is the glibc-hwcaps order known for an object whose PT_INTERP is INTERP (empty: none)?
+bcc_hwcaps_known_for() {
+  local real
+  [[ -n ${BCC_HWCAPS_LOADER:-} ]] || return 1
+  [[ -n $1 ]] || return 0
+  real=$(bcc_realpath "$1") || return 1
+  [[ $real == "$BCC_HWCAPS_LOADER" ]]
+}
+
+# The glibc-hwcaps subdirectories of DIR that ld.so tries before DIR itself, into BCC_GLOB. With
+# the order known (MODE known): those the loader searches, highest priority first. Otherwise
+# every one there, in name order (which of them it tries is not known). Only what is there (a
+# dangling link counts: its target may be created). DIR is taken literally: a "[" or "*" in a
+# found path is part of a name, not a pattern.
+# Usage: bcc_hwcaps_dirs DIR MODE
+bcc_hwcaps_dirs() {
+  local d=$1/glibc-hwcaps had=0 h
+  BCC_GLOB=()
+  if [[ ${2:-} == known ]]; then
+    for h in ${BCC_HWCAPS[@]+"${BCC_HWCAPS[@]}"}; do
+      if [[ -e $d/$h || -L $d/$h ]]; then BCC_GLOB+=("$d/$h"); fi
+    done
+    return 0
+  fi
+  shopt -q nullglob && had=1
+  shopt -s nullglob
+  BCC_GLOB=("$d"/*)
+  ((had)) || shopt -u nullglob
+  return 0
+}
+
+# Look for NAME in DIR as ld.so does - its glibc-hwcaps subdirectories (bcc_hwcaps_dirs), then
+# DIR itself - appending what is found to BCC_FOUND. Status 0 when the search ends here: always
+# at a copy in DIR itself; at one in a subdirectory only when the order is known (otherwise the
+# loader may skip it, and the search goes on).
+# Usage: bcc_dep_find_in MODE NAME DIR
+bcc_dep_find_in() {
+  local h
+  bcc_hwcaps_dirs "$3" "$1"
+  for h in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do
+    [[ -e $h/$2 ]] || continue
+    BCC_FOUND+=("$h/$2")
+    [[ $1 != known ]] || return 0
+  done
+  [[ -e $3/$2 ]] || return 1
+  BCC_FOUND+=("$3/$2")
+}
+
+# The default directories ld.so searches after its cache (tests stand in for them).
+BCC_LIB_DIRS=(/lib64 /usr/lib64 /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu /lib /usr/lib)
+
+# The ld.so cache, then the default directories (the RPATH/RUNPATH part of the search is
+# bcc_dep_find's), appending to BCC_FOUND. For one name the cache may hold entries for
+# glibc-hwcaps subdirectories ('hwcap: "x86-64-v3"'; ldconfig lists them first, in name order)
+# and one for the plain file: ld.so takes the entry of the highest priority it searches, else the
+# plain one. Entries of the older hwcaps scheme ("hwcap: 0x..."; glibc before 2.37) are not
+# taken (docs/limitations.md). 64-bit entries are preferred. Status 0 when the search ended at
+# a file, as for bcc_dep_find_in.
+# Usage: bcc_elf_resolve MODE SONAME
 bcc_elf_resolve() {
-  local name=$1 d hit
+  local mode=$1 name=$2 d hits sel line arch path i bi=-1 best="" plain="" re='hwcap: "([^"]+)"'
   bcc_ldcache_load
-  hit=$(awk -F'\t' -v n="$name" '$1 == n && $2 ~ /x86-64|64bit|AArch64|aarch64/ { print $3; exit }' <<<"$BCC_LDCACHE")
-  [[ -z $hit ]] && hit=$(awk -F'\t' -v n="$name" '$1 == n { print $3; exit }' <<<"$BCC_LDCACHE")
-  [[ -n $hit ]] && { printf '%s\n' "$hit"; return 0; }
-  for d in /lib64 /usr/lib64 /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /lib/aarch64-linux-gnu /usr/lib/aarch64-linux-gnu /lib /usr/lib; do
-    [[ -e $d/$name ]] && { printf '%s\n' "$d/$name"; return 0; }
+  hits=$(awk -F'\t' -v n="$name" '$1 == n { print $2 "\t" $3 }' <<<"$BCC_LDCACHE")
+  sel=$(awk -F'\t' '$1 ~ /x86-64|64bit|AArch64|aarch64/' <<<"$hits")
+  [[ -n $sel ]] || sel=$hits
+  while IFS= read -r line; do
+    [[ $line == *$'\t'* ]] || continue
+    arch=${line%%$'\t'*} path=${line#*$'\t'}
+    if [[ $arch =~ $re ]]; then
+      if [[ $mode != known ]]; then
+        BCC_FOUND+=("$path")
+        continue
+      fi
+      for i in ${BCC_HWCAPS[@]+"${!BCC_HWCAPS[@]}"}; do
+        if [[ ${BCC_HWCAPS[i]} == "${BASH_REMATCH[1]}" ]] && ((bi < 0 || i < bi)); then
+          bi=$i best=$path
+        fi
+      done
+    elif [[ $arch != *hwcap:* && -z $plain ]]; then
+      plain=$path
+    fi
+  done <<<"$sel"
+  [[ -z $best ]] || { BCC_FOUND+=("$best"); return 0; }
+  [[ -z $plain ]] || { BCC_FOUND+=("$plain"); return 0; }
+  for d in "${BCC_LIB_DIRS[@]}"; do
+    bcc_dep_find_in "$mode" "$name" "$d" && return 0
   done
   return 1
 }
@@ -137,19 +268,30 @@ bcc_dep_dirs() {
   done
 }
 
-# Find SONAME in the directories given (glibc-hwcaps subdirectories first, as ld.so tries
-# them), then in the ld.so cache and the default directories. Prints the path.
+# Where ld.so finds SONAME, into BCC_FOUND: in each directory given, its glibc-hwcaps
+# subdirectories and then the directory itself (bcc_dep_find_in), then the ld.so cache and the
+# default directories (bcc_elf_resolve). With the order known (MODE known) that is the one file
+# found. Otherwise a copy in a glibc-hwcaps subdirectory may or may not be the one taken, so
+# the search goes on to the first copy outside them, and BCC_FOUND holds every candidate in
+# search order: more than one means that which is loaded could not be told. Status 1 (none)
+# when not found. In the calling shell: paths may hold any byte, so they are not printed.
+# Usage: bcc_dep_find MODE SONAME DIR...
 bcc_dep_find() {
-  local name=$1 d h
-  shift
+  local mode=$1 name=$2 d
+  shift 2
+  BCC_FOUND=()
   for d in "$@"; do
-    bcc_hwcaps_dirs "$d"
-    for h in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do
-      [[ -e $h/$name ]] && { printf '%s\n' "$h/$name"; return 0; }
-    done
-    [[ -e $d/$name ]] && { printf '%s\n' "$d/$name"; return 0; }
+    bcc_dep_find_in "$mode" "$name" "$d" && return 0
   done
-  bcc_elf_resolve "$name"
+  bcc_elf_resolve "$mode" "$name" || ((${#BCC_FOUND[@]}))
+}
+
+# The dynamic section of OBJECT (readelf -d), once, into BCC_DYN_CACHE[OBJECT] ($'\001' when
+# readelf failed on it).
+bcc_dyn_load() {
+  local dyn
+  [[ -z ${BCC_DYN_CACHE[$1]+x} ]] || return 0
+  if dyn=$(bcc_sys readelf -d -- "$1"); then BCC_DYN_CACHE[$1]=$dyn; else BCC_DYN_CACHE[$1]=$'\001'; fi
 }
 
 # One record of a dependency walk, appended to BCC_WALK_K/_A/_B (see bcc_dep_walk_uncached).
@@ -163,37 +305,49 @@ bcc_walk_rec() {
 # DT_RPATH of the object that needs the library and then of the objects that loaded it, up
 # to the executable - unless the needing object has a DT_RUNPATH, which also hides its own
 # DT_RPATH - then that object's DT_RUNPATH, the ld.so cache, the default directories.
-# (LD_LIBRARY_PATH does not apply: programs run with an empty environment.) Records, each
-# a kind and up to two fields:
+# (LD_LIBRARY_PATH does not apply: programs run with an empty environment.) In each of those
+# directories ld.so tries the glibc-hwcaps subdirectories first, in its loader's order of
+# priority when that is known (bcc_hwcaps_load; otherwise every copy there is a candidate,
+# bcc_dep_find). A name is loaded once: a needed name that an object already loaded was
+# loaded by, or that is such an object's SONAME, is that object and is not looked up again
+# (ld.so loads breadth-first, as this walk goes). Records, each a kind and up to two fields:
 #   I  path            the loader named by PT_INTERP
 #   D  dir             a directory listed in some RPATH/RUNPATH
-#   N  soname  path    a needed library and where it resolved ("" when not found)
+#   N  soname  path    a needed library and where it resolved ("" when not found); a name
+#                      with several candidates has one N record for each
 #   X  kind  detail    something not followed: empty/relative/token (search entries, see
-#                      bcc_dep_dirs), missing (soname), readelf (failed on file), depth
+#                      bcc_dep_dirs), missing (soname), readelf (failed on file), depth;
+#                      hwcaps (soname): which of its N records ld.so loads could not be told
 # The records are appended to the arrays BCC_WALK_K/_A/_B, never joined into lines: the
 # fields hold paths, and a path (or $ORIGIN) may hold a newline or a tab. Status 2 when
 # readelf is not available. Run in the main shell, it keeps each object's dynamic section
-# (BCC_DYN_CACHE) and each lookup (BCC_FIND_CACHE), so that libraries shared by many
-# programs are read once.
+# (BCC_DYN_CACHE) and each lookup (BCC_FIND_CACHE, a range of BCC_FIND_POOL), so that
+# libraries shared by many programs are read once. BCC_DEPWALK_HWC[FILE] says whether the
+# glibc-hwcaps order was known for FILE ("known" or "unknown").
 bcc_dep_walk_uncached() {
-  local file=$1 interp dyn needed rpath runpath cur inh so path d depth i fkey hs hc
-  local -A seen=()
+  local file=$1 interp dyn needed rpath runpath cur inh so path d depth i fkey hs hc hwc fs fc real sn
+  local -A seen=() named=() same=()
   # The search path each queued object inherits is a range "start count" of chains.
-  local -a q=("$file") qi=("0 0") nq=() nqi=() own_rp=() own_run=() search=() inh_a=() chains=()
+  local -a q=("$file") qi=("0 0") nq=() nqi=() own_rp=() own_run=() search=() inh_a=() chains=() cands=() reals=()
   bcc_have readelf || return 2
+  bcc_hwcaps_load
+  interp=""
   if interp=$(bcc_sys readelf -l -- "$file"); then
     interp=$(sed -n 's/.*\[Requesting program interpreter: \(.*\)\]$/\1/p' <<<"$interp" | head -n 1)
     [[ -z $interp ]] || bcc_walk_rec I "$interp"
+  else
+    interp=""
   fi
+  hwc=unknown
+  bcc_hwcaps_known_for "$interp" && hwc=known
+  BCC_DEPWALK_HWC[$file]=$hwc
   for ((depth = 0; depth < 8 && ${#q[@]}; depth++)); do
     nq=() nqi=()
     for i in "${!q[@]}"; do
       cur=${q[i]} inh=${qi[i]}
       [[ -z ${seen[$cur]:-} ]] || continue
       seen[$cur]=1
-      if [[ -z ${BCC_DYN_CACHE[$cur]+x} ]]; then
-        if dyn=$(bcc_sys readelf -d -- "$cur"); then BCC_DYN_CACHE[$cur]=$dyn; else BCC_DYN_CACHE[$cur]=$'\001'; fi
-      fi
+      bcc_dyn_load "$cur"
       dyn=${BCC_DYN_CACHE[$cur]}
       if [[ $dyn == $'\001' ]]; then
         bcc_walk_rec X readelf "$cur"
@@ -224,35 +378,60 @@ bcc_dep_walk_uncached() {
       fi
       while IFS= read -r so; do
         [[ -n $so ]] || continue
+        # Already loaded under this name (or as this SONAME): ld.so uses that object.
+        [[ -z ${named[$so]:-} ]] || continue
+        BCC_FOUND=()
         if [[ $so == */* ]]; then
-          path=$so
-          [[ -e $path ]] || path=""
+          [[ ! -e $so ]] || BCC_FOUND=("$so")
         else
           # Each part with its length: no two different searches share a key (a directory
           # reached through $ORIGIN may hold ":" or any other separator).
-          fkey="${#so}:$so"
+          fkey="$hwc ${#so}:$so"
           for d in ${search[@]+"${search[@]}"}; do fkey+=" ${#d}:$d"; done
           if [[ -z ${BCC_FIND_CACHE[$fkey]+x} ]]; then
-            BCC_FIND_CACHE[$fkey]=$(bcc_dep_find "$so" ${search[@]+"${search[@]}"}) || BCC_FIND_CACHE[$fkey]=""
+            bcc_dep_find "$hwc" "$so" ${search[@]+"${search[@]}"} || true
+            BCC_FIND_CACHE[$fkey]="${#BCC_FIND_POOL[@]} ${#BCC_FOUND[@]}"
+            BCC_FIND_POOL+=(${BCC_FOUND[@]+"${BCC_FOUND[@]}"})
           fi
-          path=${BCC_FIND_CACHE[$fkey]}
+          read -r fs fc <<<"${BCC_FIND_CACHE[$fkey]}"
+          BCC_FOUND=()
+          ((fc == 0)) || BCC_FOUND=("${BCC_FIND_POOL[@]:fs:fc}")
         fi
-        bcc_walk_rec N "$so" "$path"
-        if [[ -z $path ]]; then
+        if ((${#BCC_FOUND[@]} == 0)); then
+          bcc_walk_rec N "$so" ""
           bcc_walk_rec X missing "$so"
           continue
         fi
-        if [[ -z ${BCC_FIND_CACHE[real:$path]+x} ]]; then
-          BCC_FIND_CACHE[real:$path]=$(bcc_realpath "$path") || BCC_FIND_CACHE[real:$path]=""
-        fi
-        path=${BCC_FIND_CACHE[real:$path]}
-        [[ -n $path ]] || continue
-        [[ -n ${seen[$path]:-} ]] && continue
-        nq+=("$path")
-        # What this library needs is looked up in its own RPATH, then in ours, upward.
-        local -a chain=(${own_rp[@]+"${own_rp[@]}"} ${inh_a[@]+"${inh_a[@]}"})
-        nqi+=("${#chains[@]} ${#chain[@]}")
-        chains+=(${chain[@]+"${chain[@]}"})
+        named[$so]=1
+        # Candidates that are one file (a link, /lib and /usr/lib) count once.
+        cands=() reals=() same=()
+        for path in "${BCC_FOUND[@]}"; do
+          if [[ -z ${BCC_FIND_CACHE[real:$path]+x} ]]; then
+            BCC_FIND_CACHE[real:$path]=$(bcc_realpath "$path") || BCC_FIND_CACHE[real:$path]=""
+          fi
+          real=${BCC_FIND_CACHE[real:$path]}
+          if [[ -n $real ]]; then
+            [[ -z ${same[$real]:-} ]] || continue
+            same[$real]=1
+          fi
+          cands+=("$path")
+          reals+=("$real")
+        done
+        for path in "${cands[@]}"; do bcc_walk_rec N "$so" "$path"; done
+        ((${#cands[@]} == 1)) || bcc_walk_rec X hwcaps "$so"
+        for real in "${reals[@]}"; do
+          [[ -n $real ]] || continue
+          # The names it is loaded by include its SONAME (read now: ld.so maps it now).
+          bcc_dyn_load "$real"
+          sn=$(sed -n 's/^[^[]*(SONAME)[^[]*\[\(.*\)\]$/\1/p' <<<"${BCC_DYN_CACHE[$real]}" | head -n 1)
+          [[ -z $sn ]] || named[$sn]=1
+          [[ -z ${seen[$real]:-} ]] || continue
+          nq+=("$real")
+          # What this library needs is looked up in its own RPATH, then in ours, upward.
+          local -a chain=(${own_rp[@]+"${own_rp[@]}"} ${inh_a[@]+"${inh_a[@]}"})
+          nqi+=("${#chains[@]} ${#chain[@]}")
+          chains+=(${chain[@]+"${chain[@]}"})
+        done
       done <<<"$needed"
     done
     q=(${nq[@]+"${nq[@]}"})
@@ -273,60 +452,85 @@ bcc_dep_walk_prefetch() {
   BCC_DEPWALK_RC[$1]=$rc
 }
 
-# Does FILE load libbrotlidec, directly or through other libraries? Prints the resolved
-# libbrotlidec path and the method (readelf). Status: 0 linked, 1 not linked (static copy or
-# no Brotli), 2 undetermined. Anything that could not be followed to the end (no readelf, a
-# readelf failure, a library not found, the depth limit) is 2, never 1: "not linked" leads
-# to NOT_APPLICABLE. The file is only read: ldd, which hands the file to the loader, is not
-# used.
 # bcc_needed_has_brotlidec TEXT: does this list of NEEDED entries (one per line) name
 # libbrotlidec? An entry may be a path (a library linked without a SONAME).
 bcc_needed_has_brotlidec() {
   grep -Eq '(^|/)libbrotlidec[^/]*$' <<<"$1"
 }
 
+# Does FILE load libbrotlidec, directly or through other libraries? Every libbrotlidec it
+# loads, in the order ld.so loads them (a program may load several, under different names;
+# docs/design.md 10.28), one entry per file, into BCC_LINKS: the path as resolved, or
+# "NAME (not found)". BCC_LINKS_AMBIG has, for each, the library name when the file is one of
+# several copies the loader may pick (glibc-hwcaps, order unknown: bcc_dep_find), else "".
+# Status: 0 linked, 1 not linked (static copy or no Brotli), 2 undetermined. When none was
+# found, anything that could not be followed to the end (no readelf, a readelf failure, a
+# library not found, the depth limit) is 2, never 1: "not linked" leads to NOT_APPLICABLE. The
+# file is only read: ldd, which hands the file to the loader, is not used.
 bcc_links_brotlidec_uncached() {
-  local file=$1 rc s c i lib="" open=0
+  local file=$1 rc s c i so p real key open=0
+  local -A amb=() got=()
+  BCC_LINKS=() BCC_LINKS_AMBIG=()
   bcc_dep_walk_prefetch "$file"
   rc=${BCC_DEPWALK_RC[$file]}
   ((rc == 0)) || return 2
   read -r s c <<<"${BCC_DEPWALK_CACHE[$file]}"
   for ((i = s; i < s + c; i++)); do
+    [[ ${BCC_WALK_K[i]} != X || ${BCC_WALK_A[i]} != hwcaps ]] || amb[${BCC_WALK_B[i]}]=1
+  done
+  for ((i = s; i < s + c; i++)); do
     case ${BCC_WALK_K[i]} in
       N)
+        so=${BCC_WALK_A[i]} p=${BCC_WALK_B[i]}
         # A NEEDED entry may be a path (a library linked without a SONAME).
-        if [[ -z $lib && ${BCC_WALK_A[i]##*/} == libbrotlidec* ]]; then
-          lib=${BCC_WALK_B[i]:-"${BCC_WALK_A[i]} (not found)"}
+        [[ ${so##*/} == libbrotlidec* ]] || continue
+        if [[ -z $p ]]; then
+          key="name:$so" p="$so (not found)"
+        else
+          real=${BCC_FIND_CACHE[real:$p]-}
+          [[ -n $real ]] || real=$(bcc_realpath "$p") || real=""
+          key="file:${real:-$p}"
         fi
+        [[ -z ${got[$key]:-} ]] || continue
+        got[$key]=1
+        BCC_LINKS+=("$p")
+        BCC_LINKS_AMBIG+=("${amb[$so]:+$so}")
         ;;
       X)
         case ${BCC_WALK_A[i]} in missing | readelf | depth) open=1 ;; esac
         ;;
     esac
   done
-  if [[ -n $lib ]]; then
-    printf '%s\treadelf\n' "$lib"
-    return 0
-  fi
+  ((${#BCC_LINKS[@]} == 0)) || return 0
   ((open)) && return 2
   return 1
 }
 
+# bcc_links_brotlidec_uncached once per file, kept in the main shell: BCC_LINK_CACHE holds the
+# range "start count" of its entries in BCC_LINK_P (BCC_LINKS) and BCC_LINK_S
+# (BCC_LINKS_AMBIG), BCC_LINK_RC its status.
 bcc_link_prefetch() {
-  local rc=0 out
+  local rc=0
   [[ -z ${BCC_LINK_RC[$1]+x} ]] || return 0
-  bcc_dep_walk_prefetch "$1"
-  out=$(bcc_links_brotlidec_uncached "$1") || rc=$?
-  BCC_LINK_CACHE[$1]=$out
+  bcc_links_brotlidec_uncached "$1" || rc=$?
+  BCC_LINK_CACHE[$1]="${#BCC_LINK_P[@]} ${#BCC_LINKS[@]}"
+  BCC_LINK_P+=(${BCC_LINKS[@]+"${BCC_LINKS[@]}"})
+  BCC_LINK_S+=(${BCC_LINKS_AMBIG[@]+"${BCC_LINKS_AMBIG[@]}"})
   BCC_LINK_RC[$1]=$rc
 }
 
+# Usage: bcc_links_brotlidec FILE - in the calling shell, not in $(...): the libraries come back
+# in BCC_LINKS and BCC_LINKS_AMBIG (see bcc_links_brotlidec_uncached), never printed (a path
+# may hold any byte but NUL). Callers report them with bcc_report_linked_libs.
 bcc_links_brotlidec() {
-  if [[ -z ${BCC_LINK_RC[$1]+x} ]]; then
-    bcc_links_brotlidec_uncached "$1"
-    return
+  local s c
+  bcc_link_prefetch "$1"
+  BCC_LINKS=() BCC_LINKS_AMBIG=()
+  read -r s c <<<"${BCC_LINK_CACHE[$1]}"
+  if ((c)); then
+    BCC_LINKS=("${BCC_LINK_P[@]:s:c}")
+    BCC_LINKS_AMBIG=("${BCC_LINK_S[@]:s:c}")
   fi
-  [[ -z ${BCC_LINK_CACHE[$1]} ]] || printf '%s\n' "${BCC_LINK_CACHE[$1]}"
   return "${BCC_LINK_RC[$1]}"
 }
 

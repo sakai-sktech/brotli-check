@@ -78,6 +78,18 @@ stamp_file() {
   done
 }
 
+@test "#17 reading the stamp stops early without errors on stderr, also where SIGPIPE is ignored (as on CI)" {
+  local f="$T/big.so" i
+  stamp_file "$f" '@(#)Version 8.0.3326.52219 @Commit: da7a9beabf4cccc624399d583f52f080a4c858c2'
+  # Far more text after the stamp than a pipe holds: the reader is cut off once it is found.
+  for ((i = 0; i < 4096; i++)); do printf '%0255d\n' 0; done >>"$f"
+  # shellcheck disable=SC2016  # expanded by the inner bash
+  run --separate-stderr bash -c 'trap "" PIPE; for x in "$1"/lib/*.sh; do . "$x"; done; BCC_MAX_ELF_MB=64 BCC_TIMEOUT=20 BCC_PROBE_TIMEOUT=5; bcc_dotnet_stamp "$2"' _ "$REPO_ROOT" "$f"
+  [ "$status" -eq 0 ]
+  [ "${output%%$'\t'*}" = 8.0.33 ]
+  [ -z "$stderr" ] || { printf 'stderr was:\n%s\n' "$stderr"; return 1; }
+}
+
 @test "#17 Microsoft's .NET 8: 8.0.32 is VULNERABLE, 8.0.33 FIXED by its stamp, saying what the strings cannot show" {
   shared_runtime "$T/dotnet" 8.0.32 microsoft-8.0.32
   shared_runtime "$T/dotnet" 8.0.33 microsoft-8.0.33

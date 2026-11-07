@@ -214,7 +214,9 @@ bcc_check_c09_libs() {
 # Prints "VERSION<TAB>STAMP<TAB>COMMIT"; status 1 when there is none.
 bcc_dotnet_stamp() {
   local f=$1 line a b c re='^@\(#\)Version ([0-9]{1,4})\.([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,9})( @Commit: ([0-9a-f]{7,64}))?'
-  line=$(bcc_read_file "$f" $((BCC_MAX_ELF_MB * 1024 * 1024)) | LC_ALL=C tr -c '[:print:]' '\n' | (
+  # grep stops at the first stamp; tr then writes to a closed pipe, and where SIGPIPE is
+  # ignored (as on GitHub's runners) it says so on stderr: that is expected, not an error.
+  line=$(bcc_read_file "$f" $((BCC_MAX_ELF_MB * 1024 * 1024)) | LC_ALL=C tr -c '[:print:]' '\n' 2>/dev/null | (
     ulimit -v 262144 2>/dev/null
     LC_ALL=C grep -a -m 1 -E '^@\(#\)Version [0-9]' 2>/dev/null
   )) || true

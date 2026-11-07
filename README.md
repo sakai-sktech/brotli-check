@@ -26,8 +26,9 @@ next step: it inventories one host.
 
 - where on the host copies of the Brotli decoder are, and whether each is a fixed version. Not
   only distribution packages (`libbrotli1`, `python3-brotli`, ...) but also the bundled copies
-  that updating the OS does **not** fix (Node.js, Bun, PyPI `Brotli` / `brotlicffi`, conda,
-  Envoy, browsers, snap/flatpak apps, `libbrotlidec` files outside the package manager, ...);
+  that updating the OS does **not** fix (Node.js, Bun, the .NET runtime and self-contained .NET
+  applications, PyPI `Brotli` / `brotlicffi`, conda, Envoy, browsers, snap/flatpak apps,
+  `libbrotlidec` files outside the package manager, ...);
 - which processes keep using deleted old files after an update;
 - what it could not judge, and why; what it did not look at, and what it set out to look at but
   could not (always listed, as "Not scanned" and "Could not be scanned").
@@ -258,7 +259,7 @@ option out for such hosts.
 
 | Option | Adds | Does not look at |
 |---|---|---|
-| default | Distribution packages, fixed places (the system's Python and library directories, ...), Python and conda, libraries found by name, Node.js, Bun, Envoy, browsers, snap/flatpak. Default search roots: `/opt,/usr/local,/srv,/var/www,/home,/root` | Listening sockets, node_modules, containers, bundled copies not found by name |
+| default | Distribution packages, fixed places (the system's Python and library directories, .NET's `/usr/lib/dotnet` and `/usr/share/dotnet`, ...), Python and conda, libraries found by name (including .NET's compression library), Node.js, Bun, Envoy, browsers, snap/flatpak. Default search roots: `/opt,/usr/local,/srv,/var/www,/home,/root` | Listening sockets, node_modules, containers, bundled copies not found by name |
 | `--roots DIR,...` | Replaces the search roots | Does not add to them. The fixed places are looked at regardless of `--roots` |
 | `--deep` | Searches the ELF files under the roots for bundled decoders by their strings | Static copies without markers, the inside of archives, files of 512 MiB or more, files with neither an executable bit nor a `.so` / `.node` name. Not the whole disk |
 | `--projects` | Related packages in node_modules (hints) | Whether an application uses them |
@@ -339,22 +340,29 @@ Version numbers are not trusted blindly:
   `libbrotli1`.
 - A pre-release of exactly the fixed version (`1.4.4-rc.1`, Firefox `150.0a1`, ...) is not taken
   for the release; it is `UNKNOWN`.
+- The .NET runtime is judged by .NET's own version, not by the Brotli inside: a file of Ubuntu's
+  .NET packages by the package's version (USN-8958-1), any other copy (Microsoft's archives and
+  packages, a self-contained application) by the version its build stamped into the file.
+  End-of-life lines that bundle a Brotli in the affected range (.NET Core 3.0 to .NET 7) are
+  `VULNERABLE`; .NET Core 2.1 and 2.2, whose Brotli predates the advisory's range, are `UNKNOWN`.
 
-A `FIXED` rests on one of three kinds of evidence, and its reason says which, in brackets after
+A `FIXED` rests on one of four kinds of evidence, and its reason says which, in brackets after
 the fixed version:
 
 | Evidence | Checks | In the reason (examples) | What it says |
 |---|---|---|---|
-| A package's record | C01 and C14 (distribution packages), C12 (snap, flatpak), C13 (a browser's package, when it is not run) | "(the distribution package version)", "(the version snap list gives)", "(the version dpkg records for the package chromium)" | The package manager records a version at or above the fixed one. C01 and C14 compare it with the version the distributor named as fixed |
+| A package's record | C01 and C14 (distribution packages), C09 (Ubuntu's .NET packages), C12 (snap, flatpak), C13 (a browser's package, when it is not run) | "(the distribution package version)", "(the version snap list gives)", "(the version dpkg records for the package chromium)" | The package manager records a version at or above the fixed one. C01 and C14 compare it with the version the distributor named as fixed |
 | A program's output | C04, C05, C10, C13, C14 (Node.js inside a container) | "(output of node --version)" | The program answered so (see "[Running programs to read versions](#running-programs-to-read-versions)") |
 | A file plus strings | C04, C05 (header, directory name), C06 (package metadata, conda record), C09 and C12 (a library's file name), C13 (`application.ini`) | "(version from the directory name). Found: the error name added by the fix (...) among the decoder strings of this file. Not determined: whether all decoder code in the file is fixed (...)" | The version read from files is at or above the fixed one, and the decoder's strings show the fix too. Whether every decoder in the file is fixed is not known, and the reason says so |
+| A build stamp in the decoder's file | C09 (.NET outside Ubuntu's packages) | "(the .NET version stamped into this file by its build: 8.0.3326.52219)" | The build wrote .NET's version into the very file that holds the decoder. Where its strings can tell (.NET 9, 10), they must show the fix too, as in the row above. .NET 8's carry no error names: the reason then says that the fix is not seen in the file, and the stamp is the only basis |
 
 A version read from a file (a directory name, a header, package metadata) gives `FIXED` only
 when the decoder's strings confirm the fix. When those strings are in another file (Python's
-extension module, conda's shared library, Firefox's `libxul.so`), the reason names it. With no
-file to compare the result is `UNKNOWN`. Python inside a container is `UNKNOWN` even at or above
-the fix, because the strings are not compared there; its reason, too, says where the version
-came from.
+extension module, conda's shared library, Firefox's `libxul.so`), the reason names it. The .NET
+build stamp is not such a version: it is in the decoder's own file (see
+[docs/limitations.md](docs/limitations.md)). With no file to compare the result is `UNKNOWN`.
+Python inside a container is `UNKNOWN` even at or above the fix, because the strings are not
+compared there; its reason, too, says where the version came from.
 
 **The string heuristic.** For a bundled copy whose version is unknown, the decoder's error-name
 strings are used: the fix added `_ERROR_FORMAT_BLOCK_SWITCH` (error -17). This was checked on
@@ -390,7 +398,10 @@ All known versions live in [data/advisories.tsv](data/advisories.tsv), with the 
 source URL and the retrieval date on every row. The report shows the data's snapshot date and
 warns when it is 30 days old or more; less than 30 days old is not necessarily up to date.
 Newer data can be passed with `--data FILE`. Snapshot: **2026-11-02**: every row's primary source
-was checked again on that date. Ubuntu fixed 22.04, 24.04, 26.04 and 26.10 on 2026-10-26
+was checked again on that date. The .NET rows (Microsoft's advisory of 2026-10-25 and Ubuntu's
+[USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)) were added on 2026-11-07 with that
+retrieval date; the snapshot moves when every row is checked again. Ubuntu fixed 22.04, 24.04,
+26.04 and 26.10 on 2026-10-26
 ([USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)) and, with Ubuntu Pro, 20.04, 18.04
 and 16.04 on 2026-10-27 ([USN-8956-2](https://ubuntu.com/security/notices/USN-8956-2)); Debian 12,
 13 and unstable are fixed, and testing (forky) was still waiting for the fix to migrate.
@@ -403,7 +414,6 @@ not contain Brotli).
 
 Problems known in the current version. Each is removed from this list once fixed.
 
-- A default run says nothing about the decoder inside the .NET runtime ([#17](https://github.com/sakai-sktech/brotli-check/issues/17)); `--deep --roots /usr/lib/dotnet` lists it
 - Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))
 
 All: [issues](https://github.com/sakai-sktech/brotli-check/issues)

@@ -11,9 +11,11 @@ The data decides every verdict, so it has the strictest rules.
    `fixed` (the source names the fixed version), `no_fix` (the distributor has not released
    one), `unreleased` (announced but not in the archive yet), `derived_eol` (the source says
    end-of-life versions are always affected, and the line gets no fix), `derived_bundled` (the
-   line bundles a Brotli in the affected range, and gets no fix), `analysis` (from a source
-   tree, not a vendor advisory), `unknown`. Explain a `derived_*` row in `note`. Another kind of
-   ground needs its own status and a reason in `lib/i18n.sh`, so that the report can state it.
+   line bundles a Brotli in the affected range, and gets no fix), `derived_before_range` (the
+   line bundles a Brotli older than the advisory's stated range, and gets no fix: `UNKNOWN`,
+   with moving on advised), `analysis` (from a source tree, not a vendor advisory), `unknown`.
+   Explain a `derived_*` row in `note`. Another kind of ground needs its own status and a
+   reason in `lib/i18n.sh`, so that the report can state it.
 3. When sources disagree, write what each one says in `note` and prefer `unknown` until the
    disagreement is resolved.
 4. When the advisory states an affected range, put it in `affected` on `fixed` rows, as

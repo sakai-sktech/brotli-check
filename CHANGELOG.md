@@ -74,6 +74,24 @@
   JSON `skipped[]` entries carry `"kind": "chosen"` or `"failed"`. As root, unread processes are
   no longer told to run as root. The `FIXED` next step names both kinds of ranges (docs/design.md
   10.26, #10).
+- .NET (C09): the decoder that the .NET runtime builds into `libSystem.IO.Compression.Native.so`
+  (`System.IO.Compression.Native.so` before .NET 5) is found by name under the search roots and
+  in `/usr/lib/dotnet` and `/usr/share/dotnet`, and judged by .NET's own version: a file of
+  Ubuntu's .NET packages by the package's version (USN-8958-1), any other copy (Microsoft's
+  archives and packages, the copy a self-contained application carries) by the version its build
+  stamped into the file, `@(#)Version 8.0.3326.52219` being 8.0.33. New data rows: Microsoft's
+  8.0.33, 9.0.22, 10.0.14 and 11.0.0-rc.3.26522.148 (GHSA-p3jp-9v83-76w9); Ubuntu's dotnet8,
+  dotnet10 and dotnet11; end-of-life lines .NET Core 3.0 to .NET 7 and Ubuntu's dotnet7
+  `VULNERABLE` (they bundle Brotli 1.0.7 or 1.0.9 and get no fix), .NET Core 2.1 and 2.2 `UNKNOWN`
+  under a new status `derived_before_range` (Brotli 1.0.1, before the advisory's range), Ubuntu's
+  dotnet6 `NO_FIX_AVAILABLE`. .NET 8's library carries no decoder error names, so its `FIXED`
+  rests on the stamp and says that the fix is not seen in its strings; .NET 9 and 10 are checked
+  against their strings too. A copy outside `shared/Microsoft.NETCore.App/<version>/` is
+  `dotnet (self-contained)`, with "a release built with a fixed .NET" as its next step.
+  Single-file and NativeAOT executables are left to `--deep`, and NuGet's packages folder is
+  counted with the package-manager caches. C03 also reports processes that still map a deleted
+  .NET library. Pre-releases of one version now sort by their identifiers (rc.2 before rc.3)
+  (docs/design.md 10.27, #17).
 
 ## 0.1.0 - 2026-11-02
 

@@ -1,12 +1,15 @@
 # shellcheck shell=bash
 # index.sh - one walk over the search roots collects everything that is found by name:
-# Python metadata, conda records, libbrotlidec files, and node/bun/envoy executables.
+# Python metadata, conda records, libbrotlidec files, .NET's compression library, and
+# node/bun/envoy executables.
 # Checks then read the index instead of walking the file system again.
 
-# Package-manager caches hold unpacked downloads, not installed software.
+# Package-manager caches hold unpacked downloads, not installed software. NuGet's global
+# packages folder holds the .NET runtime packs that self-contained applications are built
+# from; the applications carry their own copies, found where they are installed.
 bcc_is_pkg_cache() {
   case $1 in
-    */.cache/uv/* | */.cache/pip/* | */.cache/pypoetry/* | */.npm/_cacache/* | */.cache/yarn/*) return 0 ;;
+    */.cache/uv/* | */.cache/pip/* | */.cache/pypoetry/* | */.npm/_cacache/* | */.cache/yarn/* | */.nuget/packages/*) return 0 ;;
   esac
   return 1
 }
@@ -26,6 +29,8 @@ bcc_index_entry() {
       ;;
     libbrotlidec-[0-9]*.json) BCC_IDX_CONDA+=("$p") ;;
     libbrotlidec*) BCC_IDX_LIB+=("$p") ;;
+    # .NET's System.IO.Compression native library (named without "lib" before .NET 5).
+    libSystem.IO.Compression.Native.so | System.IO.Compression.Native.so) BCC_IDX_DOTNET+=("$p") ;;
     node | nodejs) BCC_IDX_NODE+=("$p") ;;
     bun) BCC_IDX_BUN+=("$p") ;;
     envoy) BCC_IDX_ENVOY+=("$p") ;;
@@ -34,17 +39,21 @@ bcc_index_entry() {
 
 bcc_build_index() {
   BCC_IDX_PY=() BCC_IDX_CONDA=() BCC_IDX_LIB=() BCC_IDX_NODE=() BCC_IDX_BUN=() BCC_IDX_ENVOY=()
+  BCC_IDX_DOTNET=()
   BCC_IDX_CACHED=0
   declare -gA BCC_IDX_SEEN=()
   local d
   local -a extra=()
   mapfile -t extra < <(bcc_python_dirs)
-  for d in /usr/lib /usr/lib64 /lib64; do [[ -d $d && ! -L $d ]] && extra+=("$d"); done
+  # /usr/share/dotnet: where Microsoft's packages and container images install .NET
+  # (Ubuntu's own packages use /usr/lib/dotnet).
+  for d in /usr/lib /usr/lib64 /lib64 /usr/share/dotnet; do [[ -d $d && ! -L $d ]] && extra+=("$d"); done
   bcc_find_each bcc_index_entry ${BCC_ROOTS[@]+"${BCC_ROOTS[@]}"} ${extra[@]+"${extra[@]}"} -- \
     \( -iname 'brotli-*.dist-info' -o -iname 'brotli-*.egg-info' -o -iname 'brotlicffi-*.dist-info' \
     -o -iname 'brotlicffi-*.egg-info' \
     -o \( -path '*/conda-meta/*' -type f -name 'libbrotlidec-[0-9]*.json' \) \
     -o \( -type f \( -name 'libbrotlidec*.so*' -o -name 'libbrotlidec*.a' \) \) \
+    -o \( -type f \( -name libSystem.IO.Compression.Native.so -o -name System.IO.Compression.Native.so \) \) \
     -o \( -type f -perm -u=x \( -name node -o -name nodejs -o -name bun -o -name envoy \) \) \)
   bcc_find_status $? "$(IFS=,; printf '%s' "${BCC_ROOTS[*]:-}")"
   ((BCC_IDX_CACHED == 0)) || bcc_add_info C09 "$(bcc_msg i_pkg_cached "$BCC_IDX_CACHED")"

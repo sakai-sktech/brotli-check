@@ -35,17 +35,6 @@ bcc_glob() {
   return 0
 }
 
-# The glibc-hwcaps subdirectories of DIR (ld.so tries them first), into BCC_GLOB. DIR is
-# taken literally: a "[" or "*" in a found path is part of a name, not a pattern.
-bcc_hwcaps_dirs() {
-  local had=0
-  shopt -q nullglob && had=1
-  shopt -s nullglob
-  BCC_GLOB=("$1"/glibc-hwcaps/*)
-  ((had)) || shopt -u nullglob
-  return 0
-}
-
 # Split PATH at "/" into BCC_PARTS, dropping empty components. A name may hold any byte but
 # "/" and NUL ("IFS=/ read" would stop at a newline).
 bcc_path_parts() {
@@ -168,10 +157,11 @@ bcc_node_facts() {
 }
 
 # The facts for running FILE: about FILE itself, the loader it names, every library it would
-# load (bcc_dep_walk), every directory those are searched in (a missing one through its
-# nearest existing parent; the glibc-hwcaps subdirectories ld.so tries first), and
-# /etc/ld.so.preload. Fills BCC_FACTS (deduplicated); when nothing was found, one fact says
-# that only root (or you) can change them.
+# load (bcc_dep_walk; every candidate, when which one could not be told), every directory
+# those are searched in (a missing one through its nearest existing parent; the glibc-hwcaps
+# subdirectories ld.so tries first, bcc_hwcaps_dirs), and /etc/ld.so.preload. Fills BCC_FACTS
+# (deduplicated); when nothing was found, one fact says that only root (or you) can change
+# them.
 bcc_exec_facts() {
   local file=$1 rc=0 s c i kind a b p sub
   local -a paths=("$file") pre=()
@@ -195,7 +185,7 @@ bcc_exec_facts() {
           [[ -n $p ]] || p=/
         done
         paths+=("$p")
-        bcc_hwcaps_dirs "$a"
+        bcc_hwcaps_dirs "$a" "${BCC_DEPWALK_HWC[$file]:-unknown}"
         for sub in ${BCC_GLOB[@]+"${BCC_GLOB[@]}"}; do paths+=("$sub"); done
         ;;
       X)
@@ -204,6 +194,7 @@ bcc_exec_facts() {
           relative) BCC_FACTS+=("$(bcc_msg f_rp_relative "$b")") ;;
           token) BCC_FACTS+=("$(bcc_msg f_rp_token "$b")") ;;
           missing) BCC_FACTS+=("$(bcc_msg f_lib_missing "$b")") ;;
+          hwcaps) BCC_FACTS+=("$(bcc_msg f_hwcaps_unknown "$b")") ;;
           readelf) BCC_FACTS+=("$(bcc_msg f_readelf_failed "$b")") ;;
           depth) BCC_FACTS+=("$(bcc_msg f_depth)") ;;
         esac

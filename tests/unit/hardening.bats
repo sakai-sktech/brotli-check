@@ -27,15 +27,6 @@ has_fact() {
   return 1
 }
 
-# The dependency-walk records of FILE, one "kind<TAB>a<TAB>b" line each (for assertions).
-walk_records() {
-  local s c i
-  read -r s c <<<"${BCC_DEPWALK_CACHE[$1]}"
-  for ((i = s; i < s + c; i++)); do
-    printf '%s\t%s\t%s\n' "${BCC_WALK_K[i]}" "${BCC_WALK_A[i]}" "${BCC_WALK_B[i]}"
-  done
-}
-
 # --- 1: as root, found programs are not run by default; loaded code is checked too -------
 
 @test "consent: --no-exec runs nothing, --yes runs everything listed (as root too)" {
@@ -1041,7 +1032,8 @@ EOS
   mkdir -p "$d/glibc-hwcaps/x86-64-v3" "$T/app 1/lib/glibc-hwcaps/x86-64-v3"
   : >"$d/glibc-hwcaps/x86-64-v3/libq.so"
   : >"$T/app 1/lib/glibc-hwcaps/x86-64-v3/libq.so"
-  [ "$(bcc_dep_find libq.so "$d")" = "$d/glibc-hwcaps/x86-64-v3/libq.so" ]
+  bcc_dep_find known libq.so "$d"
+  [ "${BCC_FOUND[*]}" = "$d/glibc-hwcaps/x86-64-v3/libq.so" ]
   command -v cc >/dev/null || skip "no C compiler"
   command -v readelf >/dev/null || skip "readelf not available"
   chmod 777 "$d/glibc-hwcaps/x86-64-v3"
@@ -1268,7 +1260,7 @@ EOF
   BCC_NO_EXEC=1
   BCC_C04_CANDS=("$T/node") BCC_C04_DONE=1
   bcc_scan_proc_exes() { :; }
-  bcc_links_brotlidec() { printf '%s\treadelf\n' "$T/libbrotlidec.so.1"; }
+  bcc_links_brotlidec() { BCC_LINKS=("$T/libbrotlidec.so.1") BCC_LINKS_AMBIG=(""); }
   bcc_covered_by_c01() { return 0; }
   bcc_realpath() { printf '%s\n' "$1"; }
   bcc_dpkg_owner() { return 1; }
@@ -1308,9 +1300,9 @@ EOF
   mkdir -p "$T/private"
   dyn "$T/private/libbrotlidec.so.1"
   dyn "$T/app" "NEEDED=$T/private/libbrotlidec.so.1"
-  run bcc_links_brotlidec "$T/app"
-  [ "$status" -eq 0 ]
-  [[ $output == "$T/private/libbrotlidec.so.1"$'\t'readelf ]]
+  bcc_links_brotlidec "$T/app"
+  [ "${#BCC_LINKS[@]}" -eq 1 ]
+  [ "${BCC_LINKS[0]}" = "$T/private/libbrotlidec.so.1" ]
   bcc_needed_has_brotlidec "/var/lib/acme/libbrotlidec.so.1"
   bcc_needed_has_brotlidec $'libc.so.6\nlibbrotlidec.so.1'
   run bcc_needed_has_brotlidec $'libc.so.6\n/opt/libbrotlidec-dir/libz.so.1\nnotlibbrotlidec.so.1'
@@ -1490,40 +1482,12 @@ EOF
 @test "round 9: --deep: a library that is gone is not left to C01, even if dpkg still lists it" {
   fake_readelf
   dyn "$T/worker" "NEEDED=$T/gone/libbrotlidec.so.1"
-  bcc_links_brotlidec() { printf '%s\treadelf\n' "$T/gone/libbrotlidec.so.1"; }
+  bcc_links_brotlidec() { BCC_LINKS=("$T/gone/libbrotlidec.so.1") BCC_LINKS_AMBIG=(""); }
   bcc_covered_by_c01() { return 0; }
   mkdir -p "$T/gone"
   bcc_c09_linked_decoder "$T/worker"
   run findings_brief
   [[ $output == "UNKNOWN|C09|worker|$T/worker|"* ]]
-}
-
-# A readelf that pretends: "-d FILE" prints FILE.dyn (the dynamic section, written by dyn
-# below), "-l" prints nothing. For search paths a compiler will not produce (RPATH and RUNPATH
-# on one object).
-fake_readelf() {
-  cat >"$FAKEBIN/readelf" <<'EOS'
-#!/bin/bash
-f=${!#}
-case $1 in -d) [[ -f $f.dyn ]] && cat -- "$f.dyn" || exit 1 ;; *) exit 0 ;; esac
-EOS
-  chmod +x "$FAKEBIN/readelf"
-}
-
-# dyn FILE [NEEDED=x] [RPATH=x] [RUNPATH=x] ...: create FILE and its pretended dynamic section.
-dyn() {
-  local f=$1 kv
-  shift
-  mkdir -p "$(dirname "$f")"
-  : >"$f"
-  : >"$f.dyn"
-  for kv in "$@"; do
-    case $kv in
-      NEEDED=*) printf ' 0x0000000000000001 (NEEDED)             Shared library: [%s]\n' "${kv#*=}" ;;
-      RPATH=*) printf ' 0x000000000000000f (RPATH)              Library rpath: [%s]\n' "${kv#*=}" ;;
-      RUNPATH=*) printf ' 0x000000000000001d (RUNPATH)            Library runpath: [%s]\n' "${kv#*=}" ;;
-    esac >>"$f.dyn"
-  done
 }
 
 @test "mutation 10/27: a RUNPATH hides the same object's RPATH and the RPATH it would inherit" {

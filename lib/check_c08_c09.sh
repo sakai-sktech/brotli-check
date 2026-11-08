@@ -18,17 +18,14 @@ bcc_check_c08() {
 }
 
 bcc_c08_entry() {
-  local bin=$1 out has_br="" link rc=0 libpath method
+  local bin=$1 out has_br="" rc=0
   BCC_JUDGED[$bin]=1
   if out=$(bcc_probe "$bin" -V); then
     if grep -i '^Features:' <<<"$out" | grep -qiw brotli; then has_br=1; else has_br=0; fi
   fi
-  link=$(bcc_links_brotlidec "$bin") || rc=$?
+  bcc_links_brotlidec "$bin" || rc=$?
   if ((rc == 0)); then
-    bcc_split_tab "$link"
-    libpath=${BCC_F[0]}
-    method=${BCC_F[1]}
-    bcc_report_linked_lib C08 curl "$bin" "$libpath" "$method" "$(bcc_msg i_c08_compressed)"
+    bcc_report_linked_libs C08 curl "$bin" "$(bcc_msg i_c08_compressed)"
     bcc_report_own_copy C08 curl "$bin"
   elif ((rc == 1)); then
     # NOT_APPLICABLE needs curl's own word (-V lists no brotli). A static curl names no
@@ -82,6 +79,25 @@ bcc_report_linked_lib() {
   bcc_note_loaded "$file" "$real"
 }
 
+# Every libbrotlidec FILE loads (BCC_LINKS, from bcc_links_brotlidec in the calling shell),
+# each as bcc_report_linked_lib does. One of several copies the loader may pick by the CPU says
+# so (BCC_LINKS_AMBIG): each copy is judged, since which one is loaded could not be told.
+# SKIP_OS (C09): a library C01 judged adds nothing, not even information.
+# Usage: bcc_report_linked_libs ID PRODUCT FILE [MORE-INFO [SKIP_OS]]
+bcc_report_linked_libs() {
+  local id=$1 prod=$2 file=$3 i more real
+  local -a libs=(${BCC_LINKS[@]+"${BCC_LINKS[@]}"}) ambig=(${BCC_LINKS_AMBIG[@]+"${BCC_LINKS_AMBIG[@]}"})
+  for i in ${libs[@]+"${!libs[@]}"}; do
+    if [[ -n ${5:-} ]]; then
+      real=$(bcc_realpath "${libs[i]}") || real=""
+      [[ -n $real && -f $real ]] && { bcc_covered_by_c01 "$real" || bcc_covered_by_c01 "${libs[i]}"; } && continue
+    fi
+    more=${4:-}
+    [[ -z ${ambig[i]:-} ]] || more+="${more:+ }$(bcc_msg i_hwcaps_unknown "${ambig[i]}")"
+    bcc_report_linked_lib "$id" "$prod" "$file" "${libs[i]}" readelf "$more"
+  done
+}
+
 # A file that loads libbrotlidec can also carry a decoder of its own (with local symbols).
 # Its own decoder error names - which a program that only calls libbrotlidec does not have -
 # show it; that copy is then judged by its strings as well.
@@ -106,7 +122,7 @@ bcc_report_own_copy() {
 # to its end, its libraries not followed) is listed as not scanned. Every link shows.
 # Usage: bcc_report_other_names ID
 bcc_report_other_names() {
-  local id=$1 i found real comp link rc res
+  local id=$1 i found real comp rc res
   for i in ${BCC_OTHER_ID[@]+"${!BCC_OTHER_ID[@]}"}; do
     [[ ${BCC_OTHER_ID[i]} == "$id" ]] || continue
     found=${BCC_OTHER_FOUND[i]}
@@ -119,12 +135,11 @@ bcc_report_other_names() {
     fi
     bcc_link_prefetch "$real"
     rc=0
-    link=$(bcc_links_brotlidec "$real") || rc=$?
+    bcc_links_brotlidec "$real" || rc=$?
     if ((rc == 0)); then
       BCC_JUDGED[$real]=1
       bcc_add_info "$id" "$(bcc_msg i_other_name_judged "$found" "$real")"
-      bcc_split_tab "$link"
-      bcc_report_linked_lib "$id" "$comp" "$real" "${BCC_F[0]}" "${BCC_F[1]}"
+      bcc_report_linked_libs "$id" "$comp" "$real"
       bcc_report_own_copy "$id" "$comp" "$real"
       continue
     fi
@@ -400,18 +415,13 @@ bcc_c09_collect() {
 # the roots, nor look like a library there (libbrotlidec.so.1 -> decoder.bin). A program that
 # loads the OS's library says nothing new, and there can be many of them, so nothing is added.
 bcc_c09_linked_decoder() {
-  local f=$1 link rc=0 lib method real
-  link=$(bcc_links_brotlidec "$f") || rc=$?
+  local f=$1 rc=0
+  bcc_links_brotlidec "$f" || rc=$?
   if ((rc != 0)); then
     bcc_add_finding C09 UNKNOWN "${f##*/}" "$f" "" "$(bcc_msg r_link_undetermined)" "$(bcc_msg n_install_binutils)" "" ""
     return 0
   fi
-  bcc_split_tab "$link"
-  lib=${BCC_F[0]}
-  method=${BCC_F[1]}
-  real=$(bcc_realpath "$lib") || real=""
-  [[ -n $real && -f $real ]] && { bcc_covered_by_c01 "$real" || bcc_covered_by_c01 "$lib"; } && return 0
-  bcc_report_linked_lib C09 "${f##*/}" "$f" "$lib" "$method"
+  bcc_report_linked_libs C09 "${f##*/}" "$f" "" skip-os
 }
 
 # --deep: any ELF under --roots that carries the decoder but does not load libbrotlidec.

@@ -745,7 +745,8 @@ rejected alternative.
        one path); a `node` that is a link to a program of another name is not taken, and not listed (the
        filter exists for version-manager shims, 10.12, and telling a shim from a runtime is the real
        work; 10.23 names such links and judges what their files carry); glibc-hwcaps directories are tried in name order rather than glibc's priority (the right
-       order needs the CPU's supported levels).
+       order needs the CPU's supported levels). 10.28 judges every libbrotlidec and takes the order
+       from the loader.
     8. **Declined: `--output` writes a temporary file first.** It is created beside the requested name
        in the directory that was just checked, linked to that name so that nothing is overwritten
        (`noclobber` does not refuse every kind of existing file), and removed. Writing directly would
@@ -1174,3 +1175,68 @@ rejected alternative.
     Ubuntu's packages by the stamp (a backport would not show); FIXED from the stamp only when a
     `.version` agrees (both come from the same build; self-contained applications have none);
     reading the stamps of single-file and NativeAOT executables (not measured).
+28. **Every libbrotlidec a program loads is judged, and libraries are found in the loader's own
+    glibc-hwcaps order (2026-11-07, issue #18).** `bcc_links_brotlidec` returned the first
+    `libbrotlidec*` of the dependency walk, so a program loading the OS `libbrotlidec.so.1` and a
+    private `libbrotlidec_private.so.1` was judged by the OS copy alone. `bcc_dep_find` tried the
+    `glibc-hwcaps` subdirectories of a RUNPATH in name order, so with `x86-64-v2` and `x86-64-v3`
+    copies it took v2 where ld.so takes v3; the facts on the list of programs to run were then
+    about a file that is not loaded (10.18.7). Measured in Ubuntu 22.04 and 24.04 containers with a
+    library built in five variants: ld.so takes the highest level the CPU supports and that is not
+    masked (`GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX512F` moves it from v4 to v3), never a name it does
+    not know (`glibc-hwcaps/foo`); the ld.so cache holds the hwcaps entries too, listed by `ldconfig
+    -p` before the plain one and in name order (the first match was v2 again), and ld.so takes the
+    best one it searches; with no cache entry the default directories' subdirectories are tried;
+    a name needed again is the object already loaded, also when it is that object's SONAME.
+    1. **Every libbrotlidec, each once, as ld.so loads them.** The walk now keeps the names an
+       object was loaded by (the needed name and its SONAME, read when it is found) and does not
+       look such a name up again (ld.so matches loaded objects by name before searching; it loads
+       breadth-first, as the walk goes). `bcc_links_brotlidec` returns every `libbrotlidec*` the
+       walk reached, one per file (two names of one file, or one name needed by two objects, are
+       one), in load order; one not found stays `NAME (not found)` and is `UNKNOWN`, as before.
+       Each is judged as the one library was (`bcc_report_linked_libs` around
+       `bcc_report_linked_lib`: C01's copy is information, any other copy is judged under C09), and
+       each one's judgments hold for the program (`bcc_note_loaded`, for `RESTART_REQUIRED`). The
+       libraries come back in `BCC_LINKS`, not on stdout: paths may hold a newline, and the one-line
+       answer could no longer carry several. Callers run it in their own shell; a unit test fails
+       on any caller that takes it from `$(...)` or a pipe, where the answer would be empty.
+    2. **The order comes from the loader** (requester's decision, 2026-11-07). The system's loader
+       (`/lib64/ld-linux-x86-64.so.2`, `/lib/ld-linux-aarch64.so.1`) is run once per run with
+       `--help`, from `/` with an empty environment, and its "Subdirectories of glibc-hwcaps
+       directories, in priority order" are read: only names marked "(supported, searched)" are
+       searched, in that order ("No subdirectories ... are searched" leaves none). It runs only when
+       no one but root can change the loader (`bcc_safe_to_exec PATH 0`) and its file names
+       `--glibc-hwcaps-mask`: that option came with `--help` in glibc 2.33, and the 2.31 loader of
+       Ubuntu 20.04 reads `--help` as a program to load. Like readelf, it runs with `--no-exec` (it
+       loads no program); the README lists it among the system tools. The order is used for
+       programs whose PT_INTERP resolves to that loader and for files that name none (libraries:
+       this host's programs load them); RUNPATH and RPATH directories, the ld.so cache and the
+       default directories all follow it, and the facts name only the subdirectories it searches.
+    3. **When the order is not known, every candidate is judged and the report says so.** For a
+       program naming another loader, or when the loader could not be asked, a copy in a
+       `glibc-hwcaps` subdirectory may or may not be taken, so the search goes on to the first copy
+       outside them (in the directory, the ld.so cache's plain entry or a default directory), and
+       all the copies found on the way are candidates (`bcc_dep_find` with MODE `unknown`). Several
+       candidates for one name give one `N` record each and an `X hwcaps NAME` record; each
+       libbrotlidec among them is judged, its information line says that which copy loads could
+       not be told (`i_hwcaps_unknown`), and the facts list every copy with a fact saying so
+       (`f_hwcaps_unknown`). Copies that are one file count once.
+    4. **Measured.** On the developer's workstation (glibc 2.39) and in containers of Ubuntu 22.04,
+       24.04, 26.04 and Debian 12, 13, `ld.so --help` lists `x86-64-v4`, `x86-64-v3`, `x86-64-v2`,
+       all "(supported, searched)" on that CPU; Ubuntu 20.04's loader does not know `--help`.
+    5. **Not changed, or left as limitations.** The older hwcaps scheme of glibc 2.36 and earlier
+       (Ubuntu 22.04, Debian 12) also tries subdirectories such as `tls`, `x86_64` and
+       `haswell/x86_64` before each directory (seen on 22.04), and its ld.so cache entries carry a
+       mask (`hwcap: 0x...`); the walk does not look in them, and such cache entries are not taken
+       (requester's decision, 2026-11-07: listed in the limitations; 10.9.1's "tls" was never
+       implemented). A walk that could not be followed to the end (a library not found or not read,
+       the depth limit) still returns the libbrotlidec it reached, with status 0, as before: one
+       behind the missing library is not seen. The order is that of this host's CPU and of the
+       loader asked with an empty environment: a service started with `GLIBC_TUNABLES`, or the same
+       files on another machine, may load another copy.
+    Rejected: computing the levels from `/proc/cpuinfo` (it would copy glibc's rules - usable
+    features under the OS's XSAVE state, tunables, the names per architecture - and could get them
+    wrong where the loader answers for itself); always judging every candidate and saying that
+    which one loads could not be told (the loaders of every release the tool supports answer, and
+    it would say so on every host with a hwcaps copy); returning the libraries as lines (a path
+    with a newline would split into two entries).

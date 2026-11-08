@@ -30,10 +30,13 @@ bcc_init_findings() {
   declare -gA BCC_PLAN_BIN=() BCC_PLAN_ARG=() BCC_PLAN_PURPOSE=() BCC_PLAN_FACTS=() BCC_PLAN_OK=()
   declare -gA BCC_PROBE_OUT=() BCC_PROBE_RC=()
   declare -gA BCC_UNAME_CACHE=() BCC_PATHFACTS_CACHE=() BCC_DEPWALK_CACHE=() BCC_DEPWALK_RC=()
+  declare -gA BCC_DEPWALK_HWC=()
   declare -gA BCC_LINK_CACHE=() BCC_LINK_RC=() BCC_DYN_CACHE=() BCC_FIND_CACHE=()
-  # Facts and dependency-walk records are kept in arrays, never joined with a separator (a
-  # path may hold any byte but NUL); the caches above hold ranges "start count" of them.
-  BCC_FACT_POOL=() BCC_WALK_K=() BCC_WALK_A=() BCC_WALK_B=()
+  # Facts, dependency-walk records, lookups and linked libraries are kept in arrays, never
+  # joined with a separator (a path may hold any byte but NUL); the caches above hold ranges
+  # "start count" of them.
+  BCC_FACT_POOL=() BCC_WALK_K=() BCC_WALK_A=() BCC_WALK_B=() BCC_FIND_POOL=() BCC_LINK_P=() BCC_LINK_S=()
+  BCC_FOUND=() BCC_LINKS=() BCC_LINKS_AMBIG=()
 }
 
 # Split a tab-separated record into the global array BCC_F, keeping empty fields

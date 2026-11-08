@@ -109,7 +109,7 @@ bcc_c11_package_status() {
 }
 
 bcc_c11_file() {
-  local prod=$1 f=$2 link rc res owner pkg_st detail reason next
+  local prod=$1 f=$2 rc res owner pkg_st detail reason next
   BCC_JUDGED[$f]=1
   res=$(bcc_brotli_scan "$f")
   bcc_split_tab "$res"
@@ -119,10 +119,9 @@ bcc_c11_file() {
   fi
   local go=${BCC_F[4]} cbrotli=${BCC_F[5]} read_st=${BCC_F[6]}
   rc=0
-  link=$(bcc_links_brotlidec "$f") || rc=$?
+  bcc_links_brotlidec "$f" || rc=$?
   if ((rc == 0)); then
-    bcc_split_tab "$link"
-    bcc_report_linked_lib C11 "$prod" "$f" "${BCC_F[0]}" "${BCC_F[1]}"
+    bcc_report_linked_libs C11 "$prod" "$f"
     bcc_report_own_copy C11 "$prod" "$f"
   elif [[ $read_st != complete ]]; then
     # No markers were seen, but not all of the file was read: absence is not shown.

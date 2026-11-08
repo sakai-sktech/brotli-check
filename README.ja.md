@@ -279,7 +279,8 @@ root で動かすときは（ツリーも、あなたのディレクトリと同
 実行しなかったものは結果に書きます。
 
 `--no-exec` でも、点検用のシステムコマンド（dpkg-query、readelf、ss、snap、flatpak、`--containers` のときの
-docker・podman）は動きます。
+docker・podman）は動きます。システムのローダーも、`glibc-hwcaps` のディレクトリを探す順を知るために、`--help` を付けて
+1 度動かします。
 
 **コンテナの接続先。** `--containers` と `--inspect-containers` は、docker・podman をいまの接続設定のまま使い、
 どこにつないだかを docker・podman に聞いて結果に出します（例: `docker の接続先: unix:///var/run/docker.sock（このホストの
@@ -368,8 +369,6 @@ testing（forky）は修正の移行を待っていました。
 ### 分かっている問題
 
 いまの版で分かっている問題です。直したら、この一覧から消します。
-
-- 1 つのプログラムが読む `libbrotlidec*` のうち判定するのは最初の 1 つだけで、`glibc-hwcaps` のディレクトリは名前の順に試す（[#18](https://github.com/sakai-sktech/brotli-check/issues/18)）
 
 一覧: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 

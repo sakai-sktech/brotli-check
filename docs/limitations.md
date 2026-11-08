@@ -65,8 +65,6 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   - A preview of .NET 11 that has no `.version` file next to it (inside an application) is
     `UNKNOWN`: a preview and the release carry the same stamp.
   - .NET in snaps and inside containers is not looked at.
-- **A program that loads several libraries named `libbrotlidec*`.** Only the first is judged. The
-  others are found only if they are under the search roots ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).
 - **A `node`, `bun`, browser or similar that is a link to a program of another name** (a version
   manager's shim `node -> mise`, snap's `/snap/bin/firefox -> snapd`, or a runtime under another
   name). It is not run and no version is read for it, so that a shim is not judged as the runtime.
@@ -75,9 +73,20 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
   judged without its version, and may be `VENDORED_COPY`. A file with neither is named under
   information, and one that could not be read to its end, or whose libraries could not be followed,
   under "Could not be scanned". A script of any name is not looked at.
-- **`glibc-hwcaps` directories in a RUNPATH or RPATH.** They are tried in name order, where glibc
-  prefers the highest level the CPU supports. With copies at several levels, the one judged and
-  described may not be the one that loads ([#18](https://github.com/sakai-sktech/brotli-check/issues/18)).
+- **`glibc-hwcaps` subdirectories** (`x86-64-v3` and the like, where ld.so takes the highest level
+  the CPU supports). The order is asked of this host's loader (`ld.so --help`), so it is this
+  CPU's: the same files on another machine, or a service started with `GLIBC_TUNABLES`, may load
+  another copy. For a program that names another loader, or when the loader could not be asked
+  (glibc before 2.33), every copy there is judged and the report says that which one loads could
+  not be told.
+- **The older hwcaps subdirectories of glibc 2.36 and earlier** (Ubuntu 22.04, Debian 12). Their
+  ld.so also tries subdirectories such as `tls`, `x86_64` and `haswell/x86_64` in each library
+  directory before the directory itself, and takes ld.so cache entries for them. The tool does not
+  look there: a copy in one may be the one that loads, while the copy judged and described is the
+  one in the directory.
+- **Libraries behind one that could not be followed.** When a library a program needs is not
+  found or cannot be read, or the chain is deeper than 8, what lies behind it is not seen; a
+  libbrotlidec found before it is still judged, and the report does not say that the walk stopped.
 - **Electron applications** installed outside snap/flatpak are found only with `--deep`.
 - **Containers based on Alpine** (apk) get no package check inside (`--inspect-containers`
   covers Debian/Ubuntu-based images and Node.js / PyPI copies).
@@ -171,7 +180,9 @@ path, a library it would load or a directory those are searched in, and anything
 examine — and asks at the terminal (all, none, or by number). Without a terminal it needs
 `--yes` or `--no-exec`. The facts are as complete as the walk can make them: it follows
 symlinks where they are and looks libraries up the way glibc's ld.so does (DT_RPATH of the
-needing object and of its loaders, DT_RUNPATH, the ld.so cache, the default directories), but it
+needing object and of its loaders, DT_RUNPATH, the ld.so cache, the default directories, each
+with its `glibc-hwcaps` subdirectories in the loader's order; a name already loaded is not
+looked up again), but it
 cannot see what a program opens once it runs (dlopen, configuration files), and tokens such as
 `$LIB` are not expanded (the facts say so). Programs run from `/`, with an empty environment, a
 time limit and their output capped. `--inspect-containers` runs a fixed script inside running
@@ -180,7 +191,10 @@ engine connects through a unix socket on this host; asking for it is the consent
 
 System tools (`readelf`, `stat`, `dpkg-query`, ...) are taken from `/usr/sbin`, `/usr/bin`,
 `/sbin` and `/bin` (and `/usr/local/sbin`, `/usr/local/bin` when only root can change them),
-never from your `PATH`. The launcher itself is found through your `PATH`
+never from your `PATH`. The system's loader (`/lib64/ld-linux-x86-64.so.2` or
+`/lib/ld-linux-aarch64.so.1`) is run once with `--help`, from `/` with an empty environment, for
+its `glibc-hwcaps` order: only when only root can change it and it is glibc 2.33 or later (an
+older one takes `--help` for a program to load). The launcher itself is found through your `PATH`
 (`#!/usr/bin/env bash`): run it as `sudo bash brotli-cve-check`, where sudo's `secure_path`
 applies.
 
@@ -208,7 +222,8 @@ redirect a root-written file elsewhere. To keep a root scan in your home, redire
   and inside images (only their number is reported). Containers listed through a connection to
   another host are that host's; the report shows the connection with them.
 - Not a list of every process that needs a restart. The restart checks (C03-C05) see processes that
-  still use a deleted `libbrotlidec*` or `_brotli*.so`, or run a deleted node or bun. A process
+  still use a deleted `libbrotlidec*`, `_brotli*.so` or .NET's `libSystem.IO.Compression.Native.so`,
+  or run a deleted node or bun. A process
   running another program that carries its own copy of the decoder is not among them, and no such
   line is no proof that nothing needs a restart. For a process in another mount namespace (a
   container, a snap, a flatpak) the file at the same path on this host is a different file, so it

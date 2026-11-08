@@ -138,7 +138,7 @@ bcc_c04_candidates() {
 }
 
 bcc_check_c04() {
-  local bin owner link rc libpath method ver vm major pids next basis
+  local bin owner rc method ver vm major pids next basis
   bcc_c04_candidates
   bcc_scan_proc_exes node nodejs
   for bin in ${BCC_C04_CANDS[@]+"${BCC_C04_CANDS[@]}"}; do
@@ -146,14 +146,11 @@ bcc_check_c04() {
     pids=$(bcc_pids_of "$bin")
     owner=$(bcc_dpkg_owner "$bin") || owner=""
     rc=0
-    link=$(bcc_links_brotlidec "$bin") || rc=$?
-    # A Node.js that loads libbrotlidec is judged by that library, whoever installed it: its own
-    # version says nothing about the decoder then.
+    bcc_links_brotlidec "$bin" || rc=$?
+    # A Node.js that loads libbrotlidec is judged by that library (every one it loads), whoever
+    # installed it: its own version says nothing about the decoder then.
     if ((rc == 0)); then
-      bcc_split_tab "$link"
-      libpath=${BCC_F[0]}
-      method=${BCC_F[1]}
-      bcc_report_linked_lib C04 "${owner:-node}" "$bin" "$libpath" "$method"
+      bcc_report_linked_libs C04 "${owner:-node}" "$bin"
       bcc_report_own_copy C04 "node${owner:+ ($owner)}" "$bin"
       continue
     fi

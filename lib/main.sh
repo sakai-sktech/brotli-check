@@ -248,7 +248,10 @@ bcc_note_disabled() {
 }
 
 bcc_run_checks() {
-  bcc_have readelf && bcc_ldcache_load
+  if bcc_have readelf; then
+    bcc_ldcache_load
+    bcc_hwcaps_load
+  fi
   bcc_build_index
   # Programs whose version the checks need: listed with their facts, run only with consent.
   bcc_build_exec_plan

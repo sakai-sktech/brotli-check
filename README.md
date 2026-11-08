@@ -305,7 +305,8 @@ come from files (headers, package records, paths, strings), and the report says 
 run.
 
 Even with `--no-exec`, the system tools it checks with (dpkg-query, readelf, ss, snap, flatpak,
-and docker or podman with `--containers`) run.
+and docker or podman with `--containers`) run, and so does the system's loader, once with
+`--help`, to learn the order in which it searches `glibc-hwcaps` directories.
 
 **Where containers are looked at.** `--containers` and `--inspect-containers` use docker or
 podman with their current connection settings, ask them where they connect, and show it in the
@@ -413,8 +414,6 @@ not contain Brotli).
 ### Known problems
 
 Problems known in the current version. Each is removed from this list once fixed.
-
-- Of several libraries named `libbrotlidec*` in one program, only the first is judged, and `glibc-hwcaps` directories are tried in name order ([#18](https://github.com/sakai-sktech/brotli-check/issues/18))
 
 All: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 

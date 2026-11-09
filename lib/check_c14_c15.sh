@@ -8,7 +8,10 @@
 # a file the image's author controls).
 # POSIX sh only: /bin/sh is dash (Debian/Ubuntu) or busybox, and neither knows
 # "command -v -a", so node/nodejs are looked up in each PATH directory by hand.
-# The END line tells a complete run from one that stopped early.
+# The END line tells a complete run from one that stopped early. In each Python directory the
+# extension modules of Brotli and brotlicffi (EXT: path and size, the globs C06 uses on this
+# host) come before the packages' metadata (PY), so that a PY line implies that its directory's
+# EXT lines are all there; the modules are then read one by one (bcc_c14_py_crosscheck).
 # shellcheck disable=SC2016  # expanded inside the container, not here
 BCC_C14_PROBE='
 osr() { sed -n "s/^$1=//p" /etc/os-release 2>/dev/null | head -n 1 | tr -d "\"\047"; }
@@ -36,6 +39,9 @@ done
 IFS=$old_ifs
 set +f
 for d in /usr/lib/python3/dist-packages /usr/local/lib/python3*/site-packages /usr/lib/python3*/site-packages /opt/*/lib/python3*/site-packages; do
+  for e in "$d"/_brotli.*so "$d"/brotlicffi/_brotlicffi*.so; do
+    [ -f "$e" ] && echo "EXT	$e	$(wc -c 2>/dev/null <"$e")"
+  done
   for m in "$d"/[Bb]rotli-*.dist-info/METADATA "$d"/brotlicffi-*.dist-info/METADATA; do
     [ -f "$m" ] && echo "PY	$m	$(sed -n "s/^Name: *//p" "$m" | head -n 1)	$(sed -n "s/^Version: *//p" "$m" | head -n 1)"
   done
@@ -208,11 +214,69 @@ bcc_c14_next() {
   fi
 }
 
+# A "fixed" version from Python metadata inside a container is confirmed as on this host (C06,
+# docs/design.md 10.15 and 10.29): against this package's own extension modules in SITE
+# (Brotli: _brotli.*so; brotlicffi: brotlicffi/_brotlicffi*.so), as the check script listed
+# them. Each is read inside the container with head through the engine (bcc_c14_read), up to
+# the size limit and under the time limit, and its strings are judged here; nothing is written
+# on this host. A module larger than the limit is not read (it could not be read to the end).
+# No module, one not read to the end and one not read at all each leave the line UNKNOWN with
+# its reason; the last two are also listed as could not be scanned. Acts on BCC_J_*.
+# Usage: bcc_c14_py_crosscheck ENGINE ID NAME LNAME SITE VERSION [ENGINE-ARGS...]
+bcc_c14_py_crosscheck() {
+  local engine=$1 id=$2 name=$3 lname=$4 site=$5 ver=$6 i p rest size res rc pattern='_brotli.*so' n=0
+  local max=$((BCC_MAX_ELF_MB * 1024 * 1024))
+  [[ $lname == brotli ]] || pattern='brotlicffi/_brotlicffi*.so'
+  for i in ${BCC_C14_EXT_P[@]+"${!BCC_C14_EXT_P[@]}"}; do
+    p=${BCC_C14_EXT_P[i]}
+    # $site is taken literally: a "[" or "*" in a path is part of a name, not a pattern. A path
+    # in another directory keeps its leading "/" here, and matches neither name below.
+    rest=${p#"$site"/}
+    if [[ $lname == brotli ]]; then
+      [[ $rest == _brotli.*so && $rest != */* ]] || continue
+    else
+      [[ $rest == brotlicffi/_brotlicffi*.so && ${rest#brotlicffi/} != */* ]] || continue
+    fi
+    n=$((n + 1))
+    # As on this host, the first module that does not confirm the version decides.
+    [[ $BCC_J_STATUS == FIXED ]] || continue
+    size=${BCC_C14_EXT_S[i]//[[:space:]]/}
+    rc=""
+    if [[ ! $size =~ ^[0-9]+$ ]]; then
+      # The check script could not take its size: it could not open it.
+      res=UNREADABLE rc='?'
+    elif ((size > max)); then
+      res=$(bcc_brotli_classify $'0\t0\t0\t0\t0\t0\tpartial')
+    else
+      bcc_brotli_scan_stream 0 bcc_c14_read "$engine" "$id" "$p" "$max" "${@:7}"
+      case $BCC_SCAN_RC in
+        # 124, 137: the time limit (timeout). The bytes read so far are not enough.
+        0 | 124 | 137) res=$(bcc_brotli_classify "$BCC_SCAN") ;;
+        *) res=UNREADABLE rc=${BCC_SCAN_RC:-?} ;;
+      esac
+    fi
+    [[ $res != UNREADABLE ]] || bcc_skip failed "container $name $p" "$(bcc_msg skip_c14_read_failed "$rc")"
+    bcc_crosscheck_apply "$res" "container $name $p" "$(bcc_msg r_in_container "$p")"
+  done
+  ((n)) || bcc_crosscheck_no_file "$(bcc_msg r_crosscheck_no_ext "$ver" "$pattern")" "$(bcc_msg n_c14_py_check)"
+  return 0
+}
+
+# One file of a container, read inside it by head through the engine: at most MAX bytes, under
+# the time limit, with ENGINE-ARGS keeping the call on the connection that was checked. Exit
+# status: head's, through the engine (124 when the time limit was reached).
+# Usage: bcc_c14_read ENGINE ID PATH MAX [ENGINE-ARGS...]
+bcc_c14_read() {
+  timeout -k 2 "$BCC_TIMEOUT" "$1" "${@:5}" exec "$2" head -c "$4" -- "$3" </dev/null 2>/dev/null
+}
+
 # Usage: bcc_c14_inspect ENGINE ID NAME IMAGE [ENGINE-ARGS...]
 # Only for containers reached through this host (bcc_check_c14); ENGINE-ARGS keep the call on
 # the connection that was checked.
 bcc_c14_inspect() {
   local engine=$1 id=$2 name=$3 image=$4 out line series="" where ended=0 deb_py_ver=""
+  # The extension modules the check script listed (EXT lines): paths and sizes.
+  local -a BCC_C14_EXT_P=() BCC_C14_EXT_S=()
   if ! out=$(timeout -k 2 "$BCC_TIMEOUT" "$engine" "${@:5}" exec "$id" sh -c "$BCC_C14_PROBE" </dev/null 2>/dev/null); then
     bcc_skip failed "container $name" "$(bcc_msg skip_c14_exec_failed)"
     return
@@ -256,6 +320,10 @@ bcc_c14_inspect() {
         bcc_add_finding C14 "$BCC_J_STATUS" node "$where $npath" "$nver" "$BCC_J_REASON $(bcc_msg r_c14_node_vs_os)" \
           "$(bcc_c14_next)" "$BCC_J_EVIDENCE" ""
         ;;
+      EXT)
+        BCC_C14_EXT_P+=("${BCC_F[1]:-}")
+        BCC_C14_EXT_S+=("${BCC_F[2]:-}")
+        ;;
       PY)
         local lname meta=${BCC_F[1]:-} pname=${BCC_F[2]:-} pver=${BCC_F[3]:-}
         lname=$(tr '[:upper:]' '[:lower:]' <<<"$pname")
@@ -265,12 +333,13 @@ bcc_c14_inspect() {
         # --target) is judged by its own version.
         [[ $lname == brotli && -n $deb_py_ver && $pver == "$deb_py_ver" && $meta == /usr/lib/python3/dist-packages/* ]] && continue
         bcc_judge "pypi:$lname" '*' pep440 "$pver" "$(bcc_msg b_metadata_container)"
-        # The probe reads the metadata only, so "fixed" stays unconfirmed (see bcc_crosscheck_fixed).
+        # A "fixed" from the metadata is confirmed against the package's own extension modules,
+        # as on this host (C06); one that is not confirmed is checked in the image.
         local pnext
         pnext=$(bcc_msg n_rebuild_image)
         if [[ $BCC_J_STATUS == FIXED ]]; then
-          bcc_crosscheck_no_file "$(bcc_msg r_c14_py_unconfirmed "$pver")" "$(bcc_msg n_check_vendor)"
-          pnext=$BCC_J_NEXT
+          bcc_c14_py_crosscheck "$engine" "$id" "$name" "$lname" "${meta%/*/*}" "$pver" "${@:5}"
+          if [[ $BCC_J_STATUS == FIXED ]]; then pnext=$BCC_J_NEXT; else pnext=$(bcc_msg n_c14_py_check); fi
         fi
         bcc_add_finding C14 "$BCC_J_STATUS" "$pname" "$where ${meta%/*}" "$pver" "$BCC_J_REASON" "$pnext" "$BCC_J_EVIDENCE" ""
         ;;

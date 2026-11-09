@@ -1253,7 +1253,8 @@ finding_next() { bcc_split_tab "${BCC_FINDINGS[0]}"; printf '%s' "${BCC_F[6]}"; 
   [[ $(finding_next) == *"conda update"* ]]
 }
 
-@test "C14: Python metadata saying 1.2.1 inside a container is UNKNOWN, and says so" {
+@test "C14: Python metadata saying 1.2.1 inside a container, with no extension module listed, is UNKNOWN and says so" {
+  # (Modules listed and read: tests/unit/container-python.bats, issue #27.)
   cat >"$FAKEBIN/docker" <<'EOF'
 #!/bin/sh
 printf 'OS\tdebian\ttrixie\t\nPKGRC\t1\nPY\t/usr/local/lib/python3.12/site-packages/Brotli-1.2.1.dist-info/METADATA\tBrotli\t1.2.1\nEND\n'
@@ -1262,8 +1263,8 @@ EOF
   bcc_c14_inspect docker 0123abcd web img:1
   run findings_brief
   [ "$output" = "UNKNOWN|C14|Brotli|container web (img:1) /usr/local/lib/python3.12/site-packages/Brotli-1.2.1.dist-info|1.2.1" ]
-  [[ $(finding_reason) == *"the metadata inside the container says version 1.2.1; the check inside containers does not compare the strings"* ]]
-  [[ $(finding_next) == *"Ask the vendor or maintainer"* ]]
+  [[ $(finding_reason) == *"the metadata says version 1.2.1, but no extension module was found to compare (_brotli.*so)."* ]]
+  [[ $(finding_next) == *"check this package in the image, or ask whoever built the image"* ]]
 }
 
 @test "C14: Python metadata below the fix inside a container stays VULNERABLE, with its next step" {

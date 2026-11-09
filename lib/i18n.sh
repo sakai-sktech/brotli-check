@@ -31,9 +31,10 @@ Scan scope
   --projects              C07: exposure hints from node_modules under --roots
   --containers            C14: list running containers and count stopped ones and images
                           (docker/podman), with where the engine connects; nothing inside is read
-  --inspect-containers    C14: also run a fixed check script inside running containers, only
-                          when reached through this host (a unix socket, or podman itself);
-                          never inside stopped containers or images
+  --inspect-containers    C14: also run a fixed check script inside running containers, and
+                          read the extension modules of PyPI Brotli and brotlicffi there with
+                          head, only when reached through this host (a unix socket, or podman
+                          itself); never inside stopped containers or images
   --exposure              C15: listening sockets of node/python/bun/envoy
   --envoy-config FILE     C10: look for a Brotli decompressor in an Envoy configuration
 Behaviour
@@ -76,8 +77,9 @@ BCC_MSG_JA[usage]='brotli-cve-check %s - CVE-2026-111497（Brotli デコーダ�
   --projects              C07: --roots 配下の node_modules から露出のヒントを出す
   --containers            C14: 実行中のコンテナを一覧し、止まっているコンテナとイメージを数える
                           （docker/podman。接続先も出す。中は見ない）
-  --inspect-containers    C14: 実行中のコンテナの中でも決まった確認のスクリプトを動かす
-                          （このホストの unix ソケットか、サービスを介さない podman のときだけ。
+  --inspect-containers    C14: 実行中のコンテナの中でも決まった確認のスクリプトを動かし、
+                          Python の Brotli の拡張モジュールを head で読む（このホストの unix
+                          ソケットか、サービスを介さない podman のときだけ。
                           止まっているコンテナとイメージの中は見ない）
   --exposure              C15: node/python/bun/envoy の待ち受けポートを確認する
   --envoy-config FILE     C10: Envoy の設定に Brotli の展開フィルタがあるか確認する
@@ -264,12 +266,15 @@ BCC_MSG_EN[r_crosscheck_unconfirmed]='Not confirmed by the file: its decoder str
 BCC_MSG_JA[r_crosscheck_unconfirmed]='ファイルからは確かめられなかった: デコーダーの文字列にエラー名が無く、修正の有無が見えない。根拠は上の版だけ。'
 BCC_MSG_EN[r_crosscheck_incomplete]='Not confirmed by the file: it could not be read to the end (more than %s MiB, or the time limit).'
 BCC_MSG_JA[r_crosscheck_incomplete]='ファイルからは確かめられなかった: 最後まで読めなかった（%s MiB を超える、または制限時間）。'
+BCC_MSG_EN[r_crosscheck_unreadable]='Not confirmed by the file: %s could not be read.'
+BCC_MSG_JA[r_crosscheck_unreadable]='ファイルからは確かめられなかった: %s を読めなかった。'
 BCC_MSG_EN[r_crosscheck_no_ext]='Not confirmed by a file: the metadata says version %s, but no extension module was found to compare (%s).'
 BCC_MSG_JA[r_crosscheck_no_ext]='ファイルからは確かめられなかった: メタデータの版は %s だが、照合する拡張モジュールが見つからなかった（%s）。'
 BCC_MSG_EN[r_crosscheck_no_lib]='Not confirmed by a file: the conda record says version %s, but no shared library was found to compare (%s, not counting symbolic links).'
 BCC_MSG_JA[r_crosscheck_no_lib]='ファイルからは確かめられなかった: conda の記録の版は %s だが、照合する共有ライブラリが見つからなかった（%s。シンボリックリンクは数えない）。'
-BCC_MSG_EN[r_c14_py_unconfirmed]='Not confirmed by a file: the metadata inside the container says version %s; the check inside containers does not compare the strings of the extension module.'
-BCC_MSG_JA[r_c14_py_unconfirmed]='ファイルからは確かめられなかった: コンテナの中のメタデータの版は %s だが、コンテナの中では拡張モジュールの文字列を照合していない。'
+# A file inside a container, read through its engine (C14), as r_crosscheck_* name it.
+BCC_MSG_EN[r_in_container]='%s inside the container'
+BCC_MSG_JA[r_in_container]='コンテナの中の %s'
 BCC_MSG_EN[r_own_copy]='Besides loading libbrotlidec, the file carries decoder error names of its own: a bundled copy.'
 BCC_MSG_JA[r_own_copy]='libbrotlidec を読み込むほかに、ファイル自体にもデコーダーのエラー名がある（同梱コピー）。'
 BCC_MSG_EN[r_other_name]='Found as %s, a link to this program of another name: it was not run and no version was read for it (a version manager'"'"'s shim would answer for itself). It carries a Brotli decoder.'
@@ -443,6 +448,8 @@ BCC_MSG_EN[n_update_browser]='Update the browser to the latest version.'
 BCC_MSG_JA[n_update_browser]='ブラウザを最新版に更新する。'
 BCC_MSG_EN[n_rebuild_image]='Updating the host does not fix containers: rebuild the image on a fixed base and redeploy.'
 BCC_MSG_JA[n_rebuild_image]='ホストを更新してもコンテナは直らない。修正済みのベースで再ビルドして再デプロイする。'
+BCC_MSG_EN[n_c14_py_check]='Updating the host does not fix containers: check this package in the image, or ask whoever built the image; if it is not a fixed version, install one in the image, rebuild it and redeploy.'
+BCC_MSG_JA[n_c14_py_check]='ホストを更新してもコンテナは直らない。イメージの中のこのパッケージを確かめるか、イメージを作った側に確認する。修正版でなければ、修正版を入れてイメージを作り直し、再デプロイする。'
 BCC_MSG_EN[n_c15]='Update the runtime of this process first (C04-C06, C10).'
 BCC_MSG_JA[n_c15]='このプロセスの実行環境を優先して更新する（C04〜C06、C10）。'
 BCC_MSG_EN[n_none]='No action.'
@@ -559,6 +566,8 @@ BCC_MSG_EN[skip_c14_exec_failed]='the check script could not run inside the cont
 BCC_MSG_JA[skip_c14_exec_failed]='コンテナの中で確認のスクリプトを実行できなかった'
 BCC_MSG_EN[skip_c14_incomplete]='the check script inside the container stopped before its end; findings for it may be missing'
 BCC_MSG_JA[skip_c14_incomplete]='コンテナの中の確認のスクリプトが最後まで終わらなかった（所見が欠けている可能性がある）'
+BCC_MSG_EN[skip_c14_read_failed]='could not be read inside the container through the engine (status %s); its strings were not judged'
+BCC_MSG_JA[skip_c14_read_failed]='コンテナの中でエンジン越しに読めなかった（終了状態 %s）。文字列による判定はしていない'
 BCC_MSG_EN[skip_dpkg_failed]='dpkg-query failed (status %s): the package database could not be read'
 BCC_MSG_JA[skip_dpkg_failed]='dpkg-query が失敗した（終了状態 %s）。パッケージのデータベースを読めなかった'
 BCC_MSG_EN[skip_other_fs]='%s file systems mounted below the search roots (%s; this is one) are not searched; add them with --roots'

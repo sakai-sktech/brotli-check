@@ -190,14 +190,24 @@ bcc_elf_resolve() {
 # reason names it.
 # Usage: bcc_crosscheck_fixed FILE [NAMED]
 bcc_crosscheck_fixed() {
-  local f=$1 named=${2:-} res files="" c
+  local label=""
+  [[ $BCC_J_STATUS == FIXED ]] || return 0
+  [[ -z ${2:-} ]] || label=$1
+  bcc_crosscheck_apply "$(bcc_brotli_heuristic "$1")" "$1" "$label"
+}
+
+# The same rule for strings already judged (a bcc_brotli_classify line), however the file was
+# read: a file inside a container comes through its engine (C14, docs/design.md 10.29). SCOPE
+# is what "Could not be scanned" lists when the file could not be read to the end; LABEL names
+# the file in the reason (empty: the file on the finding's line). RES "UNREADABLE": the file
+# could not be read at all; the caller lists it, with why.
+# Usage: bcc_crosscheck_apply RES SCOPE LABEL
+bcc_crosscheck_apply() {
+  local res=$1 scope=$2 label=$3 files="" c
   [[ $BCC_J_STATUS == FIXED ]] || return 0
   [[ -n ${BCC_J_BASE:-} ]] || BCC_J_BASE=$BCC_J_REASON
-  res=$(bcc_brotli_heuristic "$f")
   # (An empty entry: the file on the finding's line.)
-  if [[ ${res%%$'\t'*} == LIKELY_FIXED ]]; then
-    if [[ -n $named ]]; then BCC_J_CONFIRMED+=("$f"); else BCC_J_CONFIRMED+=(""); fi
-  fi
+  if [[ ${res%%$'\t'*} == LIKELY_FIXED ]]; then BCC_J_CONFIRMED+=("$label"); fi
   for c in ${BCC_J_CONFIRMED[@]+"${BCC_J_CONFIRMED[@]}"}; do [[ -z $c ]] || files+="${files:+, }$c"; done
   BCC_J_REASON=$BCC_J_BASE
   if [[ -n $files ]]; then
@@ -214,8 +224,9 @@ bcc_crosscheck_fixed() {
     MULTIPLE_COPIES) BCC_J_REASON="$BCC_J_REASON $(bcc_msg r_heur_multiple)" ;;
     INCOMPLETE)
       BCC_J_REASON="$BCC_J_REASON $(bcc_msg r_crosscheck_incomplete "$BCC_MAX_ELF_MB")"
-      bcc_note_incomplete "$f"
+      bcc_note_incomplete "$scope"
       ;;
+    UNREADABLE) BCC_J_REASON="$BCC_J_REASON $(bcc_msg r_crosscheck_unreadable "$label")" ;;
     *) BCC_J_REASON="$BCC_J_REASON $(bcc_msg r_crosscheck_unconfirmed)" ;;
   esac
   BCC_J_STATUS=UNKNOWN
@@ -554,16 +565,31 @@ bcc_links_brotlidec() {
 # (Codex review round 6). (tr -s or fold would cap lines too, but cost 7x the time.)
 BCC_BROTLI_DICT_HEAD=timedownlifeleftbackcodedatashowonlysitecity
 bcc_brotli_scan() {
-  local f=$1 max=$((BCC_MAX_ELF_MB * 1024 * 1024)) size cut=0 res counts
-  local -a sts=()
+  local f=$1 max=$((BCC_MAX_ELF_MB * 1024 * 1024)) size cut=0
   if [[ ! -f $f || ! -r $f ]]; then
     printf '0\t0\t0\t0\t0\t0\tunreadable\n'
     return
   fi
   size=$(stat -L -c %s -- "$f" 2>/dev/null) || size=0
   [[ $size =~ ^[0-9]+$ ]] && ((size > max)) && cut=1
+  bcc_brotli_scan_stream "$cut" bcc_read_file "$f" "$max"
+  printf '%s\n' "$BCC_SCAN"
+}
+
+# The scan of bcc_brotli_scan over the bytes READER prints, so that a file not on this host's
+# disk can be read under the same limits: a container's file comes through its engine (C14,
+# docs/design.md 10.29), never through a temporary file. READER reads at most the size limit
+# under its own time limit; CUT is 1 when the file is known to be larger than the limit. Sets
+# BCC_SCAN (the record of bcc_brotli_scan) and BCC_SCAN_RC (READER's exit status; empty when
+# not known). As above, "complete" comes from the exit status of every stage, never from the
+# bytes read. In the calling shell.
+# Usage: bcc_brotli_scan_stream CUT READER [ARG...]
+bcc_brotli_scan_stream() {
+  local cut=$1 res counts
+  local -a sts=()
+  shift
   res=$(
-    bcc_read_file "$f" "$max" | LC_ALL=C tr -c '[:print:]' '\n' | (
+    "$@" | LC_ALL=C tr -c '[:print:]' '\n' | (
       ulimit -v 262144 2>/dev/null
       LC_ALL=C grep -a -E "^_ERROR_FORMAT_[A-Z0-9_]+\$|_ERROR_FORMAT_EXUBERANT_NIBBLE|BrotliDecoderDecompressStream|BrotliDecoderCreateInstance|$BCC_BROTLI_DICT_HEAD|^ Go buildinf:|github\\.com/google/brotli/go/cbrotli" 2>/dev/null |
         LC_ALL=C awk -v dict="$BCC_BROTLI_DICT_HEAD" '
@@ -586,15 +612,17 @@ bcc_brotli_scan() {
   counts=""
   [[ $res == *$'\n'* ]] && counts=${res%%$'\n'*}
   read -r -a sts <<<"${res##*$'\t'}"
+  BCC_SCAN_RC=""
+  if ((${#sts[@]} == 3)) && [[ ${sts[0]} =~ ^[0-9]+$ ]]; then BCC_SCAN_RC=${sts[0]}; fi
   local re='^[0-9]+'$'\t''[0-9]+'$'\t''[0-9]+'$'\t''[0-9]+'$'\t''[0-9]+'$'\t''[0-9]+$'
   if [[ ! $counts =~ $re ]]; then
     counts=$'0\t0\t0\t0\t0\t0'
     sts=(1)
   fi
   if ((cut == 0 && ${#sts[@]} == 3 && sts[0] == 0 && sts[1] == 0 && sts[2] == 0)); then
-    printf '%s\tcomplete\n' "$counts"
+    BCC_SCAN="$counts"$'\t'complete
   else
-    printf '%s\tpartial\n' "$counts"
+    BCC_SCAN="$counts"$'\t'partial
   fi
 }
 
@@ -618,9 +646,15 @@ bcc_has_brotli_decoder_marker() {
 # Every verified build carried 16 names (unfixed) or 17 (fixed), or none at all.
 BCC_MIN_ERROR_NAMES=8
 bcc_brotli_heuristic() {
-  local res count bs dicts read status
-  res=$(bcc_brotli_scan "$1")
-  bcc_split_tab "$res"
+  bcc_brotli_classify "$(bcc_brotli_scan "$1")"
+}
+
+# The same, from a record of bcc_brotli_scan (or of bcc_brotli_scan_stream, for a file read
+# some other way).
+# Usage: bcc_brotli_classify RECORD
+bcc_brotli_classify() {
+  local count bs dicts read status
+  bcc_split_tab "$1"
   count=${BCC_F[0]} bs=${BCC_F[1]} dicts=${BCC_F[2]} read=${BCC_F[6]}
   if [[ $read != complete ]]; then
     status=INCOMPLETE

@@ -262,7 +262,9 @@ and reported with a reason.
   `--exclude` paths, are listed as not scanned (10.9). The ELF search has a 512 MiB size limit by
   default, and files above it are listed.
 - Files the scan found are read only as regular files, under a time limit and up to the size limit
-  (`bcc_read_file`, 10.9).
+  (`bcc_read_file`, 10.9). Python's extension modules inside a container (`--inspect-containers`)
+  are read by `head -c` inside it through the engine, under the same limits, and streamed into the
+  scan (10.29).
 - No environment variables are read (the caller's `PATH` only tells where to look for programs to
   judge). Command lines only with `--show-cmdline`.
 - Other users' homes are enumerated with `getent passwd`; unreadable ones are listed as skipped.
@@ -274,8 +276,9 @@ and reported with a reason.
   (dpkg-query, dpkg, readelf, ldconfig, ss, snap, flatpak, docker ps, docker context inspect,
   podman info) still run; they are outside "running the programs it found" in section 2.4 of the
   request. Without `--no-exec`, found programs run only after the user chose them from the list
-  (or gave `--yes`), 10.11; `--inspect-containers` runs its fixed script inside containers, the
-  option itself being the consent, and only through a unix socket on this host (10.20). `--no-exec`
+  (or gave `--yes`), 10.11; `--inspect-containers` runs its fixed script inside containers, and
+  `head` there to read Python's extension modules (10.29), the option itself being the consent,
+  and only through a unix socket on this host (10.20). `--no-exec`
   with `--yes` is an error.
 - **Every external command runs with `LC_ALL=C`.** The development host's readelf printed localized
   output. Found programs run with an emptied environment (`env -i`) so that `NODE_OPTIONS` and the
@@ -607,7 +610,8 @@ rejected alternative.
        more reads through the engine). Accepted cost: a fixed Python in a container is never FIXED,
        and such a line adds to exit code 2. Why now: UNKNOWN says only what was seen, can be
        tightened later without taking anything back, and issue #6 is still deciding what `docker
-       exec` may do and where. Streaming is the option to weigh after #6.
+       exec` may do and where. Streaming is the option to weigh after #6. (Changed by 10.29, issue
+       #27: each module is read inside the container through the engine and compared here.)
 16. **What an advisory's range leaves out is UNKNOWN, not VULNERABLE (2026-11-01, issue #2).**
     `bcc_judge` had no lower bound and `derived` rows were VULNERABLE whatever their ground, so a
     version confirmed in the range and one that was merely old had the same verdict, reason and
@@ -851,7 +855,7 @@ rejected alternative.
     8. **Two questions left by issue #1, answered by the requester (2026-11-04).** Python inside a
        container stays UNKNOWN at or above the fix (10.15.5): this issue narrows where the check
        script may run, and streaming each extension module to the host through the engine is a
-       feature of its own, with more reads through the engine. A real container is now tested in the
+       feature of its own, with more reads through the engine (added by 10.29, issue #27). A real container is now tested in the
        integration run (`tests/integration/run.sh`), once per run: the tool runs on the test host
        against a container of the image, through the engine's unix socket (the script runs inside;
        both Node.js copies are judged) and through a TCP relay to the same socket (listed with the
@@ -1240,3 +1244,63 @@ rejected alternative.
     which one loads could not be told (the loaders of every release the tool supports answer, and
     it would say so on every host with a hwcaps copy); returning the libraries as lines (a path
     with a newline would split into two entries).
+29. **Python inside a container is confirmed by its own extension module, read through the
+    engine (2026-11-09, issue #27).** C14 judged PyPI's Brotli and brotlicffi inside a container
+    from their metadata only and, at or above the fix, made them UNKNOWN (10.15.5): the check
+    script read the metadata, and `bcc_brotli_scan` reads regular files of this host only. A fixed
+    container was counted under "Needs human review" and the run exited 2. Measured when the issue
+    was opened (2026-11-04): Brotli 1.2.1's `_brotli.cpython-313-x86_64-linux-gnu.so`, taken out of
+    a container and scanned on this host, was LIKELY_FIXED.
+    1. **The rule of this host (C06, 10.15.2).** In each Python directory it looks in, the check
+       script lists the modules of the globs C06 uses (`_brotli.*so`, `brotlicffi/_brotlicffi*.so`)
+       with their sizes (`wc -c`), before the metadata of that directory (EXT lines before PY
+       lines): a PY line then means that its directory's EXT lines are all there, and a script that
+       stopped early cannot turn a module not yet listed into "no module". A metadata version at or
+       above the fix is compared with the package's own modules in its directory (the path taken
+       literally; nothing deeper, nothing in another directory), one after another until one does
+       not confirm it; with none the line is UNKNOWN, as on this host (`r_crosscheck_no_ext`).
+       Below the fix nothing is read.
+    2. **Read inside the container by `head`, through the engine, on the checked context**
+       (requester's decision, 2026-11-09): `docker --context NAME exec ID head -c MAX -- PATH`
+       (`podman exec` for podman), under the time limit, its output streamed into the scan; nothing
+       is written on this host (7). Of the two ways the issue named, `docker cp ID:PATH -` runs
+       nothing inside for the read itself, but the check script has to run inside anyway to find
+       the modules (this host cannot list a container's directories); it would add a tar reader on
+       this host, the engine sends the whole file whatever the limit, and whether `podman cp`
+       writes a tar to stdout was not known. The check script already needs `head`.
+    3. **The scan reads a stream.** `bcc_brotli_scan_stream CUT READER...` is the pipeline of
+       `bcc_brotli_scan` with the reader as a parameter: the same size, time and memory limits,
+       and "read to the end" from the exit status of every stage, never from the bytes read. The
+       size comes from the check script (this host's `stat` cannot see the file); a module larger
+       than the limit is not read, and could not be read to the end, as such a file on this host.
+       The reader's own status tells a read that failed (the file not readable, the container gone)
+       from one cut by the time limit (124 or 137 from `timeout`).
+       `bcc_crosscheck_fixed` is split so that a scan read any way is applied by the same code
+       (`bcc_crosscheck_apply`, which also takes `UNREADABLE`).
+    4. **Each failure has its reason, and a read that failed is listed.** No module:
+       `r_crosscheck_no_ext`. Not read to the end: `r_crosscheck_incomplete`, and "Could not be
+       scanned" names `container NAME PATH` (`skip_incomplete`). Not read at all:
+       `r_crosscheck_unreadable`, and "Could not be scanned" gives the status
+       (`skip_c14_read_failed`; `?` when the check script could not take the size). Both are
+       `failed` (10.26): the run set out to read them. A module named in a reason is "PATH inside
+       the container" (`r_in_container`), since the path is not one of this host.
+    5. **The next step of such an UNKNOWN is about the image** (requester's decision, 2026-11-09,
+       on a note made in #6): "check this package in the image, or ask whoever built
+       the image; if it is not a fixed version, install one in the image, rebuild it and redeploy"
+       (`n_c14_py_check`), in place of "ask the vendor or maintainer which Brotli version it
+       bundles" and, with no module, of "reinstall the package". C06, conda and the data's
+       `unknown` rows keep `n_check_vendor`; whether it fits them is left for later.
+    6. **Unchanged.** Only containers reached through this host are read, and nothing with
+       `--no-exec` (10.20). The directories the check script looks in are the same
+       (`/usr/lib/python3/dist-packages`, `/usr/local/lib/python3*/site-packages`,
+       `/usr/lib/python3*/site-packages`, `/opt/*/lib/python3*/site-packages`), and the
+       distribution's `python3-brotli` is still left to its package line. podman gets the same call;
+       it was not tried with a real podman. Tested by unit tests with a fake engine that returns the
+       modules' bytes (`tests/unit/container-python.bats`) and by the C14 step of the integration
+       run, where the image's PyPI Brotli 1.2.0 and 1.2.1 are copied to `/opt` inside the container
+       (1.2.0 VULNERABLE, 1.2.1 FIXED).
+    Rejected: comparing the strings in the check script (10.15.5: a second heuristic in POSIX sh);
+    reading every listed module after one did not confirm (the line is UNKNOWN already, and this
+    host stops there too); reading a module over the size limit for its partial counts (they
+    cannot change the result); listing modules only in directories that hold Brotli's metadata
+    (more shell in the check script for a few lines that are never read).

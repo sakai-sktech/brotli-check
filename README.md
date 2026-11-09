@@ -314,9 +314,9 @@ report (for example `Connection of docker: unix:///var/run/docker.sock (a unix s
 host).`). If `DOCKER_HOST` or the docker context points at another host, the list and the counts
 are that host's. They come with the connection: check it when you read them.
 
-The check script runs inside containers (`--inspect-containers`) only when the connection is a
-unix socket on this host (`unix://`), or when podman runs on this host itself, with no service in
-between. Otherwise nothing runs inside them, and the connection and the reason are listed under
+The check script runs inside containers (`--inspect-containers`), and reads Python's extension
+modules there with `head`, only when the connection is a unix socket on this host (`unix://`), or
+when podman runs on this host itself, with no service in between. Otherwise nothing runs inside them, and the connection and the reason are listed under
 "Could not be scanned" (under "Not scanned" when `--inspect-containers` was not given). `tcp://localhost` is not looked inside either, since an ssh tunnel behind it may
 lead to another host; nor is podman as a client of a service (`CONTAINER_HOST` and the like),
 since podman does not state the service's address. A socket of another host brought to a unix
@@ -354,7 +354,7 @@ the fixed version:
 |---|---|---|---|
 | A package's record | C01 and C14 (distribution packages), C09 (Ubuntu's .NET packages), C12 (snap, flatpak), C13 (a browser's package, when it is not run) | "(the distribution package version)", "(the version snap list gives)", "(the version dpkg records for the package chromium)" | The package manager records a version at or above the fixed one. C01 and C14 compare it with the version the distributor named as fixed |
 | A program's output | C04, C05, C10, C13, C14 (Node.js inside a container) | "(output of node --version)" | The program answered so (see "[Running programs to read versions](#running-programs-to-read-versions)") |
-| A file plus strings | C04, C05 (header, directory name), C06 (package metadata, conda record), C09 and C12 (a library's file name), C13 (`application.ini`) | "(version from the directory name). Found: the error name added by the fix (...) among the decoder strings of this file. Not determined: whether all decoder code in the file is fixed (...)" | The version read from files is at or above the fixed one, and the decoder's strings show the fix too. Whether every decoder in the file is fixed is not known, and the reason says so |
+| A file plus strings | C04, C05 (header, directory name), C06 (package metadata, conda record), C09 and C12 (a library's file name), C13 (`application.ini`), C14 (package metadata inside a container) | "(version from the directory name). Found: the error name added by the fix (...) among the decoder strings of this file. Not determined: whether all decoder code in the file is fixed (...)" | The version read from files is at or above the fixed one, and the decoder's strings show the fix too. Whether every decoder in the file is fixed is not known, and the reason says so |
 | A build stamp in the decoder's file | C09 (.NET outside Ubuntu's packages) | "(the .NET version stamped into this file by its build: 8.0.3326.52219)" | The build wrote .NET's version into the very file that holds the decoder. Where its strings can tell (.NET 9, 10), they must show the fix too, as in the row above. .NET 8's carry no error names: the reason then says that the fix is not seen in the file, and the stamp is the only basis |
 
 A version read from a file (a directory name, a header, package metadata) gives `FIXED` only
@@ -362,8 +362,11 @@ when the decoder's strings confirm the fix. When those strings are in another fi
 extension module, conda's shared library, Firefox's `libxul.so`), the reason names it. The .NET
 build stamp is not such a version: it is in the decoder's own file (see
 [docs/limitations.md](docs/limitations.md)). With no file to compare the result is `UNKNOWN`.
-Python inside a container is `UNKNOWN` even at or above the fix, because the strings are not
-compared there; its reason, too, says where the version came from.
+Python inside a container (`--inspect-containers`) is compared the same way: its extension module
+is read inside the container by `head` through the engine, under the same size and time limits,
+and its strings are judged on this host; the reason names it as the container's file. A module
+that is not there, could not be read to the end, or could not be read at all leaves the line
+`UNKNOWN`, with the reason; the last two are also listed under "Could not be scanned".
 
 **The string heuristic.** For a bundled copy whose version is unknown, the decoder's error-name
 strings are used: the fix added `_ERROR_FORMAT_BLOCK_SWITCH` (error -17). This was checked on

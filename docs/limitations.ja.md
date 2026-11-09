@@ -113,8 +113,12 @@ English: [limitations.md](limitations.md)
 `_brotli.*so`・`brotlicffi/_brotlicffi*.so`、conda の `lib/libbrotlidec.so.*`。conda ではシンボリックリンクを数えません）。
 ファイル名や置き場所がこれと合わない配布形態は、修正済みでも `UNKNOWN` になります。
 
-コンテナの中（`--inspect-containers`）の Python は、メタデータの版だけを読み、拡張モジュールの文字列を照合しません。
-そのため版が修正版以上でも `UNKNOWN` で、コンテナの中の Python が `FIXED` になることはありません。
+コンテナの中（`--inspect-containers`）の Python も同じく照合します。照合するのは、確認のスクリプトが見るディレクトリ
+（`/usr/lib/python3/dist-packages`、`/usr/local/lib/python3*/site-packages`、`/usr/lib/python3*/site-packages`、
+`/opt/*/lib/python3*/site-packages`）で、メタデータと並んで見つかる拡張モジュールです（コンテナの中のほかの場所の Python、たとえば
+`/srv` の下の仮想環境は見ません）。モジュールは、エンジン越しにコンテナの中の `head` で、大きさの上限まで、制限時間の下で読みます。
+上限を超えるモジュールは読みません。そのモジュールと、読めなかったモジュールは、その行を `UNKNOWN` にし、
+「走査できなかった範囲」に出します。
 
 ## 版番号
 
@@ -146,8 +150,8 @@ DT_RPATH、DT_RUNPATH、ld.so のキャッシュ、既定のディレクトリ�
 読み込み済みの名前はもう一度探さない）で探しますが、実行してから開くもの（dlopen、設定
 ファイル）は見えず、`$LIB` のような記号は展開しません（そのことも事実に書きます）。実行は `/` から、環境変数を
 空にし、制限時間と出力の上限を付けて行います。`--inspect-containers` は、実行中のコンテナの中で決まった
-スクリプトを実行します（そこでファイルを読み、見つけた `node` を `--version` で動かします）。接続先がこのホストの unix
-ソケットのときだけで、その指定が同意です。
+スクリプトを実行し（そこでファイルを読み、見つけた `node` を `--version` で動かします）、Python の拡張モジュールを読むために
+`head` も動かします。接続先がこのホストの unix ソケットのときだけで、その指定が同意です。
 
 システムの道具（`readelf`・`stat`・`dpkg-query` など）は `/usr/sbin`・`/usr/bin`・`/sbin`・`/bin`（root しか
 変更できなければ `/usr/local/sbin`・`/usr/local/bin` も）から使い、呼び出し側の `PATH` からは使いません。

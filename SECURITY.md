@@ -33,6 +33,8 @@ reproduction you can. Do not attach exploit data for Brotli.
   `--yes`, none with `--no-exec`). Nothing keeps a program allowed to run from writing files or
   using the network.
 - With `--containers`, docker or podman are used with their current connection settings, and the
-  report shows where they connect. The fixed script of `--inspect-containers` runs inside containers
-  only when that is a unix socket on this host, or podman with no service in between.
+  report shows where they connect. The fixed script of `--inspect-containers`, and the `head` that
+  reads Python's extension modules for it, run inside containers only when that is a unix socket
+  on this host, or podman with no service in between. The modules are read into the string check
+  on this host, under its size and time limits, and are not written anywhere.
 - Command lines of processes are not shown unless `--show-cmdline`.

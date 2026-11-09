@@ -144,9 +144,14 @@ same goes when there is no file to compare (Python's extension module `_brotli.*
 `brotlicffi/_brotlicffi*.so`; conda's `lib/libbrotlidec.so.*`, not counting symbolic links). A
 distribution whose file names or places differ from these is `UNKNOWN` even when it is fixed.
 
-Python inside a container (`--inspect-containers`) is read from its metadata only; the strings of
-its extension module are not compared. So it is `UNKNOWN` even at or above the fixed version, and
-never `FIXED`.
+Python inside a container (`--inspect-containers`) is compared the same way, with the extension
+modules that the check script finds next to the metadata, in the directories it looks in
+(`/usr/lib/python3/dist-packages`, `/usr/local/lib/python3*/site-packages`,
+`/usr/lib/python3*/site-packages`, `/opt/*/lib/python3*/site-packages`; Python elsewhere in a
+container, such as a virtual environment under `/srv`, is not looked at). Each module is read
+inside the container by `head` through the engine, up to the size limit and under the time
+limit. A module over the limit is not read. Such a module, and one that could not be read, leave
+the line `UNKNOWN` and are listed under "Could not be scanned".
 
 ## Version numbers
 
@@ -186,8 +191,9 @@ looked up again), but it
 cannot see what a program opens once it runs (dlopen, configuration files), and tokens such as
 `$LIB` are not expanded (the facts say so). Programs run from `/`, with an empty environment, a
 time limit and their output capped. `--inspect-containers` runs a fixed script inside running
-containers (it reads files there and runs the `node` it finds with `--version`), only when the
-engine connects through a unix socket on this host; asking for it is the consent.
+containers (it reads files there and runs the `node` it finds with `--version`), and `head` there
+to read Python's extension modules, only when the engine connects through a unix socket on this
+host; asking for it is the consent.
 
 System tools (`readelf`, `stat`, `dpkg-query`, ...) are taken from `/usr/sbin`, `/usr/bin`,
 `/sbin` and `/bin` (and `/usr/local/sbin`, `/usr/local/bin` when only root can change them),

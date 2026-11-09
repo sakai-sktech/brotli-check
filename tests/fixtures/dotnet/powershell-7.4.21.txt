@@ -1,0 +1,7 @@
+@(#)Version 8.0.3226.46521 @Commit: e62fa8c72e4e40558e1b2614d5e0f3146d06b961
+BrotliDecoderCreateInstance
+BrotliDecoderDecompress
+BrotliDecoderDecompressStream
+BrotliDecoderDestroyInstance
+BrotliDecoderIsFinished
+timedownlifeleftbackcodedatashowonlysitecity

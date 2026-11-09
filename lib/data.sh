@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # data.sh - load data/advisories.tsv (read-only) and judge a version against it.
 
-BCC_DATA_STATUSES="fixed no_fix unreleased derived_eol derived_bundled analysis unknown"
+BCC_DATA_STATUSES="fixed no_fix unreleased derived_eol derived_bundled derived_before_range analysis unknown"
 
 # bcc_data_check_affected CELL STATUS FIXED  (prints what is wrong; empty when it is fine)
 # A misplaced or reversed range would silently turn VULNERABLE into UNKNOWN, so it is refused.
@@ -196,6 +196,13 @@ bcc_judge() {
     derived_bundled)
       BCC_J_STATUS=VULNERABLE
       BCC_J_REASON=$(bcc_msg r_derived_bundled)
+      ;;
+    derived_before_range)
+      # Older than what the advisory states, as below a fixed row's FIRST: it does not say
+      # whether this is affected. The line gets no fix, so moving on is still the next step.
+      BCC_J_STATUS=UNKNOWN
+      BCC_J_OUT_OF_RANGE=1
+      BCC_J_REASON=$(bcc_msg r_derived_before_range)
       ;;
     unknown)
       BCC_J_STATUS=UNKNOWN

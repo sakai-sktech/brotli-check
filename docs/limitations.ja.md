@@ -7,7 +7,7 @@ English: [limitations.md](limitations.md)
 ## 見落としうるコピー
 
 - **探索する場所の外。** 既定は `/opt, /usr/local, /srv, /var/www, /home, /root` と、システムの Python・
-  ライブラリのディレクトリ。それ以外は `--roots` で指定してください。
+  ライブラリのディレクトリ、.NET の `/usr/share/dotnet`。それ以外は `--roots` で指定してください。
 - **アーカイブや、動いていないイメージの中**: `.asar`・`.jar`・`.zip`、AppImage・squashfs のファイル、
   実行中のコンテナが無いコンテナイメージ、仮想マシンのディスク、バックアップ。
 - **止まっているコンテナとコンテナイメージの中。** `--containers` は数えて、その数を「走査しなかった範囲」に出します。
@@ -34,11 +34,23 @@ English: [limitations.md](limitations.md)
   マウントの一覧にも出ないため）。
 - **ほかの実装。** Go（`andybalholm/brotli`）、Rust（`brotli-decompressor`）、Java のデコーダーは別の
   コードで、調べません。それらがこの CVE の影響を受けるかは、ここでは扱いません。
-- **.NET。** .NET のランタイムは別のコードではなく、Google の C のデコーダーを `libSystem.IO.Compression.Native.so` に
-  組み込んでいて、Ubuntu はこの CVE の対象に挙げています（[USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)）。
-  このツールは名前で探さず、`/usr/lib/dotnet` は既定の範囲に無いので、既定の実行では何も出ません。
-  一覧に出すには `--deep --roots /usr/lib/dotnet` です（Ubuntu 24.04 で確かめた。`VENDORED_COPY` になります）。
-  ランタイムの版を、Microsoft か配布元の告知と照らしてください（[#17](https://github.com/sakai-sktech/brotli-check/issues/17)）。
+- **.NET（判定するものと、残るもの）。** .NET のランタイムは Google の C のデコーダーを
+  `libSystem.IO.Compression.Native.so`（.NET 5 より前は `System.IO.Compression.Native.so`）に組み込んでいて、libbrotli を
+  読み込みません。OS の libbrotli を更新しても直りません。このツールは、そのライブラリを探索の範囲と `/usr/lib/dotnet`・
+  `/usr/share/dotnet` からファイル名で見つけ、.NET 自身の版で判定します。Ubuntu の .NET のパッケージのファイルはパッケージの版で、
+  それ以外はビルドがファイルに刻んだ版（`@(#)Version 8.0.3326.52219` は 8.0.33）で判定します。残るもの:
+  - **.NET 8 のライブラリにはデコーダーのエラー名がありません。** 文字列では修正を確かめられません（.NET 9・10 は確かめられ、
+    刻印と食い違えば判定しません）。Ubuntu のパッケージでない .NET 8 の `FIXED` は刻印だけが根拠で、理由の文にそう書きます。
+  - **self-contained のアプリ**は、ライブラリのコピーをアプリの横に持ちます。ファイル名で見つけ、ランタイムと同じに判定します。
+    インストール済みの .NET を更新しても変わらないので、次の一手は「修正版の .NET で作ったアプリの版」です。
+    **single-file のアプリと NativeAOT の実行ファイル**は、デコーダーを実行ファイルの中に持ちます。それらを作る元の apphost の
+    パックと NativeAOT のパッケージも同じです。見るのは `--deep` だけで、文字列だけで判定します（.NET 8 のビルドは
+    `VENDORED_COPY` になります）。
+  - NuGet のパッケージフォルダー（`~/.nuget/packages`）の runtime pack はビルドの材料です。ほかのパッケージ管理のキャッシュと
+    同じく数えるだけで、報告しません。
+  - Microsoft のアーカイブから入れたランタイムは、古いパッチ版が新しい版と並んで残ります。それぞれを報告します。
+  - `.version` ファイルが横に無い（アプリの中の）.NET 11 のプレビューは `UNKNOWN` です。プレビューとリリースは同じ刻印を持ちます。
+  - snap の .NET と、コンテナの中の .NET は見ません。
 - **別の名前のプログラムへのリンクである `node`・`bun`・ブラウザなど**（バージョン管理ツールのシム `node -> mise`、snap の
   `/snap/bin/firefox -> snapd`、別の名前で置いたランタイム）。シムをランタイムとして判定しないよう、実行せず、版も読みません。
   リンク先のファイルは、持っているものだけで判定します。読み込む libbrotlidec か、デコーダーの文字列です（下の「文字列による推定」）。
@@ -165,7 +177,7 @@ root 所有で sticky bit 付きなら可）が条件です。そのため root 
 - 他のホストや、動いていなかったコンテナ・イメージの中については何も言いません（出すのは数だけ）。別のホストへの接続で
   一覧したコンテナはそのホストのもので、結果には接続先が一緒に出ます。
 - 再起動が要るプロセスの一覧ではありません。再起動の確認（C03〜C05）が見るのは、削除済みの
-  `libbrotlidec*`・`_brotli*.so` を使い続けているプロセスと、削除済みの node・bun を動かし続けている
+  `libbrotlidec*`・`_brotli*.so`・.NET の `libSystem.IO.Compression.Native.so` を使い続けているプロセスと、削除済みの node・bun を動かし続けている
   プロセスだけです。デコーダーのコピーを抱えたほかのプログラムのプロセスは入りません。行が無いことは、
   再起動が要らないことの証明ではありません。別のマウント名前空間（コンテナ・snap・flatpak）のプロセスは、
   このホストの同じパスにあるファイルが別物なので照合せず、版を確かめてから再起動するよう行に書きます。

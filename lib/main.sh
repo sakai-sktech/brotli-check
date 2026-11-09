@@ -266,6 +266,7 @@ bcc_run_checks() {
   ((BCC_PROJECTS)) && bcc_check_c07
   bcc_check_c08
   bcc_check_c09_libs
+  bcc_check_c09_dotnet
   ((BCC_DEEP)) && bcc_check_c09_deep
   bcc_check_c10
   bcc_check_c11

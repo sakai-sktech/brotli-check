@@ -269,7 +269,7 @@ write_data() {
     [ "$status" -eq 3 ]
     [[ $output == *"ADVISORY:FIRST:LAST"* ]]
   done
-  for st in no_fix unreleased derived_eol derived_bundled analysis unknown; do
+  for st in no_fix unreleased derived_eol derived_bundled derived_before_range analysis unknown; do
     write_data '# snapshot: 2026-10-26' "foo|*|2.0.0|$st|ADV-1:1.5.0:1.9.9|https://x|2026-10-26|"
     run bcc_load_data test-data <"$DATA"
     [ "$status" -eq 3 ]

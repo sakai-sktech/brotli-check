@@ -214,8 +214,9 @@ bcc_restart_advice() {
   esac
 }
 
-# C03: a process that still maps a deleted libbrotlidec (or python3-brotli's _brotli*.so)
-# keeps running the old code. Run after the checks that judge the files on disk (C01, C06,
+# C03: a process that still maps a deleted libbrotlidec (or python3-brotli's _brotli*.so, or
+# .NET's System.IO.Compression native library, which an update of .NET removes with its
+# version's directory) keeps running the old code. Run after the checks that judge the files on disk (C01, C06,
 # C09, ...: bcc_run_checks), whose findings say what a restart would load.
 bcc_check_c03() {
   local proc=${BCC_PROC_ROOT:-/proc} d pid maps lines hit exe p unreadable=0
@@ -228,7 +229,7 @@ bcc_check_c03() {
       continue
     fi
     [[ -n $maps ]] || continue
-    lines=$(grep -E '/(libbrotlidec[^/]*\.so[^/]*|_brotli[^/]*\.so) \(deleted\)$' <<<"$maps" |
+    lines=$(grep -E '/(libbrotlidec[^/]*\.so[^/]*|_brotli[^/]*\.so|(lib)?System\.IO\.Compression\.Native\.so) \(deleted\)$' <<<"$maps" |
       sed -E 's/^([^ ]+ +){5}//' | sort -u || true)
     [[ -n $lines ]] || continue
     hit=$(head -n 3 <<<"$lines" | paste -sd, - | sed 's/,/, /g')

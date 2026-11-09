@@ -74,7 +74,7 @@ ISTIO-SECURITY-2026-007、Chromium の `README.chromium`（cfa184a9）、Firefox
 | Ubuntu の ESM | USN-8956-2（2026-10-27）が 20.04 focal、18.04 bionic、16.04 xenial を修正。Ubuntu Pro でだけ入手できる | `fixed` の行を 3 つ: 1.0.7-6ubuntu0.1+esm1、1.0.3-1ubuntu1.3+esm1、1.0.3-1ubuntu1~16.04.2+esm1。これらのホストはこれまで UNKNOWN（データなし）だった | ubuntu.com/security/notices/USN-8956-2、ubuntu.com/security/CVE-2026-111497 |
 | Firefox ESR | 現行の ESR は 153（`FIREFOX_153_0esr_RELEASE` に 4792c8e4）。115 も更新が続いている（115.34.0esr は e61745a6、115.35.0esr は 4792c8e4）。128 は 128.14.0esr で終わり、入っていない | `analysis` の行を 2 つ: 153.0 と 115.35.0。128 は行が無いので UNKNOWN のまま | タグごとの `modules/brotli/moz.yaml`、product-details.mozilla.org |
 | Envoy 1.17 以前 | v1.18.0 より前の Envoy のソースに Brotli は無い（v1.14.0〜v1.17.4 の `repository_locations.bzl`、`repositories.bzl`、`extensions_build_config.bzl` に語が無い。フィルタが入ったのは 127aa553、2021-02-08）。「同梱の Brotli が影響範囲の版」はこれらの系列には言い過ぎだった | `unknown` の行 `<=1.17` を足し、`<=1.35` の note に固定していた版を書いた（0cd2e392 と 6d03dfbe はどちらも v1.0.9 にコミットを足したもの、それと 1.1.0） | タグごとの同じファイル |
-| .NET | 行ではない。dotnet/runtime は Google の C のデコーダー（`src/native/external/brotli`、v8.0.29 で 1.0.9）を `libSystem.IO.Compression.Native.so` に組み込み、USN-8958-1（2026-10-29）はこの CVE を挙げている。`docs/limitations.md` の「別のコード」は誤りだった。10 章 18 を参照 | まだなし | ubuntu.com/security/notices/USN-8958-1、github.com/dotnet/runtime |
+| .NET | 行ではない。dotnet/runtime は Google の C のデコーダー（`src/native/external/brotli`、v8.0.29 で 1.0.9）を `libSystem.IO.Compression.Native.so` に組み込み、USN-8958-1（2026-10-29）はこの CVE を挙げている。`docs/limitations.md` の「別のコード」は誤りだった。10 章 18 を参照 | まだなし（2026-11-07 に足した。10 章 27） | ubuntu.com/security/notices/USN-8958-1、github.com/dotnet/runtime |
 
 確かめて変わらなかったもの: Google Brotli のタグ、GHSA-9v8h-qqgm-4m35（2026-10-29 に更新、範囲は同じ）、PYSEC-2026-4322・4323（1.0.3 より下で今も
 GHSA と食い違うので、PyPI は 10 章 16 の 6 のまま）、告知の最後の版と修正版のあいだに PyPI のリリースは無い、Debian の bookworm・trixie・sid・forky（今も 1.2.0-4）、
@@ -133,10 +133,10 @@ Makefile                      lint（shellcheck）、test（bats）、dist、int
 
 | 列 | 例 |
 |---|---|
-| component | `node` / `bun` / `pypi:brotli` / `deb-src:brotli` / `envoy` / `chromium` … |
+| component | `node` / `bun` / `pypi:brotli` / `deb-src:brotli` / `envoy` / `chromium` / `dotnet` / `deb-src:dotnet8` … |
 | branch | `22`、`debian:trixie`、`ubuntu:noble`、`*` |
 | fixed | `22.23.4`、`1.1.0-2+deb13u1`、`-`（修正なし） |
-| status | `fixed` / `no_fix` / `unreleased` / `derived_eol` / `derived_bundled` / `analysis` / `unknown` |
+| status | `fixed` / `no_fix` / `unreleased` / `derived_eol` / `derived_bundled` / `derived_before_range` / `analysis` / `unknown` |
 | affected | `GHSA-663w-cv8g-jj2p:1.0.21:1.4.3`（`ADVISORY:FIRST:LAST`）、`-`（告知に範囲なし）。`fixed` の行だけ |
 | source_url | 一次資料の URL |
 | retrieved | `2026-10-26` |
@@ -149,8 +149,10 @@ Makefile                      lint（shellcheck）、test（bats）、dist、int
 - `unreleased` — 修正版の番号は示されているがアーカイブ未着（Debian forky の 1.2.0-4.1。sid は 2026-10-27 まで）。
   インストール済みの版が `fixed` 以上なら FIXED、それ未満なら NO_FIX_AVAILABLE
 - `derived_eol` — 一次資料が EOL の版を常に影響ありとしていて、修正版が出ない（Node.js）→ VULNERABLE。理由にこの根拠を書く
-- `derived_bundled` — 同梱の Brotli が影響範囲の版で、修正版が出ない（Envoy 1.35 以前。告知は名指ししていない）→ VULNERABLE。
-  理由にこの根拠を書く
+- `derived_bundled` — 同梱の Brotli が影響範囲の版で、修正版が出ない（Envoy 1.35 以前、.NET Core 3.0〜.NET 7、Ubuntu の dotnet7。
+  告知は名指ししていない）→ VULNERABLE。理由にこの根拠を書く
+- `derived_before_range` — 同梱の Brotli が告知の挙げる影響範囲より古く、修正版が出ない（.NET Core 2.1・2.2、Brotli 1.0.1。10 章 27）
+  → UNKNOWN。`fixed` の行の `FIRST` より前と同じく移行を勧め、理由にこの根拠を書く
 - `analysis` — ベンダーの告知ではなくソースツリーの分析（Chromium / Firefox。Bun は 2026-10-27 まで）。結果にその旨を明記
 - `unknown` — データからは決められない（Node.js 10 以前。Brotli を同梱する前の版がありうる。Envoy 1.17 以前。ソースに Brotli が無い）→ UNKNOWN。
   理由にその根拠（この系列には Brotli を含まない版やビルドがある）を書き、evidence を指さない（10 章 25）
@@ -194,6 +196,8 @@ dpkg 管理下のものは除外（3 章の 2）。PEP 440 は、リリース番
 判定: `_ERROR_FORMAT_` 系の文字列が**ある**のに `_ERROR_FORMAT_BLOCK_SWITCH` が無い → LIKELY_VULNERABLE。
 `_ERROR_FORMAT_BLOCK_SWITCH` がある → LIKELY_FIXED。`_ERROR_FORMAT_` 系が無い（8 個未満）→ VENDORED_COPY（関数ごと削られている。10 章の 5）。
 確度は検証結果に応じて書く。検証が崩れたら推定は実装せず VENDORED_COPY だけを出す。
+
+.NET の System.IO.Compression のネイティブライブラリもファイル名で探し、文字列だけでなく .NET 自身の版で判定する（10 章 27）。
 
 **C10 Envoy** — 2 章 13 のとおり、勧告の修正版で判定（食い違いは無かった）。1.35 以前は `derived_bundled`（Envoy の旧版は 1.0.9 / 1.1.0 を同梱）。
 
@@ -559,7 +563,7 @@ NOT_APPLICABLE ではなく「情報」として版だけ出す。さらに配�
        消す（`noclobber` は既にあるファイルの種類によっては拒まない）。直接書くと、代わりに途中までの結果が指定の名前で残りうる。README に一言足した。
     9. **.NET は limitations の細部でなく、分かっている抜け。** Ubuntu の `dotnet-runtime-8.0`（8.0.33、Ubuntu によれば修正済み）は `/usr/lib/dotnet/.../libSystem.IO.Compression.Native.so`
        にデコーダーを持ち、libbrotli を読み込まない。既定の実行では何も出ず、`/usr/lib/dotnet` は既定の範囲に無い。`--deep --roots /usr/lib/dotnet` で `VENDORED_COPY`
-       になる。公平な判定には .NET 自身の版の行が要るので別の issue にした（#17）。
+       になる。公平な判定には .NET 自身の版の行が要るので別の issue にした（#17）。10 章 27 で済んだ。
 19. **RESTART_REQUIRED の次にやることは、同じパスにいまあるファイルで決める（2026-11-04、issue #5）。** 定義は「修正はディスク上に
     あるが、古いコードで動き続けているプロセスがある」だったが、C03〜C05 が見ていたのは、プロセスが削除済みのファイルを使っている
     ことだけだった。まだ未修正のファイルの上で再起動したプロセスが、直ったと受け取られる。判定名と数え方（要約の「再起動が必要な
@@ -773,6 +777,63 @@ NOT_APPLICABLE ではなく「情報」として版だけ出す。さらに配�
     探すよう頼まれた範囲にあって見なかったもの）。root でなければ `find` が読めなかったディレクトリをすべて `chosen` にする案（I/O のエラーは
     その選択では説明できない）。走査できなかった範囲を「人の確認が必要なもの」に数える案（件数は所見の数で、やることも違う）。`docker ps` の失敗で
     「権限が無い」と「デーモンが止まっている」を見分ける案（版によってメッセージが違う。どちらにしても頼まれた一覧は取れていない）。
+27. **.NET のデコーダーをファイル名で見つけ、.NET 自身の版で判定する（2026-11-07、issue #17）。**
+    10.18.9 で残したもの。.NET は Google の C のデコーダーを System.IO.Compression のネイティブライブラリに組み込み、libbrotlidec を
+    読み込まないのに、既定の実行では何も出なかった（名前で探していない。`/usr/lib/dotnet` は既定の範囲の外）。Microsoft の告知
+    （GHSA-p3jp-9v83-76w9、dotnet/announcements #494、2026-10-25）と Ubuntu の USN-8958-1（2026-10-29）が修正版として挙げるのは、
+    Brotli ではなく .NET の版。
+    1. **ファイル名で見つける。** 索引が `libSystem.IO.Compression.Native.so` と、.NET 5 より前の `System.IO.Compression.Native.so` を、
+       探す場所と決まった場所から取る。決まった場所に `/usr/share/dotnet` を足した（Microsoft のパッケージとコンテナイメージ。
+       Ubuntu の `/usr/lib/dotnet` はもともと歩いていた）。デコーダーの印が無いファイル（.NET Core 2.1 より前）は情報。C09 が同梱
+       コピーとして出す。新しい検出項目の番号は作らない。
+    2. **Ubuntu のパッケージはパッケージの版で。** dpkg の持ち主がソースパッケージ `dotnetN` から作られたファイルは、その
+       `source:Version` を、その版の `deb-src:dotnetN` の行と比べる。C01 が libbrotli1 を判定するのと同じで、取り込んだ修正は .NET の版に
+       出ないため。バイナリの版（`8.0.33-0ubuntu1~24.04.1`）とソースの版（`8.0.133-8.0.33-0ubuntu1~24.04.1`）が違うので、次にやることは
+       ソースの版を挙げる。Microsoft の Debian 向けパッケージ（packages.microsoft.com。ソース名はバイナリと同じ、`/usr/share/dotnet` の下）は
+       Ubuntu のものではなく、アーカイブと同じに判定する。
+    3. **それ以外はビルドの刻印で。** .NET 5 以降のライブラリは `@(#)Version A.B.C.D @Commit: SHA` を持ち、Arcade のファイルの版が
+       リリースを表す: MINOR = B / 100、PATCH = (B % 100) * 100 + C / 100（dotnet/arcade の `Documentation/Versioning.md`）。
+       `8.0.3326.52219` は 8.0.33 で、コミットは `v8.0.33` のタグのもの。Microsoft のアーカイブ 5.0.17〜10.0.14、Ubuntu の 8.0.33、
+       Microsoft の Debian 向けパッケージ、PowerShell 7.4.21・7.4.22 で測った（`tests/fixtures/dotnet/`）。.NET Core 2.x・3.x は corefx の版
+       （4.6.x、4.700.x）を刻むので、major が 5 未満は取らず、版はランタイムの `.version` ファイル（コミットと版）から読む（測った
+       共有ランタイムにはどれもある）。両方あれば `.version` でプレリリースの名前を補い（リリースとプレビューは X.Y.0 の同じ刻印を持つ）、
+       `.version` が刻印と食い違えば UNKNOWN。プレビューで直った系列（11.0）で X.Y.0 の刻印だけなら UNKNOWN。
+    4. **文字列で見分けられないときは、刻印で FIXED にする**（本人判断、2026-11-07）。.NET 8 のライブラリにはデコーダーのエラー名が
+       無い（測った 8.0 のビルドはどれも 0。.NET 9・10 は修正前 16、修正後 17）。10.15 の決まりでは、ファイルから読んだ版で FIXED と
+       するのはデコーダーの文字列で確かめられたときだけなので、修正済みの .NET 8 は決して FIXED にならない。刻印はディレクトリ名や
+       メタデータではなく、ビルドがデコーダーを持つそのファイルに書いたもの。この FIXED は残ることを書く（「分からないこと: この
+       ファイルのデコーダーのコードに修正が入っているか…」）。文字列で見分けられるときは、ファイルから読んだ版と同じく
+       `bcc_crosscheck_fixed` を通し、修正版より古いのに修正のエラー名がある版は UNKNOWN（修正を取り込んだ独自ビルドの可能性）。
+       `.version` だけから読んだ版（2.x、3.x）は 10.15 に従う。
+    5. **self-contained のアプリ**（本人判断、2026-11-07）。アプリが横に持つコピー（PowerShell 7.4.22 のものは 8.0.33 のランタイムと
+       バイト単位で同じ）も同じに判定する。`<root>/shared/Microsoft.NETCore.App/<version>/` の外なら `dotnet (self-contained)` とし、
+       インストール済みの .NET を更新しても変わらないので、次にやることは「修正版の .NET で作ったアプリの版」。single-file と NativeAOT の
+       実行ファイル、それを作る元の apphost と NativeAOT のパックは、デコーダーを実行ファイルの中に持つ。見るのは `--deep` だけで、文字列で
+       判定する。NuGet のパッケージフォルダーは 10.2 のパッケージ管理のキャッシュに加えた。中の runtime pack はビルドの材料で、それから
+       作ったアプリは入れた場所で見つかる。
+    6. **データ**（取得日 2026-11-07。snapshot は動かさない。CONTRIBUTING の 5）。Microsoft: 8.0 は 8.0.33、9.0 は 9.0.22、10.0 は 10.0.14
+       （告知の範囲つき）、11.0 は 11.0.0-rc.3.26522.148。どの修正も、同梱の Brotli を古い版への修正ではなく上流の修正版に上げたもの
+       （8.0: 1.0.9 → 1.0.10。9.0・10.0・11.0: 1.1.0 → 1.1.1）。.NET 10・11 は VMR（dotnet/dotnet）から作られ、そのタグで分かる
+       （dotnet/runtime の v10.0.13 と v10.0.14 は同じコミット）。サポートが終わった系列（本人判断、2026-11-07）: `<=7.0` は `derived_bundled`
+       （3.0 は 1.0.7、3.1・5.0・6.0・7.0 は 1.0.9）、`<=2.2` は新しい status `derived_before_range`（2.1・2.2 は 1.0.1 で、GHSA-9v8h-qqgm-4m35 の
+       1.0.3 より前）。`unknown` の理由（10.25.4: この系列には Brotli を含まないビルドがある）は、印を見たファイルには当てはまらず、別の根拠には
+       別の status が要る（CONTRIBUTING の 2）。Ubuntu: dotnet8 は 22.04・24.04、dotnet10 は 24.04・26.04・26.10、dotnet11 は 26.10 が修正済み。
+       22.04 の dotnet6 は「deferred」なので `no_fix`（次にやることは dotnet8 への移行）、dotnet7 は「ignored」（EOL）なので `derived_bundled`。
+       Debian は .NET を配っていない（追跡ページに無い）。
+    7. **プレリリース。** `bcc_semver_cmp` は同じ版の 2 つのプレリリースを等しいとしていた。SemVer の 11 に従うようにした（rc.2 は rc.3 の前、
+       preview は rc の前）。修正版そのものがプレリリースのとき、`bcc_is_prerelease_of` はそれより前のプレリリースを UNKNOWN にしない
+       （告知が修正の入ったものを名指ししている）。これまでの行に、修正版がプレリリースのものは無い。
+    8. **再起動。** C03 は `/proc/*/maps` で削除済みの .NET のライブラリも探す。.NET を更新すると古い版のディレクトリが消え、動いている
+       アプリは古いデコーダーを持ったまま（Microsoft: 「アプリを再起動する」）。そのパスには何も無いので、次にやることは「確かめてから
+       再起動」（10.19）。
+    9. **実測。** 開発機（Ubuntu 24.04、`dotnet-runtime-8.0` 8.0.33-0ubuntu1~24.04.1）ではパッケージの記録で FIXED。アーカイブと PowerShell を
+       `--roots` に置いた `--no-exec` の実行では、8.0.32・9.0.21・10.0.13・3.1.32・5.0.17・6.0.36・7.0.20・PowerShell 7.4.21 が VULNERABLE、
+       8.0.33・9.0.22・10.0.14・PowerShell 7.4.22 が FIXED、2.1.30 が UNKNOWN。
+    棄却: 独自の検出項目の番号（C16。番号は依頼文が振ったもので、JSON の読み手にとって同梱コピーは C09）。ディレクトリ名を版にする案
+    （刻印と `.version` で、測ったどの配置も足りる）。self-contained のアプリの `runtimeconfig.json` や `deps.json` を読む案（jq なしの JSON。
+    刻印がデコーダーのファイルそのもので同じことを言う）。Ubuntu のパッケージを刻印で判定する案（取り込んだ修正が見えない）。`.version` が
+    一致したときだけ刻印で FIXED にする案（どちらも同じビルドから出る。self-contained のアプリには無い）。single-file と NativeAOT の
+    実行ファイルの刻印を読む案（測っていない）。
 28. **プログラムが読み込む libbrotlidec はすべて判定し、ライブラリはローダー自身の glibc-hwcaps の順で探す（2026-11-07、issue #18）。**
     `bcc_links_brotlidec` は依存の辿りで最初に出てくる `libbrotlidec*` だけを返していたので、OS の `libbrotlidec.so.1` と自前の
     `libbrotlidec_private.so.1` を読み込むプログラムは OS のものだけで判定されていた。`bcc_dep_find` は RUNPATH の下の `glibc-hwcaps` を名前の順に

@@ -81,7 +81,7 @@ version changed. Changes:
 | Ubuntu ESM | USN-8956-2 (2026-10-27) fixes 20.04 focal, 18.04 bionic and 16.04 xenial, with Ubuntu Pro only | Three `fixed` rows: 1.0.7-6ubuntu0.1+esm1, 1.0.3-1ubuntu1.3+esm1, 1.0.3-1ubuntu1~16.04.2+esm1. Those hosts were UNKNOWN ("no data") | ubuntu.com/security/notices/USN-8956-2, ubuntu.com/security/CVE-2026-111497 |
 | Firefox ESR | The current ESR is 153 (`FIREFOX_153_0esr_RELEASE` has 4792c8e4), and 115 is still updated (115.34.0esr has e61745a6, 115.35.0esr has 4792c8e4). 128 ended at 128.14.0esr without it | Two `analysis` rows: 153.0 and 115.35.0. 128 has no row, so it stays UNKNOWN | `modules/brotli/moz.yaml` per tag, product-details.mozilla.org |
 | Envoy 1.17 and earlier | Envoy's source has no Brotli before v1.18.0 (no mention in `repository_locations.bzl`, `repositories.bzl`, `extensions_build_config.bzl` at v1.14.0-v1.17.4; the filter arrived in 127aa553, 2021-02-08). "Bundles Brotli in the affected range" was too much for these lines | New `unknown` row `<=1.17`; the `<=1.35` note now gives what was pinned (0cd2e392 and 6d03dfbe, both v1.0.9 plus commits, and 1.1.0) | the same files per tag |
-| .NET | Not a row. dotnet/runtime builds Google's C decoder (`src/native/external/brotli`, 1.0.9 at v8.0.29) into `libSystem.IO.Compression.Native.so`, and USN-8958-1 (2026-10-29) names this CVE for it. `docs/limitations.md` called .NET a separate code base, which was wrong. See 10.18 | none yet | ubuntu.com/security/notices/USN-8958-1, github.com/dotnet/runtime |
+| .NET | Not a row. dotnet/runtime builds Google's C decoder (`src/native/external/brotli`, 1.0.9 at v8.0.29) into `libSystem.IO.Compression.Native.so`, and USN-8958-1 (2026-10-29) names this CVE for it. `docs/limitations.md` called .NET a separate code base, which was wrong. See 10.18 | none yet (rows added on 2026-11-07, 10.27) | ubuntu.com/security/notices/USN-8958-1, github.com/dotnet/runtime |
 
 Unchanged on re-check: Google Brotli tags; GHSA-9v8h-qqgm-4m35 (modified 2026-10-29, same ranges);
 PYSEC-2026-4322 / 4323, which still disagree with it below 1.0.3, so PyPI stays as in 10.16.6; no
@@ -150,10 +150,10 @@ reasoning, and an **affected** column for the range an advisory states (10.16).
 
 | Column | Example |
 |---|---|
-| component | `node` / `bun` / `pypi:brotli` / `deb-src:brotli` / `envoy` / `chromium` … |
+| component | `node` / `bun` / `pypi:brotli` / `deb-src:brotli` / `envoy` / `chromium` / `dotnet` / `deb-src:dotnet8` … |
 | branch | `22`, `debian:trixie`, `ubuntu:noble`, `*` |
 | fixed | `22.23.4`, `1.1.0-2+deb13u1`, `-` (no fix) |
-| status | `fixed` / `no_fix` / `unreleased` / `derived_eol` / `derived_bundled` / `analysis` / `unknown` |
+| status | `fixed` / `no_fix` / `unreleased` / `derived_eol` / `derived_bundled` / `derived_before_range` / `analysis` / `unknown` |
 | affected | `GHSA-663w-cv8g-jj2p:1.0.21:1.4.3` (`ADVISORY:FIRST:LAST`), `-` (none stated); `fixed` rows only |
 | source_url | primary source URL |
 | retrieved | `2026-10-26` |
@@ -169,7 +169,11 @@ Meaning of `status`:
 - `derived_eol` — the primary source says end-of-life versions are always affected, and the line
   gets no fix (Node.js) → VULNERABLE; the reason states that ground
 - `derived_bundled` — the line bundles a Brotli in the affected range, and gets no fix (Envoy 1.35
-  and earlier; the advisory does not name them) → VULNERABLE; the reason states that ground
+  and earlier; .NET Core 3.0 to .NET 7, Ubuntu's dotnet7; the advisory does not name them) →
+  VULNERABLE; the reason states that ground
+- `derived_before_range` — the line bundles a Brotli older than the advisory's stated range, and
+  gets no fix (.NET Core 2.1 and 2.2, Brotli 1.0.1; 10.27) → UNKNOWN with moving on advised, as
+  below a `fixed` row's `FIRST`; the reason states that ground
 - `analysis` — from the product's source tree, not a vendor advisory (Chromium / Firefox; Bun
   until 2026-10-27);
   the result says so
@@ -222,6 +226,9 @@ LIKELY_VULNERABLE; `_ERROR_FORMAT_BLOCK_SWITCH` present → LIKELY_FIXED; no `_E
 strings (fewer than 8) → VENDORED_COPY (the function was removed; 10.5). Confidence follows the
 verification; if the verification fails, the heuristic is not implemented and only VENDORED_COPY
 is reported.
+
+.NET's System.IO.Compression native library is found by name too and judged by .NET's own
+version, not by its strings alone (10.27).
 
 **C10 Envoy** — judged by the advisory's fixed versions (2.13: no disagreement). 1.35 and earlier
 are `derived_bundled` (older Envoy bundles Brotli 1.0.9 / 1.1.0).
@@ -748,7 +755,7 @@ rejected alternative.
        (8.0.33, fixed per Ubuntu) holds a decoder in `/usr/lib/dotnet/.../libSystem.IO.Compression.Native.so`,
        and it does not load libbrotli. The default run says nothing about it and `/usr/lib/dotnet` is
        not in the default roots; `--deep --roots /usr/lib/dotnet` gives `VENDORED_COPY`. A fair verdict
-       needs rows for .NET's own versions, so it is a separate issue (#17).
+       needs rows for .NET's own versions, so it is a separate issue (#17). Done in 10.27.
 19. **RESTART_REQUIRED takes its next step from the file now at the same path (2026-11-04, issue
     #5).** The status was defined as "the fix is on disk but a process still runs the old code", but
     C03-C05 saw only that a process uses a deleted file. A process restarted onto a file that is still
@@ -1085,6 +1092,89 @@ rejected alternative.
     choice); counting failed ranges into "Needs human review" (the count is of findings, and the
     action differs); telling "permission denied" from "daemon not running" when `docker ps` fails
     (the message differs between versions; either way the list asked for was not taken).
+27. **.NET's decoder is found by name and judged by .NET's own version (2026-11-07, issue #17).**
+    10.18.9 left it: .NET builds Google's C decoder into its System.IO.Compression native library
+    and does not load libbrotlidec, yet a default run said nothing about it (it was not looked for
+    by name, and `/usr/lib/dotnet` is outside the default roots). Microsoft's advisory
+    (GHSA-p3jp-9v83-76w9, dotnet/announcements #494, 2026-10-25) and Ubuntu's USN-8958-1
+    (2026-10-29) name fixed versions of .NET, not of Brotli.
+    1. **Found by name.** The index takes `libSystem.IO.Compression.Native.so` and, before .NET 5,
+       `System.IO.Compression.Native.so`, under the roots and the fixed places, which now include
+       `/usr/share/dotnet` (Microsoft's packages and container images; Ubuntu's `/usr/lib/dotnet`
+       was already walked). A file without decoder markers (.NET Core before 2.1) is information.
+       C09 reports it, as a bundled copy; no new check ID.
+    2. **Ubuntu's packages by the package's version.** A file whose dpkg owner is built from a
+       source package `dotnetN` is judged by its `source:Version` against the `deb-src:dotnetN`
+       row of the release, as C01 judges libbrotli1: a backport would not change .NET's version.
+       The binary version (`8.0.33-0ubuntu1~24.04.1`) differs from the source's
+       (`8.0.133-8.0.33-0ubuntu1~24.04.1`), so the next step names the source version. Microsoft's
+       Debian packages (packages.microsoft.com, source named like the binary, under
+       `/usr/share/dotnet`) are not Ubuntu's and are judged like the archives.
+    3. **Anything else by the stamp of its build.** From .NET 5 on, the library carries
+       `@(#)Version A.B.C.D @Commit: SHA`, and Arcade's file version encodes the release:
+       MINOR = B / 100, PATCH = (B % 100) * 100 + C / 100 (dotnet/arcade,
+       `Documentation/Versioning.md`); `8.0.3326.52219` is 8.0.33, and its commit is that of the
+       `v8.0.33` tag. Measured on Microsoft's archives 5.0.17 to 10.0.14, Ubuntu's 8.0.33,
+       Microsoft's Debian package and PowerShell 7.4.21 / 7.4.22 (`tests/fixtures/dotnet/`).
+       .NET Core 2.x and 3.x stamp corefx's version (4.6.x, 4.700.x), so a major below 5 is not
+       taken, and their version comes from the runtime's `.version` file (commit, version), which
+       every shared runtime measured has. Where both exist, `.version` adds a pre-release's label
+       (a release and its previews share the stamp of X.Y.0), and a `.version` that disagrees with
+       the stamp makes the line UNKNOWN. A stamp of X.Y.0 alone, for a line fixed in a preview
+       (11.0), is UNKNOWN.
+    4. **The stamp gives FIXED where the strings cannot tell** (requester's decision, 2026-11-07).
+       .NET 8's library carries no decoder error names (none in any 8.0 build measured; .NET 9 and
+       10 carry 16 before the fix and 17 after it). Under 10.15 a version read from a file gives
+       FIXED only when the decoder's strings confirm it, so a fixed .NET 8 could never be FIXED.
+       The stamp is not a directory name or metadata: the build wrote it into the file that holds
+       the decoder. Such a FIXED says what is left open ("Not determined: whether the decoder code
+       in this file has the fix ..."). Where the strings do tell, `bcc_crosscheck_fixed` applies as
+       for any version from a file, and a version below the fix whose strings carry the fix's
+       error name is UNKNOWN (possibly a patched build). A version from `.version` alone (2.x, 3.x)
+       follows 10.15.
+    5. **Self-contained applications** (requester's decision, 2026-11-07). The copy an
+       application carries next to it (PowerShell 7.4.22's is byte for byte the 8.0.33 runtime's)
+       is judged in the same way; outside `<root>/shared/Microsoft.NETCore.App/<version>/` it is
+       `dotnet (self-contained)`, and its next step is a release of the application built with a
+       fixed .NET, since updating the installed .NET does not change it. Single-file and NativeAOT
+       executables, and the apphost and NativeAOT packs they are built from, carry the decoder
+       inside the executable: only `--deep` looks there, by strings. NuGet's packages folder joins
+       the package-manager caches of 10.2: its runtime packs are build inputs, and the applications
+       built from them are found where they are installed.
+    6. **Data** (retrieved 2026-11-07; the snapshot stays, CONTRIBUTING 5). Microsoft: 8.0
+       8.0.33, 9.0 9.0.22, 10.0 10.0.14 with the advisory's ranges, and 11.0
+       11.0.0-rc.3.26522.148. Each fix moved the bundled Brotli to an upstream fixed release
+       (8.0: 1.0.9 to 1.0.10; 9.0, 10.0, 11.0: 1.1.0 to 1.1.1), not a patch of the old one; .NET 10
+       and 11 are built from the VMR (dotnet/dotnet), whose tags show it (dotnet/runtime's v10.0.13
+       and v10.0.14 are one commit). End-of-life lines (requester's decision, 2026-11-07): `<=7.0`
+       is `derived_bundled` (3.0 bundles 1.0.7; 3.1, 5.0, 6.0 and 7.0 1.0.9), and `<=2.2` gets a
+       new status, `derived_before_range` (2.1 and 2.2 bundle 1.0.1, before the 1.0.3 of
+       GHSA-9v8h-qqgm-4m35): `unknown`'s reason (10.25.4: some builds of the line have no Brotli)
+       is not true of a file whose markers were seen, and another ground needs its own status
+       (CONTRIBUTING 2). Ubuntu: dotnet8 on 22.04 and 24.04, dotnet10 on 24.04, 26.04 and 26.10,
+       dotnet11 on 26.10 fixed; dotnet6 on 22.04 "deferred", so `no_fix`, with moving to dotnet8 as
+       the next step; dotnet7 on 22.04 "ignored" (end of life), so `derived_bundled`. Debian ships
+       no .NET (its tracker lists none).
+    7. **Pre-releases.** `bcc_semver_cmp` took two pre-releases of one version as equal; it now
+       follows SemVer 11 (rc.2 before rc.3, preview before rc). `bcc_is_prerelease_of` no longer
+       makes an earlier pre-release UNKNOWN when the fixed version is itself a pre-release: the
+       advisory named the one with the fix. No earlier row has a pre-release as its fixed version.
+    8. **Restarts.** C03 also looks for a deleted .NET library in `/proc/*/maps`: an update of .NET
+       removes the old version's directory, and a running application keeps the old decoder
+       (Microsoft: "restart your apps"). Nothing is at that path then, so the next step is to check,
+       then restart (10.19).
+    9. **Measured.** On the developer's workstation (Ubuntu 24.04, `dotnet-runtime-8.0`
+       8.0.33-0ubuntu1~24.04.1) a run gives FIXED by the package's record. With the archives and
+       PowerShell under `--roots --no-exec`: 8.0.32, 9.0.21, 10.0.13, 3.1.32, 5.0.17, 6.0.36, 7.0.20
+       and PowerShell 7.4.21 VULNERABLE; 8.0.33, 9.0.22, 10.0.14 and PowerShell 7.4.22 FIXED;
+       2.1.30 UNKNOWN.
+    Rejected: a check ID of its own (C16; the request numbered the checks, and readers of the JSON
+    know C09 as bundled copies); the directory name as a version (the stamp and `.version` cover
+    every layout measured); reading `runtimeconfig.json` or `deps.json` of a self-contained
+    application (JSON without jq, and the stamp says the same in the decoder's own file); judging
+    Ubuntu's packages by the stamp (a backport would not show); FIXED from the stamp only when a
+    `.version` agrees (both come from the same build; self-contained applications have none);
+    reading the stamps of single-file and NativeAOT executables (not measured).
 28. **Every libbrotlidec a program loads is judged, and libraries are found in the loader's own
     glibc-hwcaps order (2026-11-07, issue #18).** `bcc_links_brotlidec` returned the first
     `libbrotlidec*` of the dependency walk, so a program loading the OS `libbrotlidec.so.1` and a

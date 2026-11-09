@@ -209,6 +209,182 @@ bcc_check_c09_libs() {
   done
 }
 
+# --- .NET (docs/design.md 10.27) ---------------------------------------------------------
+# .NET builds Google's C decoder into its System.IO.Compression native library
+# (libSystem.IO.Compression.Native.so; System.IO.Compression.Native.so before .NET 5) and does
+# not load libbrotlidec, so updating the OS's libbrotli does not reach it. Each copy found by
+# name is judged by .NET's own version:
+#   - a file of Ubuntu's .NET source packages (dotnet6, dotnet8, ...) by the package's version,
+#     against Ubuntu's fixed version, as C01 judges libbrotli1;
+#   - any other (Microsoft's archives and packages, the copy a self-contained application
+#     carries) by the build stamp in the file, against Microsoft's fixed version. Its strings
+#     cannot always tell: .NET 8's library carries no decoder error names (measured on
+#     Microsoft's 8.0.32 and 8.0.33 and Ubuntu's 8.0.33), .NET 9's and 10's do.
+
+# The .NET version stamped into FILE by the build, "@(#)Version 8.0.3326.52219 @Commit: <sha>".
+# Arcade's file version encodes the release: FILE_MINOR = MINOR * 100 + PATCH / 100 and
+# FILE_PATCH = (PATCH % 100) * 100 + yy (dotnet/arcade Documentation/Versioning.md), so this
+# is 8.0.33. .NET Core 2.x and 3.x stamp corefx's version (4.6.x, 4.700.x), which is not
+# .NET's: only major versions from 5 count. A release and its previews share a stamp (11.0.0).
+# Prints "VERSION<TAB>STAMP<TAB>COMMIT"; status 1 when there is none.
+bcc_dotnet_stamp() {
+  local f=$1 line a b c re='^@\(#\)Version ([0-9]{1,4})\.([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,9})( @Commit: ([0-9a-f]{7,64}))?'
+  # grep stops at the first stamp; tr then writes to a closed pipe, and where SIGPIPE is
+  # ignored (as on GitHub's runners) it says so on stderr: that is expected, not an error.
+  line=$(bcc_read_file "$f" $((BCC_MAX_ELF_MB * 1024 * 1024)) | LC_ALL=C tr -c '[:print:]' '\n' 2>/dev/null | (
+    ulimit -v 262144 2>/dev/null
+    LC_ALL=C grep -a -m 1 -E '^@\(#\)Version [0-9]' 2>/dev/null
+  )) || true
+  [[ $line =~ $re ]] || return 1
+  a=$((10#${BASH_REMATCH[1]}))
+  b=$((10#${BASH_REMATCH[2]}))
+  c=$((10#${BASH_REMATCH[3]}))
+  ((a >= 5)) || return 1
+  printf '%d.%d.%d\t%d.%d.%d.%s\t%s\n' "$a" $((b / 100)) $(((b % 100) * 100 + c / 100)) \
+    "$a" "$b" "$c" "$((10#${BASH_REMATCH[4]}))" "${BASH_REMATCH[6]}"
+}
+
+# The version in DIR/.version (second line; the first is the commit), which every shared
+# runtime of Microsoft's and Ubuntu's has and a self-contained application does not.
+bcc_dotnet_version_file() {
+  local text v
+  text=$(bcc_read_file "$1/.version" 4096) || return 1
+  v=$(sed -n '2{s/[[:space:]]*$//;p;q}' <<<"$text")
+  v=$(bcc_semver_parse "$v") || return 1
+  [[ -n $v ]] && printf '%s\n' "$v"
+}
+
+bcc_check_c09_dotnet() {
+  local f
+  for f in ${BCC_IDX_DOTNET[@]+"${BCC_IDX_DOTNET[@]}"}; do
+    [[ -z ${BCC_JUDGED[$f]:-} ]] || continue
+    bcc_c09_dotnet_entry "$f"
+  done
+}
+
+# Usage: bcc_c09_dotnet_entry FILE
+bcc_c09_dotnet_entry() {
+  local f=$1 dir=${1%/*} res owner="" pkg="" line ver src srcver comp=dotnet shared=0 next
+  local stamp="" sver="" snum="" commit="" vfile="" basis series heur hcount hbs ev pkgver=""
+  BCC_JUDGED[$f]=1
+  res=$(bcc_brotli_scan "$f")
+  bcc_split_tab "$res"
+  if [[ ${BCC_F[3]} != 1 ]]; then
+    # .NET Core before 2.1 has no Brotli. Absence counts only when the file was read to its end.
+    if [[ ${BCC_F[6]} == complete ]]; then
+      bcc_add_info C09 "$(bcc_msg i_dotnet_no_decoder "$f")"
+    else
+      bcc_note_incomplete "$f"
+    fi
+    return 0
+  fi
+  # A shared runtime: <root>/shared/Microsoft.NETCore.App/<version>/. Anything else is a copy an
+  # application carries (self-contained), which an update of the installed .NET does not change.
+  [[ ${dir%/*} == */shared/Microsoft.NETCore.App ]] && shared=1
+  ((shared)) || comp="dotnet (self-contained)"
+  if owner=$(bcc_dpkg_owner "$f"); then
+    pkg=${owner%%,*}
+    pkg=${pkg%%:*}
+    comp="dotnet ($pkg)"
+    # shellcheck disable=SC2016  # dpkg-query format
+    line=$(bcc_sys dpkg-query -W -f '${Version}\t${source:Package}\t${source:Version}\n' "$pkg" | head -n 1) || true
+    bcc_split_tab "$line"
+    pkgver=${BCC_F[0]:-}
+    src=${BCC_F[1]:-}
+    srcver=${BCC_F[2]:-}
+    if [[ $src =~ ^dotnet[0-9]+$ && -n $srcver ]]; then
+      bcc_c09_dotnet_package "$f" "$comp" "$pkg" "$pkgver" "$src" "$srcver"
+      return 0
+    fi
+  fi
+  # Microsoft's builds and anything else: the stamp, with a shared runtime's .version for a
+  # pre-release's label (an application's directory may hold a .version file of its own).
+  if stamp=$(bcc_dotnet_stamp "$f"); then
+    bcc_split_tab "$stamp"
+    sver=${BCC_F[0]}
+    snum=${BCC_F[1]}
+    commit=${BCC_F[2]}
+  fi
+  if ((shared)); then vfile=$(bcc_dotnet_version_file "$dir") || vfile=""; fi
+  ev="${pkg:+package $pkg${pkgver:+ $pkgver}; }${snum:+stamp $snum${commit:+ (commit $commit)}; }${vfile:+.version $vfile; }"
+  if [[ -n $sver && -n $vfile && ${vfile%%-*} != "$sver" ]]; then
+    bcc_add_finding C09 UNKNOWN "$comp" "$f" "$sver" "$(bcc_msg r_dotnet_conflict "$sver" "$snum" "$vfile")" \
+      "$(bcc_msg n_check_vendor)" "${ev%; }" ""
+    return 0
+  fi
+  if [[ -n $sver ]]; then
+    ver=${vfile:-$sver}
+    basis=$(bcc_msg b_dotnet_stamp "$snum")
+  elif [[ -n $vfile ]]; then
+    ver=$vfile
+    basis=$(bcc_msg b_dotnet_version_file)
+  else
+    bcc_report_by_strings C09 "$comp" "$f" "" "$(bcc_msg r_dotnet_no_version)"
+    return 0
+  fi
+  series=${ver%%-*}
+  series=${series%.*}
+  bcc_judge dotnet "$series" semver "$ver" "$basis"
+  bcc_split_tab "$(bcc_brotli_heuristic "$f")"
+  heur=${BCC_F[0]} hcount=${BCC_F[1]} hbs=${BCC_F[2]}
+  if [[ $BCC_J_STATUS == FIXED && -n $sver && -z $vfile && $BCC_J_FIXED == "$sver"-* ]]; then
+    # The stamp of X.Y.0 is also that of its previews, and the fix came in one of them.
+    BCC_J_STATUS=UNKNOWN
+    BCC_J_REASON=$(bcc_msg r_dotnet_preview "$sver" "$BCC_J_FIXED")
+    BCC_J_NEXT=$(bcc_msg n_check_vendor)
+  elif [[ $BCC_J_STATUS == FIXED && -n $sver && $heur == VENDORED_COPY ]]; then
+    # The stamp is written into this very file by its build: it stands where the strings cannot
+    # tell (requester's decision, 2026-11-07), and the reason says what they leave open.
+    BCC_J_REASON+=" $(bcc_msg r_dotnet_unseen)"
+  elif [[ $BCC_J_STATUS == FIXED ]]; then
+    bcc_crosscheck_fixed "$f"
+  elif [[ $BCC_J_STATUS == VULNERABLE && $heur == LIKELY_FIXED ]]; then
+    BCC_J_STATUS=UNKNOWN
+    BCC_J_REASON=$(bcc_msg r_dotnet_strings_fixed "$ver")
+    BCC_J_NEXT=$(bcc_msg n_check_vendor)
+  fi
+  next=$BCC_J_NEXT
+  if bcc_judge_advises_update; then
+    if ((!shared)) && [[ $BCC_J_FIXED == - ]]; then
+      next=$(bcc_msg n_dotnet_app_line)
+    elif ((!shared)); then
+      next=$(bcc_msg n_dotnet_app "$BCC_J_FIXED")
+    elif [[ $BCC_J_FIXED == - ]]; then
+      next=$(bcc_msg n_dotnet_move_line)
+    else
+      next=$(bcc_msg n_dotnet_update "$BCC_J_FIXED")
+    fi
+  fi
+  bcc_add_finding C09 "$BCC_J_STATUS" "$comp" "$f" "$ver" "$BCC_J_REASON" "$next" \
+    "$ev$(bcc_msg e_heur "$hcount" "$( ((hbs)) && echo yes || echo no)"); $BCC_J_EVIDENCE" ""
+}
+
+# A file of one of Ubuntu's .NET source packages: the package's source version against
+# Ubuntu's fixed version (the stamp is upstream's release, which says nothing of a backport).
+# Usage: bcc_c09_dotnet_package FILE COMPONENT PACKAGE VERSION SOURCE SOURCE-VERSION
+bcc_c09_dotnet_package() {
+  local f=$1 comp=$2 pkg=$3 ver=$4 src=$5 srcver=$6 next
+  if [[ -z $BCC_DEB_SERIES ]]; then
+    bcc_add_finding C09 UNKNOWN "$comp" "$f" "$ver" "$(bcc_msg r_unknown_series "${BCC_OS_ID:-?}")" \
+      "$(bcc_msg n_check_vendor)" "source $src $srcver" ""
+    return 0
+  fi
+  bcc_judge "deb-src:$src" "$BCC_DEB_SERIES" deb "$srcver" "$(bcc_msg b_deb)"
+  next=$BCC_J_NEXT
+  case $BCC_J_STATUS in
+    VULNERABLE)
+      if [[ $BCC_J_FIXED == - ]]; then
+        next=$(bcc_msg n_dotnet_move_line)
+      else
+        next=$(bcc_msg n_dotnet_update_pkg "$(printf '%q' "$pkg")" "$src" "$BCC_J_FIXED")
+      fi
+      ;;
+    NO_FIX_AVAILABLE) next=$(bcc_msg n_dotnet_move_line) ;;
+    FIXED) next+=" $(bcc_msg n_restart_after_update)" ;;
+  esac
+  bcc_add_finding C09 "$BCC_J_STATUS" "$comp" "$f" "$ver" "$BCC_J_REASON" "$next" "source $src $srcver; $BCC_J_EVIDENCE" ""
+}
+
 # The extension module of a PyPI Brotli/brotlicffi that C06 already judged by its metadata:
 # the same files C06 compares, and only for the package C06 judged in that site.
 bcc_c09_judged_by_c06() {

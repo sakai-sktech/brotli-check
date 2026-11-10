@@ -105,6 +105,18 @@
   says that which one loads could not be told. The older hwcaps subdirectories of glibc 2.36 and
   earlier (`tls`, `x86_64`, ...) are not looked at; the limitations say so (docs/design.md 10.28,
   #18).
+- PyPI's Brotli and brotlicffi inside a container (`--inspect-containers`) at or above the fixed
+  version can be `FIXED` now, as on this host: each package's own extension module
+  (`_brotli.*so`, `brotlicffi/_brotlicffi*.so`) is read inside the container by `head` through
+  the engine, on the docker context that was checked, up to the size limit and under the time
+  limit, and its strings are judged on this host; nothing is written. The check script lists the
+  modules with their sizes. A module that is not there, is over the size limit, could not be read
+  to the end or could not be read at all leaves the line `UNKNOWN` with its reason (the last
+  three also under "Could not be scanned"), and the next step of such a line is about the image
+  (check the package in it, or ask whoever built it), no longer "ask the vendor". The help, the
+  README, the limitations and SECURITY.md say that `head` runs inside containers too; the
+  integration run's C14 step expects PyPI Brotli 1.2.0 `VULNERABLE` and 1.2.1 `FIXED` in a real
+  container (docs/design.md 10.29, #27).
 
 ## 0.1.0 - 2026-11-02
 

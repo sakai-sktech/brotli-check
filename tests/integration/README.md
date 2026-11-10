@@ -28,8 +28,11 @@ through the real `dpkg` and the exit status `2`.
 
 Once per run, with the first image, C14 is tried through the real engine: the single-file build
 runs on the test host with `--inspect-containers` against a container of the image that has
-both Node.js copies on its `PATH`. Through docker's unix socket the connection line must say so
-and both copies must be judged inside the container; through a TCP relay to the same socket
+both Node.js copies on its `PATH`, and with the image's two Python environments copied to `/opt`
+inside it (where the check script looks). Through docker's unix socket the connection line must
+say so, both Node.js copies must be judged inside the container, and PyPI Brotli 1.2.0 must be
+`VULNERABLE` and 1.2.1 `FIXED` (its extension module read inside the container through the engine
+and compared on the test host); through a TCP relay to the same socket
 (`relay.py`, `DOCKER_HOST=tcp://127.0.0.1:PORT`; it serves only sockets of the user running the
 tests, since the engine's socket gives control of the engine) the container must be listed with the connection
 and the reason under "Not scanned", with no finding from inside it (docs/design.md 10.20). A

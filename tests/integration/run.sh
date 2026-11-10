@@ -102,6 +102,13 @@ c14_check() { # TAG BASE
     c14_name=""
     return 1
   fi
+  # PyPI Brotli 1.2.0 and 1.2.1 (the image's wheels) where the check script looks inside a
+  # container, /opt/*/lib/python3*/site-packages: 1.2.1 is FIXED only when its extension module,
+  # read through the engine, confirms it (issue #27, docs/design.md 10.29).
+  if ! "$engine" exec "$c14_name" cp -a /srv/venv-old /srv/venv-new /opt/; then
+    echo "FAIL C14 on this host: could not place the Python environments in the container"
+    return 1
+  fi
   c14_stopped="$c14_name-stopped"
   if ! "$engine" run --name "$c14_stopped" -e "PATH=$node_path" "$tag" true >/dev/null; then
     echo "FAIL C14 on this host: could not run a container of $tag to its end"
@@ -114,10 +121,12 @@ c14_check() { # TAG BASE
       "info:C14|Connection of docker: $host (a unix socket on this host)." \
       "C14|container $c14_name ($tag) /opt/node-v22.23.3-linux-x64/bin/node|VULNERABLE" \
       "C14|container $c14_name ($tag) /opt/node-v22.23.4-linux-x64/bin/node|FIXED" \
+      "C14|container $c14_name ($tag) /opt/venv-old/|VULNERABLE" \
+      "C14|container $c14_name ($tag) /opt/venv-new/|FIXED" \
       "skipped:C14 (stopped containers)|inside of stopped containers (" \
       "skipped:C14 (images)|inside of images (" \
       "C14|container $c14_stopped|-"; then
-    echo "ok   C14 on this host through $host ($base): the check script ran inside the container; stopped containers and images only counted"
+    echo "ok   C14 on this host through $host ($base): the check script ran inside the container, PyPI Brotli 1.2.1 confirmed by its module; stopped containers and images only counted"
   else
     echo "     report: $report"
     ok=1

@@ -325,7 +325,7 @@ EOF
   [[ $(next_of libbrotli1) == *"rebuild the image"* ]]
 }
 
-@test "#9 C14: Python metadata inside a container stays UNKNOWN, saying where its version came from" {
+@test "#9 C14: Python metadata inside a container with no module listed stays UNKNOWN, saying where its version came from" {
   cat >"$FAKEBIN/docker" <<'EOF'
 #!/bin/sh
 printf 'OS\tdebian\ttrixie\t\nPKGRC\t1\nPY\t/usr/local/lib/python3.12/site-packages/brotli-1.2.1.dist-info/METADATA\tBrotli\t1.2.1\nEND\n'

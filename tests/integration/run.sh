@@ -13,6 +13,15 @@ out="$root/tests/tmp/integration"
 mkdir -p "$out"
 ctx=$(mktemp -d)
 c14_name="" c14_stopped="" relay_pid=""
+# The end of a log on standard output: CI shows standard output, not the files under $out.
+show_tail() { # FILE
+  if [[ ! -s $1 ]]; then
+    echo "     ($1 is empty or was not written)"
+    return 0
+  fi
+  echo "     last 40 lines of $1:"
+  tail -n 40 "$1" | awk '{ print "     | " $0 }'
+}
 # shellcheck disable=SC2317  # run by the EXIT trap
 cleanup() {
   [[ -z $relay_pid ]] || kill "$relay_pid" 2>/dev/null || true
@@ -55,32 +64,61 @@ probe=$(bash -c 'eval "$(sed -n "/^BCC_C14_PROBE='"'"'/,/^'"'"'\$/p" "$1")"; pri
 [[ $probe == *'echo END'* ]] || { echo "FAIL: could not extract BCC_C14_PROBE from dist/brotli-cve-check"; exit 1; }
 node_path=/opt/node-v22.23.3-linux-x64/bin:/opt/node-v22.23.4-linux-x64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# C14 through a real engine, once per run (with the first image): the tool runs on this host
-# against a container of the image that has both Node.js copies on its PATH. Through the
-# engine's unix socket the check script runs inside it; through a TCP relay to the same socket
-# (DOCKER_HOST=tcp://127.0.0.1:PORT) the container is listed with the connection, and nothing
-# runs inside it (docs/design.md 10.20). A stopped container of the same image is counted and
-# never looked inside, and the stopped containers and the images are listed under "Not scanned"
-# (10.24; the numbers depend on the host, so only the entries are checked). Found programs on
-# this host are not run: the question
+# C14 through a real engine, once per run (with the first image), against a container of the
+# image that has both Node.js copies on its PATH and the image's two Python environments in /opt.
+# Through the engine's unix socket the tool runs on this host and the check script runs inside
+# the container: exit status 1, from the unfixed copies inside it, whatever this host holds. A
+# stopped container of the same image is counted and never looked inside, and the stopped
+# containers and the images are listed under "Not scanned" (10.24; the numbers depend on the
+# host, so only the entries are checked). Found programs on this host are not run: the question
 # whether to run them is answered "n" on a pseudo-terminal (--yes would run them on the machine
 # that runs the tests). Running the check script inside containers needs no such answer:
 # --inspect-containers is the consent.
-c14_run() { # NAME REPORT [ENV-ASSIGNMENT...]
-  local name=$1 report=$2 rc
-  shift 2
-  set +e
-  printf 'n\n' | script -qec "$(printf '%q ' env "$@" bash "$root/dist/brotli-cve-check" --json --inspect-containers \
-    --roots "$ctx/empty" --timeout 60)>$(printf '%q' "$report")" /dev/null >"$out/c14-$name.log" 2>&1
-  rc=$?
-  set -e
-  if ((rc == 3)) || [[ ! -s $report ]]; then
-    echo "FAIL C14 ($name): the tool exited with $rc (see $out/c14-$name.log)"
+# Through a TCP relay to the same socket (DOCKER_HOST=tcp://127.0.0.1:PORT) the container is
+# listed with the connection and nothing runs inside it (docs/design.md 10.20). On this host the
+# exit status of that run would come from what this host holds (a developer's machine or a CI
+# runner has Node.js copies of its own, giving 1), so the tool runs in a throw-away container of
+# the image instead, with the image's copies hidden: with --inspect-containers the inside could
+# not be looked at ("failed"), exit status 2 (10.26); with --containers alone it was left out
+# by choice ("chosen"), exit status 0, which shows that the 2 comes from that entry alone.
+c14_exit() { # NAME RC WANT REPORT LOG
+  if (($2 != $3)) || [[ ! -s $4 ]]; then
+    echo "FAIL C14 ($1): the tool exited with $2, expected $3"
+    [[ ! -s $4 ]] || python3 -I "$root/tests/integration/assert.py" --summary "$4" || true
+    show_tail "$5"
     return 1
   fi
 }
+c14_run() { # NAME REPORT WANT: the tool on this host
+  local name=$1 report=$2 want=$3 rc
+  set +e
+  printf 'n\n' | script -qec "$(printf '%q ' bash "$root/dist/brotli-cve-check" --json --inspect-containers \
+    --roots "$ctx/empty" --timeout 60)>$(printf '%q' "$report")" /dev/null >"$out/c14-$name.log" 2>&1
+  rc=$?
+  set -e
+  c14_exit "$name" "$rc" "$want" "$report" "$out/c14-$name.log"
+}
+# COMMAND in a throw-away container of TAG with /opt and /srv (the image's copies) hidden, on the
+# host network to reach the relay on 127.0.0.1:PORT, as the user running the tests (the relay
+# serves no one else), with this host's docker client.
+tcp_container() { # TAG PORT COMMAND...
+  local tag=$1 port=$2
+  shift 2
+  "$engine" run --rm --network host --user "$(id -u):$(id -g)" --tmpfs /opt --tmpfs /srv \
+    -e HOME=/tmp -e "DOCKER_HOST=tcp://127.0.0.1:$port" \
+    -v "$(readlink -f "$(command -v "$engine")"):/usr/local/bin/docker:ro" "$tag" "$@"
+}
+c14_tcp_run() { # NAME REPORT WANT TAG PORT OPTION: the tool in such a container
+  local name=$1 report=$2 want=$3 rc
+  set +e
+  tcp_container "$4" "$5" brotli-cve-check --json --no-exec "$6" --roots /var/www --timeout 60 \
+    >"$report" 2>"$out/c14-$name.log"
+  rc=$?
+  set -e
+  c14_exit "$name" "$rc" "$want" "$report" "$out/c14-$name.log"
+}
 c14_check() { # TAG BASE
-  local tag=$1 base=$2 host sock port report ok=0
+  local tag=$1 base=$2 host sock port report ok=0 run name want option kind shows
   if [[ $engine != docker ]]; then
     echo "SKIP C14 on this host: only with ENGINE=docker (the tool tries docker before podman)"
     return 0
@@ -116,17 +154,17 @@ c14_check() { # TAG BASE
     return 1
   fi
   report="$out/c14-unix.json"
-  if c14_run unix "$report" &&
+  if c14_run unix "$report" 1 &&
     python3 -I "$root/tests/integration/assert.py" "$report" \
       "info:C14|Connection of docker: $host (a unix socket on this host)." \
       "C14|container $c14_name ($tag) /opt/node-v22.23.3-linux-x64/bin/node|VULNERABLE" \
       "C14|container $c14_name ($tag) /opt/node-v22.23.4-linux-x64/bin/node|FIXED" \
       "C14|container $c14_name ($tag) /opt/venv-old/|VULNERABLE" \
       "C14|container $c14_name ($tag) /opt/venv-new/|FIXED" \
-      "skipped:C14 (stopped containers)|inside of stopped containers (" \
-      "skipped:C14 (images)|inside of images (" \
+      "skipped:C14 (stopped containers)|inside of stopped containers (|chosen" \
+      "skipped:C14 (images)|inside of images (|chosen" \
       "C14|container $c14_stopped|-"; then
-    echo "ok   C14 on this host through $host ($base): the check script ran inside the container, PyPI Brotli 1.2.1 confirmed by its module; stopped containers and images only counted"
+    echo "ok   C14 on this host through $host ($base), exit 1: the check script ran inside the container, PyPI Brotli 1.2.1 confirmed by its module; stopped containers and images only counted"
   else
     echo "     report: $report"
     ok=1
@@ -138,17 +176,31 @@ c14_check() { # TAG BASE
     sleep 0.1
   done
   port=$(head -n 1 "$ctx/relay.port")
-  report="$out/c14-tcp.json"
-  if [[ $port =~ ^[0-9]+$ ]] && c14_run tcp "$report" "DOCKER_HOST=tcp://127.0.0.1:$port" &&
-    python3 -I "$root/tests/integration/assert.py" "$report" \
-      "info:C14|Connection of docker: tcp://127.0.0.1:$port. This is not a unix socket on this host" \
-      "info:C14|Container $c14_name ($tag) was not inspected" \
-      "skipped:C14|docker connects to tcp://127.0.0.1:$port, not to a unix socket on this host" \
-      "C14|container $c14_name ($tag)|-"; then
-    echo "ok   C14 on this host through tcp://127.0.0.1:$port ($base): listed with the connection, nothing ran inside"
-  else
-    echo "FAIL C14 through tcp://127.0.0.1:${port:-?} (report: $report)"
+  if [[ ! $port =~ ^[0-9]+$ ]]; then
+    echo "FAIL C14 through tcp: the relay to $sock did not start"
     ok=1
+  elif ! tcp_container "$tag" "$port" docker version --format '{{.Server.Version}}' >"$out/c14-tcp-client.log" 2>&1; then
+    echo "FAIL C14 through tcp://127.0.0.1:$port: this host's docker client, in a container of $tag on the host network, did not reach the engine through the relay (a native engine on this host is needed; not tried with Docker Desktop)"
+    show_tail "$out/c14-tcp-client.log"
+    ok=1
+  else
+    # NAME|WANT|OPTION|KIND of the C14 entry under "Not scanned"|what the exit status shows
+    for run in "tcp|2|--inspect-containers|failed|the inside could not be looked at" \
+      "tcp-control|0|--containers|chosen|the inside was left out by choice, nothing else to review"; do
+      IFS='|' read -r name want option kind shows <<<"$run"
+      report="$out/c14-$name.json"
+      if c14_tcp_run "$name" "$report" "$want" "$tag" "$port" "$option" &&
+        python3 -I "$root/tests/integration/assert.py" "$report" \
+          "info:C14|Connection of docker: tcp://127.0.0.1:$port. This is not a unix socket on this host" \
+          "info:C14|Container $c14_name ($tag) was not inspected" \
+          "skipped:C14|docker connects to tcp://127.0.0.1:$port, not to a unix socket on this host|$kind" \
+          "C14|container $c14_name ($tag)|-"; then
+        echo "ok   C14 through tcp://127.0.0.1:$port from a container of $base, $option, exit $want: listed with the connection, nothing ran inside; $shows ($kind)"
+      else
+        echo "     report: $report"
+        ok=1
+      fi
+    done
   fi
   kill "$relay_pid" 2>/dev/null || true
   relay_pid=""
@@ -169,8 +221,12 @@ for row in "${matrix[@]}"; do
   fi
   tag="bcc-it:${base//[:.]/-}"
   echo "== $base"
-  if ! "$engine" build -q --build-arg "BASE=$base" -t "$tag" "$ctx" >"$out/${tag#bcc-it:}-build.log" 2>&1; then
-    echo "FAIL $base: image build failed (see $out/${tag#bcc-it:}-build.log)"
+  # The whole build output (plain progress, not -q), so that its end shows a failing step's own
+  # output and the engine's error.
+  build_log="$out/${tag#bcc-it:}-build.log"
+  if ! BUILDKIT_PROGRESS=plain "$engine" build --build-arg "BASE=$base" -t "$tag" "$ctx" >"$build_log" 2>&1; then
+    echo "FAIL $base: image build failed"
+    show_tail "$build_log"
     failed=1
     continue
   fi
@@ -238,7 +294,8 @@ for row in "${matrix[@]}"; do
     grep -q $'^PKG\tii \tlibbrotli1' <<<"$probe_out" && [[ $(tail -n 1 <<<"$probe_out") == END ]]; then
     echo "ok   $base (C14 probe in /bin/sh: both Node.js copies, packages, END)"
   else
-    echo "FAIL $base: C14 probe output: $out/${tag#bcc-it:}-probe.txt"
+    echo "FAIL $base: C14 probe output:"
+    show_tail "$out/${tag#bcc-it:}-probe.txt"
     failed=1
   fi
   if ((!c14_done)); then

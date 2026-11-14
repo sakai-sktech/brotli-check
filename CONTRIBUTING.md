@@ -40,6 +40,19 @@ See the header of the file and docs/design.md 5.1.
 - `make lint` must report zero warnings; `make test` must pass. Add a test for every
   new verdict path.
 
+## Changing where a check stops
+
+[docs/how-it-checks.md](docs/how-it-checks.md) says, for each check, what it looks for, how it
+finds it, what it reads and in which order it decides, and where it stops. How far the tool looks
+is a design decision, and that document is the rule: the code follows it.
+
+- A change that moves where a check stops (it looks further or less far, stops somewhere else, or
+  reports something else when it stops) is a design change. Write the decision in
+  [docs/design.md](docs/design.md) section 10 (what was decided, why, what else was considered),
+  and change `docs/how-it-checks.md` and `docs/how-it-checks.ja.md` in the same pull request.
+- A fix that brings the code back to what `docs/how-it-checks.md` says is a bug fix. The document
+  does not change.
+
 ## Tests must never use attack data
 
 No crafted or "broken" Brotli streams, no proof-of-concept inputs, in tests or anywhere else.

@@ -207,7 +207,9 @@ package's node** (it has a `dpkg -S` owner) is split by whether it links libbrot
 **transitively**: `ldd` by default (glibc's ldd asks the system loader to `--list` dependencies
 instead of using the file's PT_INTERP; main does not run); with `--no-exec`, the NEEDED entries of
 `readelf -d` are followed with `ldconfig -p` and RUNPATH (lower precision, reported). Dynamic →
-covered by C01; static → judged by its strings.
+covered by C01; static → judged by its strings. (`ldd` was dropped in 10.11: dependencies are followed
+with readelf alone, with or without `--no-exec`. Since 10.18.2 a node that loads libbrotlidec is
+judged by that library whoever installed it.)
 
 **C06 Python** — mise / pyenv / uv (`~/.local/share/uv/{python,tools}`) added to the search.
 dpkg-owned entries excluded (3.2). PEP 440: trailing zeros of the release are ignored (1.2.1 equals
@@ -252,7 +254,7 @@ and reported with a reason.
   variables instead).
 - Found programs run only through one function (`bcc_probe`), bounded by `timeout` and an allow-list
   of arguments (`--version` and the like); system tools (`dpkg-query`, `ldd`, ...) through
-  `bcc_sys`. They run only with the user's consent, after being listed with their facts
+  `bcc_sys` (`ldd` was dropped in 10.11). They run only with the user's consent, after being listed with their facts
   (`lib/exec.sh`, 10.11); with `--no-exec` nothing found runs.
 - System tools run from `/usr/sbin:/usr/bin:/sbin:/bin` (plus `/usr/local/{sbin,bin}` when only root
   can change them), never from the caller's `PATH` (10.9).
@@ -272,7 +274,7 @@ and reported with a reason.
 ### 7.1 Interpretation of the request (settled during implementation, 2026-10-26)
 
 - **`--no-exec` stops running *found* programs**: `--version` of node, bun, curl, envoy and
-  browsers, `ldd` on found executables, and commands inside containers. System query tools
+  browsers, `ldd` on found executables (dropped in 10.11), and commands inside containers. System query tools
   (dpkg-query, dpkg, readelf, ldconfig, ss, snap, flatpak, docker ps, docker context inspect,
   podman info) still run; they are outside "running the programs it found" in section 2.4 of the
   request. Without `--no-exec`, found programs run only after the user chose them from the list
@@ -1309,3 +1311,62 @@ rejected alternative.
     host stops there too); reading a module over the size limit for its partial counts (they
     cannot change the result); listing modules only in directories that hold Brotli's metadata
     (more shell in the check script for a few lines that are never read).
+30. **One document for how the checks look and where they stop; moving a stop is a design
+    change (2026-11-13, issue #35).** What the tool looks at, how, and where it stops could only be
+    learned from the source. The README gives the outline (what it tells you and what it does not,
+    how far it looks, what a verdict rests on), the limitations list what can be missed, and these
+    notes keep the reasons, but nothing could be read through, check by check. Its readers are the
+    administrators who run the tool: without knowing how far it looked, they cannot read what a
+    result confirms. The requester's view (2026-11-13): the result of the scan is the original;
+    how it is handled and reported is for the site to decide, not the tool. How deep to dig is a
+    design decision.
+    1. **The document is the rule.** `docs/how-it-checks.md` (English is authoritative; `.ja.md`)
+       writes down how far the tool looks. Code that differs from it is a bug. Moving a stop (looking
+       further or less far, stopping elsewhere, or reporting something else there) is a design
+       change: the decision goes into this section 10 and the document changes in the same pull
+       request. A fix that brings the code back to the document is a bug fix and leaves the
+       document as it is. CONTRIBUTING.md says so.
+    2. **Its shape.** A common part, once (the clues a copy is found by, where the walk goes, how
+       linked libraries are followed, the strings estimate, the advisory data and how versions are
+       compared, running found programs and consent, the limits, the ranges not scanned and the exit
+       status), then C01 to C15 with the same four questions: what it looks for, how it finds it,
+       what it reads and in which order it decides, and where it stops. Each stop names the place in
+       these notes that decided it, or says "no record" (the behaviour is the code's, but no
+       decision was recorded). What each statement rests on is given apart: a unit test, an
+       integration test, a measurement on the developer's host, or reading the code alone. The
+       README links to it once, from "How far it looks".
+    3. **Checked against the code to be released.** The document was written against main at
+       `c964751`, to be released as v0.2.0, check by check, and the differences were listed, of
+       three kinds: the code does otherwise than something written says; the tool set out to look
+       and could not, and the result says nothing; a sentence of the result does not fit the
+       case. No code changed in this issue. The requester decided each one (2026-11-13 and 14):
+       - **Bugs to fix** (issues; the document marks them "bug" and gives both the rule and what the
+         code does now): inside a container, a distribution's nodejs is judged by Node.js's own
+         version, so an end-of-life line is `VULNERABLE` (C14; on the host it is judged by the
+         libbrotli it loads). Ubuntu 20.04's distribution nodejs: the launcher, which holds no
+         decoder, is judged by its strings (C04). The reason and the next step when the dependency
+         walk is undetermined (installing binutils is advised even when readelf is there, and what
+         could not be followed is not said; C04, C08, C09, C11). C08's next step names
+         `--allow-exec`, which 10.11 removed. C06 drops a Python package whose metadata cannot be
+         read without a word. The first two go into the README's "Known problems" for v0.2.0.
+       - **Stops to move** (design changes: the issue that makes one writes it into section 10 and
+         changes the document; until then the document marks it "to change" and describes the
+         stop as it is): report a dependency walk that could not be followed to the end (also when
+         a libbrotlidec was found, and for an unpackaged node when none was; the limit kept in
+         10.28.5). Judge the libbrotlidec inside snaps (base snaps such as `core22` and `core24`),
+         as flatpak runtimes are judged.
+       - **Accepted as designed:** the inside of flatpak applications installed per user (or in an
+         extra installation) is not looked at (`--deep` finds their strings; the limitations now
+         say so). Candidates found by name that this user cannot run or read are not taken (it does
+         not happen as root, and a run as another user has the "root" line).
+       - **Documentation fixed in the same pull request:** found programs run with three fixed
+         environment variables (`PATH`, `HOME`, `LC_ALL`), not an empty environment (README,
+         limitations, SECURITY.md; 10.11 said "empty"). `RESTART_REQUIRED` covers .NET's library
+         too (README, JSON schema; added in 10.27.8). Sections 6 (C04), 7 and 7.1 note that `ldd`
+         was dropped in 10.11.
+    4. **The limitations.** They stay a summary of what can be missed, and point to the document
+       at the top. Where the checks stop is ruled in one place, the document, not kept twice.
+    Rejected: letting the document follow the code, updated whenever the code changes (the
+    requester turned it down: the document would no longer be the rule, and a stop would move
+    silently with each fix). Not taken up: a line in the summary naming what the tool has no means
+    to see (proposed during the discussion; the requester did not take it up, so it stays open).

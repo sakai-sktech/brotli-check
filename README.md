@@ -197,7 +197,7 @@ Each finding is one line:
 | Status | Meaning | Next step |
 |---|---|---|
 | `VULNERABLE` | Older than the fixed version in the advisory data and not before the affected range an advisory states, or a version of a line that gets no fixed release (the reason says on what ground) | Update it (the line says to what) |
-| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, a node or bun executable). When another line of this report judged the file now at the same path, the reason gives that judgment. No such line is no proof that nothing needs a restart ([limitations](docs/limitations.md)) | Written on the line: if the file now there is `FIXED`, restart; if it is `VULNERABLE`, `NO_FIX_AVAILABLE` or `LIKELY_VULNERABLE`, follow that line first (a restart alone does not fix it); with no judgment, no file, or a process in another mount namespace (a container, for example), check the version, then restart |
+| `RESTART_REQUIRED` | A process keeps using a deleted Brotli-related file (libbrotlidec, `_brotli*.so`, .NET's `libSystem.IO.Compression.Native.so`, a node or bun executable). When another line of this report judged the file now at the same path, the reason gives that judgment. No such line is no proof that nothing needs a restart ([limitations](docs/limitations.md)) | Written on the line: if the file now there is `FIXED`, restart; if it is `VULNERABLE`, `NO_FIX_AVAILABLE` or `LIKELY_VULNERABLE`, follow that line first (a restart alone does not fix it); with no judgment, no file, or a process in another mount namespace (a container, for example), check the version, then restart |
 | `NO_FIX_AVAILABLE` | As of the advisory data's date, the distributor had not released a fix | Look at the vendor's latest information; meanwhile update the products that bundle their own copy |
 | `VENDORED_COPY` | Carries its own decoder; neither its version nor whether it is fixed could be determined | Ask the vendor which Brotli it bundles |
 | `LIKELY_VULNERABLE` / `LIKELY_FIXED` | Judged from the decoder's strings; the reason says what was found and what was not (see "[What a verdict rests on](#what-a-verdict-rests-on)") | Confirm with the vendor |
@@ -271,7 +271,9 @@ option out for such hosts.
 
 There are also `--exclude` (places to leave out), `--include-remote` (also search network file
 systems such as NFS), `--envoy-config FILE`, `--timeout SEC` and `--data FILE` (`--help`). What
-can be missed is detailed in [docs/limitations.md](docs/limitations.md).
+can be missed is detailed in [docs/limitations.md](docs/limitations.md). For each check, what it
+looks for, how it finds it, what it reads and in which order it decides, and where it stops:
+[docs/how-it-checks.md](docs/how-it-checks.md).
 
 ## Running programs to read versions
 
@@ -288,9 +290,9 @@ runs with no one at a terminal: a script, cron, a container. Use it knowing what
   the host. If a program on the list belongs to another user, or sits where another user can
   write, then that user decides what runs as root. The list says when this is the case
   ("belongs to alice", "can be written by anyone"); `--yes` agrees without reading it.
-- **What a program does is not something this tool can stop.** It is run from `/`, with an
-  empty environment, stdin closed, a time limit and a cap on its output, but nothing keeps it
-  from writing files or using the network.
+- **What a program does is not something this tool can stop.** It is run from `/`, with only
+  three fixed environment variables (`PATH`, `HOME`, `LC_ALL`; none of yours), stdin closed, a
+  time limit and a cap on its output, but nothing keeps it from writing files or using the network.
 - **The list covers what can be seen before running**: the file, the directories above it,
   the libraries it loads. What a program opens once it is running (plugins, configuration
   files) is not on it.

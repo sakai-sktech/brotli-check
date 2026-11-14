@@ -4,6 +4,9 @@ English: [limitations.md](limitations.md)
 
 このツールが見落としうるもの、判定できないもの、その理由。「何も見つからない」は「安全」ではありません。
 
+検出項目ごとに、何をどう調べ、どこで止まるかは [how-it-checks.ja.md](how-it-checks.ja.md) にあります。止まる所の決まりはそちらで、
+ここはその中から見落としうるものをまとめたものです。
+
 ## 見落としうるコピー
 
 - **探索する場所の外。** 既定は `/opt, /usr/local, /srv, /var/www, /home, /root` と、システムの Python・
@@ -65,7 +68,7 @@ English: [limitations.md](limitations.md)
   そこにあるコピーが読み込まれるものかもしれないのに、判定して説明するのはディレクトリの中のコピーです。
 - **辿れなかったライブラリの先。** プログラムが要るライブラリが見つからない・読めないとき、または 8 段より深いときは、その先は見えません。
   その手前で見つけた libbrotlidec は判定しますが、辿りが途中で止まったことは結果に書きません。
-- **snap／flatpak 以外で入れた Electron アプリ**は `--deep` のときだけ見つかります。
+- **snap と、システム単位の flatpak 以外で入れた Electron アプリ**は `--deep` のときだけ見つかります。ユーザー単位（と追加のインストール先）の flatpak のアプリも同じです（中の Electron の印を見ません）。
 - **Alpine ベースのコンテナ**（apk）は、中のパッケージを判定しません（`--inspect-containers` が扱うのは
   Debian/Ubuntu ベースのイメージと、Node.js・PyPI のコピー）。
 - **このホストの unix ソケット以外でつないだコンテナ**（`DOCKER_HOST`、別の先を指す docker の context や podman、
@@ -149,7 +152,7 @@ English: [limitations.md](limitations.md)
 DT_RPATH、DT_RUNPATH、ld.so のキャッシュ、既定のディレクトリ。それぞれ `glibc-hwcaps` の下位ディレクトリをローダーの順で先に。
 読み込み済みの名前はもう一度探さない）で探しますが、実行してから開くもの（dlopen、設定
 ファイル）は見えず、`$LIB` のような記号は展開しません（そのことも事実に書きます）。実行は `/` から、環境変数を
-空にし、制限時間と出力の上限を付けて行います。`--inspect-containers` は、実行中のコンテナの中で決まった
+決まった 3 つ（`PATH`・`HOME`・`LC_ALL`）だけにし、制限時間と出力の上限を付けて行います。`--inspect-containers` は、実行中のコンテナの中で決まった
 スクリプトを実行し（そこでファイルを読み、見つけた `node` を `--version` で動かします）、Python の拡張モジュールを読むために
 `head` も動かします。接続先がこのホストの unix ソケットのときだけで、その指定が同意です。
 

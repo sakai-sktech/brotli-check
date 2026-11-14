@@ -80,22 +80,22 @@ English: [README.md](README.md) / 医療機関・中小企業の方へ: [docs/fo
 
 ### 入手
 
-[v0.1.0 の Release](https://github.com/sakai-sktech/brotli-check/releases/tag/v0.1.0) から、1 ファイル版とそのチェックサムを新しい空のディレクトリに取ってきて、
+[v0.2.0 の Release](https://github.com/sakai-sktech/brotli-check/releases/tag/v0.2.0) から、1 ファイル版とそのチェックサムを新しい空のディレクトリに取ってきて、
 チェックサムを確かめます。コマンドは `&&` でつないでいるので、どれかが失敗するとそこで止まります。取りそこねた
 ファイルを確かめることはなく、ディレクトリに前のファイルが残っていて新しいものの代わりに通ることもありません。
 ディレクトリがすでにあると `mkdir` が失敗するので、消すか別の名前にしてください。`curl | bash` はしないでください。
 
 ```sh
-mkdir ~/brotli-cve-check-0.1.0 &&
-cd ~/brotli-cve-check-0.1.0 &&
-curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/brotli-cve-check &&
-curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/SHA256SUMS &&
+mkdir ~/brotli-cve-check-0.2.0 &&
+cd ~/brotli-cve-check-0.2.0 &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.2.0/brotli-cve-check &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.2.0/SHA256SUMS &&
 sha256sum -c SHA256SUMS
 ```
 
 `brotli-cve-check: OK` は、ファイルが公開されたとおりに届いたということです。ファイルが本物であることまでは
 言えません。チェックサムも同じ Release から取るので、片方を書き換えられる人はもう片方も書き換えられます。
-動かす前に中身を読んでください。210 KB ほどの bash のスクリプト 1 つで、[タグ v0.1.0](https://github.com/sakai-sktech/brotli-check/tree/v0.1.0)
+動かす前に中身を読んでください。296 KB ほどの bash のスクリプト 1 つで、[タグ v0.2.0](https://github.com/sakai-sktech/brotli-check/tree/v0.2.0)
 の `lib/*.sh` を順につなぎ、最後に既知データを入れたものです。
 
 ```sh
@@ -152,7 +152,7 @@ bash brotli-cve-check --help                                  # すべてのオ�
 ```sh
 git clone https://github.com/sakai-sktech/brotli-check.git &&
 cd brotli-check &&
-git checkout v0.1.0
+git checkout v0.2.0
 ```
 
 ```sh

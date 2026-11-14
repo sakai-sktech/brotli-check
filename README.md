@@ -88,23 +88,23 @@ Japanese versions: [Fig. 01](docs/zukai/01_check-method_ja.pdf), [Fig. 02](docs/
 ### Getting it
 
 Download the single-file build and its checksum from the
-[v0.1.0 release](https://github.com/sakai-sktech/brotli-check/releases/tag/v0.1.0) into a new, empty directory, and check the checksum. The
+[v0.2.0 release](https://github.com/sakai-sktech/brotli-check/releases/tag/v0.2.0) into a new, empty directory, and check the checksum. The
 commands are joined with `&&`, so when one fails the rest do not run: a failed download is not
 checked, and no older copy left in the directory can pass for the new one. `mkdir` fails when the
 directory already exists; remove it or pick another name. Do not pipe anything into a shell.
 
 ```sh
-mkdir ~/brotli-cve-check-0.1.0 &&
-cd ~/brotli-cve-check-0.1.0 &&
-curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/brotli-cve-check &&
-curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.1.0/SHA256SUMS &&
+mkdir ~/brotli-cve-check-0.2.0 &&
+cd ~/brotli-cve-check-0.2.0 &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.2.0/brotli-cve-check &&
+curl -fsSLO https://github.com/sakai-sktech/brotli-check/releases/download/v0.2.0/SHA256SUMS &&
 sha256sum -c SHA256SUMS
 ```
 
 `brotli-cve-check: OK` means that the file arrived as it was published. It does not mean that
 the file is genuine: the checksum comes from the same release, so whoever could change one could
-change the other. Read the file before running it. It is one bash script of about 210 KB:
-`lib/*.sh` of [tag v0.1.0](https://github.com/sakai-sktech/brotli-check/tree/v0.1.0) in order, and
+change the other. Read the file before running it. It is one bash script of about 296 KB:
+`lib/*.sh` of [tag v0.2.0](https://github.com/sakai-sktech/brotli-check/tree/v0.2.0) in order, and
 the advisory data at the end.
 
 ```sh
@@ -165,7 +165,7 @@ alone does not run. Read what is in `bin/`, `lib/` and `data/` first.
 ```sh
 git clone https://github.com/sakai-sktech/brotli-check.git &&
 cd brotli-check &&
-git checkout v0.1.0
+git checkout v0.2.0
 ```
 
 ```sh

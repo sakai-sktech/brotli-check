@@ -6,7 +6,7 @@ tool lists to read their versions are run; there is no terminal to ask). It also
 the fixed script of `--inspect-containers` (C14) in the image's own `/bin/sh` (dash) with both
 Node.js copies on `PATH`, and expects both copies, the package lines and the final `END`.
 
-| Image | Expected for `libbrotli1` / `python3-brotli` (data snapshot 2026-11-02) |
+| Image | Expected for `libbrotli1` / `python3-brotli` (data snapshot 2026-11-14) |
 |---|---|
 | ubuntu:22.04, 24.04, 26.04 | `FIXED` (1.0.9-2ubuntu0.1 / 1.1.0-2ubuntu0.1 / 1.2.0-3ubuntu0.1, USN-8956-1) |
 | debian:12 | `FIXED` (1.0.9-2+deb12u1, DLA-4855-1) |

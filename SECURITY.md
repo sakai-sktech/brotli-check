@@ -26,12 +26,12 @@ reproduction you can. Do not attach exploit data for Brotli.
   root (or the invoking user, when not root) can change.
 - It does not connect to the network itself, and does not generate, download or contain attack
   data.
-- Programs it finds are run only to read their version, with one argument, from `/`, with an
-  empty environment, stdin closed, a time limit and a cap on their output. Before anything runs
-  it lists them, each with who besides root or the invoking user could change the program, a
-  directory above it, or a library it loads, and runs only those chosen (all of them with
-  `--yes`, none with `--no-exec`). Nothing keeps a program allowed to run from writing files or
-  using the network.
+- Programs it finds are run only to read their version, with one argument, from `/`, with only
+  three fixed environment variables (`PATH`, `HOME`, `LC_ALL`), stdin closed, a time limit and a
+  cap on their output. Before anything runs it lists them, each with who besides root or the
+  invoking user could change the program, a directory above it, or a library it loads, and runs
+  only those chosen (all of them with `--yes`, none with `--no-exec`). Nothing keeps a program
+  allowed to run from writing files or using the network.
 - With `--containers`, docker or podman are used with their current connection settings, and the
   report shows where they connect. The fixed script of `--inspect-containers`, and the `head` that
   reads Python's extension modules for it, run inside containers only when that is a unix socket

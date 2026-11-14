@@ -4,6 +4,9 @@
 
 What the tool can miss or cannot decide, and why. "Nothing found" never means "safe".
 
+For each check, what it looks for, how, and where it stops is in [how-it-checks.md](how-it-checks.md):
+that document is the rule for where the checks stop, and this page sums up what can be missed.
+
 ## Copies the tool can miss
 
 - **Outside the search roots.** By default `/opt, /usr/local, /srv, /var/www, /home, /root`
@@ -87,7 +90,9 @@ What the tool can miss or cannot decide, and why. "Nothing found" never means "s
 - **Libraries behind one that could not be followed.** When a library a program needs is not
   found or cannot be read, or the chain is deeper than 8, what lies behind it is not seen; a
   libbrotlidec found before it is still judged, and the report does not say that the walk stopped.
-- **Electron applications** installed outside snap/flatpak are found only with `--deep`.
+- **Electron applications** installed other than as snaps or system-wide flatpaks are found only with
+  `--deep`. That includes flatpak applications installed per user (or in an extra installation):
+  the tool does not look inside them for Electron.
 - **Containers based on Alpine** (apk) get no package check inside (`--inspect-containers`
   covers Debian/Ubuntu-based images and Node.js / PyPI copies).
 - **Containers reached through anything but a unix socket on this host** (`DOCKER_HOST`, a docker
@@ -189,8 +194,8 @@ needing object and of its loaders, DT_RUNPATH, the ld.so cache, the default dire
 with its `glibc-hwcaps` subdirectories in the loader's order; a name already loaded is not
 looked up again), but it
 cannot see what a program opens once it runs (dlopen, configuration files), and tokens such as
-`$LIB` are not expanded (the facts say so). Programs run from `/`, with an empty environment, a
-time limit and their output capped. `--inspect-containers` runs a fixed script inside running
+`$LIB` are not expanded (the facts say so). Programs run from `/`, with only three fixed environment
+variables (`PATH`, `HOME`, `LC_ALL`), a time limit and their output capped. `--inspect-containers` runs a fixed script inside running
 containers (it reads files there and runs the `node` it finds with `--version`), and `head` there
 to read Python's extension modules, only when the engine connects through a unix socket on this
 host; asking for it is the consent.

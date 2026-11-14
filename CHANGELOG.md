@@ -117,6 +117,15 @@
   README, the limitations and SECURITY.md say that `head` runs inside containers too; the
   integration run's C14 step expects PyPI Brotli 1.2.0 `VULNERABLE` and 1.2.1 `FIXED` in a real
   container (docs/design.md 10.29, #27).
+- New document, `docs/how-it-checks.md` (and `.ja.md`): for each check, C01 to C15, what it looks
+  for, how it finds it, what it reads and in which order it decides, and where it stops, after a
+  part common to all of them (the clues a copy is found by, where the walk goes, how linked
+  libraries are followed, the strings estimate, the advisory data, running programs, the limits,
+  and the ranges not scanned). Each place where a check stops names the design note that decided
+  it, or says that none did, and each statement says whether a test or a measurement backs it.
+  Where the checks stop is a design decision and this document is the rule: code that differs
+  from it is a bug, and moving a stop needs a design note and a change of the document in the
+  same pull request (CONTRIBUTING.md, docs/design.md 10.30, #35). The README links to it.
 
 ## 0.1.0 - 2026-11-02
 

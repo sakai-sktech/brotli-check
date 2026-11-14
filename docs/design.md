@@ -856,14 +856,19 @@ rejected alternative.
        container stays UNKNOWN at or above the fix (10.15.5): this issue narrows where the check
        script may run, and streaming each extension module to the host through the engine is a
        feature of its own, with more reads through the engine (added by 10.29, issue #27). A real container is now tested in the
-       integration run (`tests/integration/run.sh`), once per run: the tool runs on the test host
-       against a container of the image, through the engine's unix socket (the script runs inside;
-       both Node.js copies are judged) and through a TCP relay to the same socket (listed with the
-       connection; nothing runs inside; the relay serves only the test user's own sockets, by the owner
-       `/proc/net/tcp` gives, since a loopback port is open to every user of the machine and the
-       engine's socket gives control of the engine). Found programs of the test host are not run: the question
-       is answered "n" on a pseudo-terminal, since `--yes` would run them on the developer's machine
-       under `make integration`.
+       integration run (`tests/integration/run.sh`), once per run, against a container of the
+       image: through the engine's unix socket, with the tool on the test host (the script runs
+       inside; both Node.js copies are judged; exit status 1), and through a TCP relay to the same
+       socket (listed with the connection; nothing runs inside; the relay serves only the test user's
+       own sockets, by the owner `/proc/net/tcp` gives, since a loopback port is open to every user
+       of the machine and the engine's socket gives control of the engine). Found programs of the
+       test host are not run: the question is answered "n" on a pseudo-terminal, since `--yes` would
+       run them on the developer's machine under `make integration`. The run through the relay is
+       made from a throw-away container of the image on the host network, with the image's own
+       copies hidden and the test host's docker client, since on the test host its exit status
+       would come from that host's own copies (issue #34): it must exit 2 with
+       `--inspect-containers` (the inside could not be looked at: `failed`, 10.26) and 0 with
+       `--containers` alone (`chosen`).
 21. **EXPOSURE reasons say what was seen and what was not (2026-11-04, issue #7).** C06, C07 and C15
     see only that a package is installed or that a process listens, but their reasons said "decodes
     ... automatically" and "prioritize this process", which the external review (R7) read as

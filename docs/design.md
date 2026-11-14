@@ -94,6 +94,80 @@ threshold 148.0.7778.0 stays: tags from 148.0.7750.0 already have cfa184a9, so d
 between there and the threshold are UNKNOWN when they could be FIXED, which changes no next step for
 a build nobody runs in production.
 
+### 2.3 Re-checked before release (2026-11-14)
+
+Every row's primary source was read again (all 52 rows), and the snapshot moved to 2026-11-14. No
+existing row's fixed version changed. Changes:
+
+| Row | Found | Data | Source |
+|---|---|---|---|
+| Debian forky | brotli 1.2.0-4.1 migrated to testing on 2026-11-04; the tracker shows forky fixed | `unreleased` → `fixed` (1.2.0-4.1). No row of the data is `unreleased` now | security-tracker.debian.org, sources.debian.org/api/src/brotli/, tracker.debian.org/pkg/brotli |
+| Brotli before 1.0.3 | Debian's tracker names the commit that introduced the flaw (added 2026-11-03): 35e69fc7, first in v1.0.3. PYSEC-2026-4322 / 4323 still list earlier versions | The notes of `brotli <=0.6`, `pypi:brotli` and `pypi:brotlicffi` give Debian's statement too. The sources still disagree, so the verdicts stay as in 10.16.6 | security-tracker.debian.org, github.com/google/brotli |
+| Istio 1.32 | 1.32.0 (2026-11-09) came after ISTIO-SECURITY-2026-007. Its istio/proxy pins Envoy 56e0748e (v1.40.2 plus one commit), which pins Brotli 42a2ed43, a descendant of the fix | New `analysis` row 1.32.0. The tool does not read the istio rows, so no verdict changes | github.com/istio/proxy (tag 1.32.0) |
+| .NET 8 and 9 | Both reached end of support on 2026-11-10. Their last releases, 8.0.34 and 9.0.23, have the same Brotli as the fixed 8.0.33 and 9.0.22. Ubuntu moved dotnet8 to 8.0.34 (USN-9042-1, 2026-11-11, not about this CVE) | Still `fixed`, as Istio 1.29 is: the notes of Microsoft's 8.0 and 9.0 rows and of Ubuntu's dotnet8 rows give the end of support and the last release; the note of Ubuntu's dotnet6 row says that dotnet8 is out of upstream support | dotnet.microsoft.com/platform/support/policy/dotnet-core, ubuntu.com/security/notices/USN-9042-1 |
+| .NET 11 | 11.0.0 was released on 2026-11-10, with the same Brotli tree as 11.0.0-rc.3.26522.148. Microsoft's advisory is unchanged | `fixed` stays 11.0.0-rc.3.26522.148 (11.0.0 sorts above it); the note says that 11.0.0 has the same Brotli | github.com/dotnet/announcements/issues/494, github.com/dotnet/dotnet (tag v11.0.0) |
+| edk2 | Debian's tracker lists edk2 since 2026-11-06: bookworm and trixie vulnerable (trixie `<no-dsa>`, minor issue), forky and sid fixed in 2026.08+ds-3. edk2 carries the decoder in `BrotliCustomDecompressLib`, which extracts Brotli-compressed sections inside firmware | No row: the tool does not check the firmware packages. One item in the limitations | security-tracker.debian.org, github.com/tianocore/edk2 |
+| Firefox | The note is about the tag `FIREFOX_150_0_RELEASE`, but the URL pointed at `main`, which has moved since | `source_url` points at the tag | github.com/mozilla-firefox/firefox |
+
+Unchanged on re-check: the Google Brotli releases and their fix commits (no newer release);
+GHSA-9v8h-qqgm-4m35 (updated 2026-11-03, same ranges and fixed versions); PYSEC-2026-4322 / 4323; no
+PyPI release lies between the stated last versions and the fixes; Debian bookworm, trixie and sid;
+Ubuntu's seven brotli rows (USN-8956-1, USN-8956-2); the Node.js advisory, its fixed releases (the
+later releases keep the fix; the security release of 2026-11-11 does not name this CVE) and no
+release of 20, 21, 23 or 25 since; Bun's GHSA-663w-cv8g-jj2p and its pin db24a98a; Envoy's
+GHSA-3wvj-j6qm-62mr and the pin 42a2ed43 in the fixed tags and the latest of each line, no 1.41,
+and 1.35 still ending at v1.35.13; ISTIO-SECURITY-2026-007 (1.29.10, released later, is above
+1.29.9); Chromium's cfa184a9 and the threshold 148.0.7778.0; Firefox's 4792c8e4 from 150.0,
+115.35.0esr, 140.10.0esr and 153.0esr (the point releases of 2026-04-07, 149.0.2, 115.34.1esr and
+140.9.1esr, lack it; ESR 140 ended at 140.17.0esr, with it); no advisory from Google or Mozilla
+found, so the browser rows stay `analysis`; Microsoft's .NET advisory (still V1.0) and its ranges;
+Ubuntu's CVE page for dotnet6, dotnet7, dotnet8, dotnet10 and dotnet11; the Brotli that .NET Core
+2.1 to .NET 7 bundle.
+
+Left as they are, and why:
+
+- Istio's advisory states an affected range per line, and Envoy's `>= 1.18.0, < 1.40.0`; rule 4 of
+  CONTRIBUTING.md puts such ranges in `affected`. They stay `-`, as on 2026-11-02: no verdict
+  changes (the tool does not read the istio rows, and no version of Envoy's fixed lines is below
+  1.18.0).
+- Debian 11 bullseye and 10 buster get the fix only through Extended LTS (ELA-1861-1, 2026-10-23),
+  from a private repository for subscribers, and Debian's own tracker no longer lists them. No
+  rows: those hosts stay UNKNOWN ("no data").
+- Ubuntu 27.04 tenacious, in development, is not on Ubuntu's CVE page. Launchpad has brotli
+  1.2.0-4.1 there (Debian's, with the fix), and the fixed dotnet10 and dotnet11 only in
+  `-proposed`. No rows without the vendor's statement: UNKNOWN.
+- Node.js 27 is an alpha; a pre-release is UNKNOWN with or without a row.
+- The Chromium and Firefox ESR rows still link `main`; their notes name the tags read.
+- The next step for .NET lines without a fix still names 8.0.33, 9.0.22 and 10.0.14
+  (`lib/i18n.sh`); of these lines only 10 is supported since 2026-11-10. That is a change of the
+  message and its tests, not of the data.
+
+Could not be checked:
+
+- What changed in GHSA-9v8h-qqgm-4m35 on 2026-11-03 (the API keeps no history). Its ranges, fixed
+  versions and description are the same.
+- Whether Brotli before 1.0.3 is affected: no source analysis was made, and Debian's "Introduced
+  with" is written as Debian's statement.
+- edk2: the build log of bookworm's edk2 (not found) and Ubuntu's builds were not read, nor
+  firmware outside edk2 that includes the library.
+- Chromium's gitiles history needs a sign-in; the roll dates were read on the GitHub mirror.
+- That Google and Mozilla published no advisory was searched for only (Chrome Releases, GitHub code
+  search); gaps in the search indexes cannot be ruled out.
+- Bun's and Envoy's GHSAs are not in GitHub's global advisory database (404); the repositories'
+  advisories were read.
+- Envoy 1.18 to 1.35: each line's .0 and last tag only. Firefox ESR: the releases on each side of
+  the boundary and the latest.
+- Whether builds of end-of-life Node.js lines under commercial support have the fix.
+- Istio 1.28 and earlier (no rows; the tool does not read them).
+- .NET: what was measured on binaries on 2026-11-07 (the build stamps; no error names in .NET 8's
+  library) was not measured again; the source trees of the November releases were compared.
+  11.0.0's binaries were not measured. By 10.27.3 a stamp of 11.0.0 alone is UNKNOWN, so a
+  self-contained application built with 11.0.0, without a `.version` file, is expected to be
+  UNKNOWN (not run).
+- A notice from Ubuntu of the end of dotnet8 was not found, only USN-9042-1 and Ubuntu's general
+  statement that its maintenance is limited to the upstream lifespan.
+- When Ubuntu will list 27.04 on its CVE page.
+
 ## 3. Added from measurements on the development host
 
 Requirements not in the request, found by read-only inspection of the development machine
@@ -164,8 +238,9 @@ Meaning of `status`:
   is UNKNOWN (the advisory does not say whether it is affected) and an update is recommended
 - `no_fix` — the distributor has not released a fix (all Ubuntu releases until 2026-10-26; none
   as of 2026-10-27) → NO_FIX_AVAILABLE
-- `unreleased` — a fixed version is named but has not reached the archive (Debian forky
-  1.2.0-4.1; sid until 2026-10-27). Installed version at or above `fixed` → FIXED, below → NO_FIX_AVAILABLE
+- `unreleased` — a fixed version is named but has not reached the archive (Debian 1.2.0-4.1: sid
+  until 2026-10-27, forky until 2026-11-04; none as of 2026-11-14). Installed version at or above
+  `fixed` → FIXED, below → NO_FIX_AVAILABLE
 - `derived_eol` — the primary source says end-of-life versions are always affected, and the line
   gets no fix (Node.js) → VULNERABLE; the reason states that ground
 - `derived_bundled` — the line bundles a Brotli in the affected range, and gets no fix (Envoy 1.35

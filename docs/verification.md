@@ -5,7 +5,10 @@
 What was checked, how, under which conditions, and what came out. Each section says when it was
 run and with which advisory data: the first checks on **2026-10-26**; the integration table on
 **2026-10-27** (advisory data snapshot 2026-10-27, docs/design.md 2.1); the C11 section and the
-last row of the unit-test table on **2026-11-02** (snapshot 2026-11-02, docs/design.md 2.2).
+unit-test table up to its row of **2026-11-02** (snapshot 2026-11-02, docs/design.md 2.2); the next
+four rows of that table and the section "Integration runs since 2026-11-04" cover **2026-11-04 to
+2026-11-14**, with the advisory data still at the snapshot of 2026-11-02; the last row of the table
+is of **2026-11-14**, after that day's update of the data (snapshot 2026-11-14, docs/design.md 2.3).
 
 One-page figures (A4): [Fig. 01 What we checked, and how](zukai/01_check-method_en.pdf) ·
 [Fig. 02 Results on 5 OSes, and how to read them](zukai/02_results-reading_en.pdf)
@@ -65,10 +68,16 @@ so every run ends with exit status 1. In those five images:
 | the same after fixing the automatic security review's findings (2026-10-27, design 10.13) | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 161 / 161 passed; the 8 new tests fail on the code before the fix |
 | mutation tests of 2026-10-27 (test record, chapter 13), and the data of 2026-10-27 | Bats 1.10.0 | 91 fixes reverted one at a time: 69 caught; 10 tests added for the 21 gaps; then all 22 re-run caught. 172 / 172 passed |
 | the same after rounds 7 to 11 of the review and the data of 2026-11-02 (design 10.18, 2.2) | ShellCheck 0.9.0, Bats 1.10.0 | zero warnings; 239 / 239 passed |
+| the same after the six changes of 2026-11-04 to 05 (#5, #6, #7, #8, #11, #19; design 10.19 to 10.24) | ShellCheck, Bats (Ubuntu 24.04 packages) | zero warnings; 299 / 299 passed |
+| the same after the two changes of 2026-11-06 (the basis of `FIXED`, and `failed` / `chosen` with exit status 2; #9, #10; design 10.25, 10.26) | ShellCheck, Bats (Ubuntu 24.04 packages) | zero warnings; 350 / 350 passed. Mutations of the new code, each made a test fail: 17 for the first change, 19 for the second |
+| the same after the three changes of 2026-11-07 to 10 (.NET, every `libbrotlidec` a program loads, Python modules inside containers; #17, #18, #27; design 10.27 to 10.29) | ShellCheck, Bats (Ubuntu 24.04 packages) | zero warnings; 407 / 407 passed (a final run with nothing touched, 12 min 39 s). Mutations of the new code: 20 and 21 for the first two changes, each made a test fail; 19 of 20 for the third (the one that did not was a check that another check already made redundant, and was removed) |
+| the same on 2026-11-14, after the change to the integration tests only (`tests/integration/`; the tool's code did not change) | ShellCheck (Ubuntu 24.04 package) | zero warnings (`make lint` includes the integration scripts); the unit tests are the same 407 |
+| the same on 2026-11-14, after that day's advisory data (design 2.3) and the version number 0.2.0 | ShellCheck, Bats (Ubuntu 24.04 packages); integration on a native Docker engine (Docker 29.9.3, `/var/run/docker.sock`) | zero warnings; 408 / 408 passed (13 min 17 s). The test of `unreleased` now uses a made-up row: four mutations of that path (the branch removed, handled as `no_fix`, the comparison reversed, the reason replaced) and the shipped forky row set back to `unreleased` each made a test fail. `make integration`: the five images and bash 4.2 passed (39 checks; C14 with exit statuses 1, 2 and 0). The old images were removed first; the rebuilt ones took the layers below the tool from the engine's build cache |
 
 ## Integration tests (`tests/integration/`)
 
-Docker 28.3.0 (Docker Desktop, x86_64). Each image adds, on top of the distribution:
+The table and notes below are from the runs of 2026-10-26 and 27, made with Docker 28.3.0 (Docker
+Desktop, x86_64); the runs since are described after the notes. Each image adds, on top of the distribution:
 official Node.js 22.23.3 and 22.23.4 in `/opt` (verified against `SHASUMS256.txt`), PyPI Brotli
 1.2.0 with urllib3 in `/srv/venv-old`, and Brotli 1.2.1 in `/srv/venv-new`. Since 2026-10-27 each
 image is scanned four times: as root and as an ordinary user, each with `--no-exec` and with
@@ -104,6 +113,40 @@ Problems found by the integration run and fixed before this result: the Node.js 
 was not executable; one expectation was wrong (`EXPOSURE` needs an HTTP client next to Brotli, and
 the first image had none); the bash 4.2 step did not exercise any verdict; two English messages
 broke grammar with a count of one.
+
+## Integration runs since 2026-11-04
+
+The five images and bash 4.2 are unchanged. What changed is how they are run and what they check:
+
+- **CI.** On every push and pull request, GitHub Actions runs the unit tests and then the five
+  images and bash 4.2 (7 jobs, 14 checks counting both triggers) on the Docker of its Ubuntu
+  24.04 runner (the version is not recorded here). The final state of the pull request of each
+  change of 2026-11-04 to 10 (the rows of those dates in the table above) and of the
+  integration-test change below passed all 14. (One run during the changes of 2026-11-07 to 10
+  failed before that, on the runner's own .NET installation, and was fixed; one run of `main`
+  failed once while building an image and passed when run again on the same tree.)
+- **A real container engine for C14, since 2026-11-04 (#6).** The C14 step starts a container of
+  the image and runs `--inspect-containers` against the engine twice: through the engine's unix
+  socket (the tool looks inside the running container) and through a TCP relay on `127.0.0.1` (it
+  cannot look inside, and says so). Since 2026-11-09 (#27) it also checks the Python modules
+  inside the container: PyPI Brotli 1.2.0 `VULNERABLE`, 1.2.1 `FIXED`, in all five images.
+- **Exit statuses of C14, since 2026-11-13.** The step now expects exit status 1 for the unix
+  socket run (the container holds unfixed copies), exactly 2 for the TCP run (the one
+  `failed` entry of C14 and no other finding; the tool runs inside a throwaway container of the
+  image with `/opt` and `/srv` hidden, so that what the test host holds does not change the
+  status), and 0 for the same run with `--containers` only (the same sentence, kind `chosen`).
+  Before, it checked only that the status was not 3. With one expectation changed at a time
+  (1 to 2, 2 to 1, 0 to 2), each run failed; with a Node.js version that does not exist, the build
+  failure printed the failing step and the download error. On 2026-11-13 the five images and bash
+  4.2 passed, and each image run alone passed (50 checks); in CI the five images gave 1, 2 and 0.
+  A failed image build now prints the end of its log on the standard output.
+- **Which engine.** The local runs of 2026-11-07 to 10 and of 2026-11-13 used a native Docker
+  engine through `/var/run/docker.sock` (Docker 29.9.3), because the Docker Desktop engine of the
+  development workstation was stopped; the engine of the CI is the runner's. **The TCP step of C14
+  needs a native engine** (a container on the host network must reach the test host's
+  `127.0.0.1`). It was **not tried with Docker Desktop**, where it is expected to stop with FAIL
+  and the client's own output; the runs of 2026-10-26 and 27 above, with Docker Desktop, were
+  before this step existed in its present form.
 
 ## C11: the distributions' web servers (2026-11-02, design 10.17)
 

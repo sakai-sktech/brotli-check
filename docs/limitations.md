@@ -44,6 +44,11 @@ that document is the rule for where the checks stop, and this page sums up what 
 - **Other implementations.** Go (`andybalholm/brotli`), Rust (`brotli-decompressor`) and Java
   decoders are separate code bases and are not checked; whether they are affected by this CVE is
   not covered here.
+- **Virtual machine firmware (edk2).** Debian's security tracker lists edk2, the source of `ovmf`,
+  `qemu-efi-aarch64` and similar packages, for this CVE. edk2 carries the Brotli decoder in a
+  library (`MdeModulePkg/Library/BrotliCustomDecompressLib`) that extracts Brotli-compressed
+  sections (GUIDed sections of FFS files) inside the firmware. The tool does not check these
+  packages, and `--deep` does not open firmware files, which are not ELF.
 - **.NET: what is judged, and what is left.** The .NET runtime builds Google's C decoder into
   `libSystem.IO.Compression.Native.so` (`System.IO.Compression.Native.so` before .NET 5) and does
   not load libbrotli, so updating the OS's libbrotli does not fix it. The tool finds that library

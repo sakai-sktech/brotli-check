@@ -37,6 +37,10 @@ English: [limitations.md](limitations.md)
   マウントの一覧にも出ないため）。
 - **ほかの実装。** Go（`andybalholm/brotli`）、Rust（`brotli-decompressor`）、Java のデコーダーは別の
   コードで、調べません。それらがこの CVE の影響を受けるかは、ここでは扱いません。
+- **仮想マシンのファームウェア（edk2）。** Debian の追跡ページは、この CVE に edk2（`ovmf`・`qemu-efi-aarch64` などの元のソースパッケージ）を挙げています。
+  edk2 は Brotli のデコーダーを、ファームウェアの中の Brotli で圧縮された区画（FFS ファイルの GUIDed section）を展開するライブラリ
+  （`MdeModulePkg/Library/BrotliCustomDecompressLib`）に持っています。このツールはこれらのパッケージを調べず、ファームウェアのファイルは
+  ELF ではないので `--deep` も開きません。
 - **.NET（判定するものと、残るもの）。** .NET のランタイムは Google の C のデコーダーを
   `libSystem.IO.Compression.Native.so`（.NET 5 より前は `System.IO.Compression.Native.so`）に組み込んでいて、libbrotli を
   読み込みません。OS の libbrotli を更新しても直りません。このツールは、そのライブラリを探索の範囲と `/usr/lib/dotnet`・

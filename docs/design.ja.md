@@ -82,6 +82,59 @@ Ubuntu の 4 行、Node.js の告知と 20・21・23・25 のサポート終了�
 42a2ed43（修正 0ed4268a の子孫）、ISTIO-SECURITY-2026-007 と 1.29 のその日のサポート終了、Chromium の cfa184a9（修正の子孫）。Chromium の基準 148.0.7778.0 は変えない。
 148.0.7750.0 のタグにはすでに cfa184a9 があるので、そこから基準までの開発版は FIXED と言えるのに UNKNOWN になるが、本番で動かさない版で次の一手は変わらない。
 
+### 2.3 公開前の再確認（2026-11-14）
+
+すべての行（52 行）の一次資料を読み直し、スナップショットを 2026-11-14 に動かした。既存の行の修正版は変わっていない。変えたところ:
+
+| 行 | 分かったこと | データ | 出典 |
+|---|---|---|---|
+| Debian forky | brotli 1.2.0-4.1 が 2026-11-04 に testing へ移った。追跡ページも forky を修正済みとしている | `unreleased` → `fixed`（1.2.0-4.1）。いまのデータに `unreleased` の行は無い | security-tracker.debian.org、sources.debian.org/api/src/brotli/、tracker.debian.org/pkg/brotli |
+| 1.0.3 より前の Brotli | Debian の追跡ページが、欠陥を入れたコミットを挙げた（2026-11-03 に追加）: 35e69fc7。初めて入ったのは v1.0.3。PYSEC-2026-4322・4323 は今もそれより前の版を挙げる | `brotli <=0.6`・`pypi:brotli`・`pypi:brotlicffi` の note に Debian の言い分も書いた。資料どうしは今も食い違うので、判定は 10 章 16 の 6 のまま | security-tracker.debian.org、github.com/google/brotli |
+| Istio 1.32 | 1.32.0（2026-11-09）は ISTIO-SECURITY-2026-007 より後に出た。その istio/proxy は Envoy 56e0748e（v1.40.2 にコミット 1 つ）を固定し、それが固定する Brotli 42a2ed43 は修正の子孫 | `analysis` の行 1.32.0 を足した。istio の行はツールが読まないので、判定は変わらない | github.com/istio/proxy（タグ 1.32.0） |
+| .NET 8・9 | どちらも 2026-11-10 にサポートが終わった。最後の版 8.0.34・9.0.23 の Brotli は、修正版 8.0.33・9.0.22 と同じ。Ubuntu は dotnet8 を 8.0.34 にした（USN-9042-1、2026-11-11。この CVE の告知ではない） | `fixed` のまま（Istio 1.29 と同じ）。Microsoft の 8.0・9.0 の行と Ubuntu の dotnet8 の行の note に、サポートの終了と最後の版を書いた。Ubuntu の dotnet6 の行の note には、dotnet8 の上流のサポートが終わったことを書いた | dotnet.microsoft.com/platform/support/policy/dotnet-core、ubuntu.com/security/notices/USN-9042-1 |
+| .NET 11 | 11.0.0 が 2026-11-10 に出た。Brotli のツリーは 11.0.0-rc.3.26522.148 と同じ。Microsoft の告知は変わっていない | `fixed` は 11.0.0-rc.3.26522.148 のまま（11.0.0 はそれより上に並ぶ）。note に、11.0.0 の Brotli が同じことを書いた | github.com/dotnet/announcements/issues/494、github.com/dotnet/dotnet（タグ v11.0.0） |
+| edk2 | Debian の追跡ページが 2026-11-06 から edk2 を挙げている: bookworm・trixie は影響あり（trixie は `<no-dsa>`、Minor issue）、forky・sid は 2026.08+ds-3 で修正。edk2 は、ファームウェアの中の Brotli で圧縮された区画を展開する `BrotliCustomDecompressLib` にデコーダーを持つ | 行ではない（ツールはファームウェアのパッケージを調べない）。limitations に 1 項目 | security-tracker.debian.org、github.com/tianocore/edk2 |
+| Firefox | note はタグ `FIREFOX_150_0_RELEASE` について書いているのに、URL は `main` を指していて、その中身はもう動いた | `source_url` をタグに向けた | github.com/mozilla-firefox/firefox |
+
+確かめて変わらなかったもの: Google Brotli のリリースと修正のコミット（新しいリリースは無い）、GHSA-9v8h-qqgm-4m35（2026-11-03 に更新、範囲と
+修正版は同じ）、PYSEC-2026-4322・4323、告知の最後の版と修正版のあいだに PyPI のリリースは無い、Debian の bookworm・trixie・sid、Ubuntu の brotli の 7 行
+（USN-8956-1・USN-8956-2）、Node.js の告知と修正版（その後の版も修正を保つ。2026-11-11 のセキュリティリリースはこの CVE を挙げない）と、20・21・23・25 に
+その後の版が無いこと、Bun の GHSA-663w-cv8g-jj2p と固定先 db24a98a、Envoy の GHSA-3wvj-j6qm-62mr と、修正版のタグと各系列の最新の固定先 42a2ed43、
+1.41 は無く 1.35 は今も v1.35.13 で終わり、ISTIO-SECURITY-2026-007（後に出た 1.29.10 は 1.29.9 より上）、Chromium の cfa184a9 と基準 148.0.7778.0、
+Firefox の 4792c8e4（150.0・115.35.0esr・140.10.0esr・153.0esr から。2026-04-07 の点リリース 149.0.2・115.34.1esr・140.9.1esr には無い。ESR 140 は
+140.17.0esr で終わり、それには入っている）、Google と Mozilla の告知は見つからないので、ブラウザの行は `analysis` のまま、Microsoft の .NET の告知（今も V1.0）と
+その範囲、Ubuntu の CVE のページの dotnet6・dotnet7・dotnet8・dotnet10・dotnet11、.NET Core 2.1〜.NET 7 が同梱する Brotli。
+
+変えなかったものと、その理由:
+
+- Istio の告知は系列ごとに、Envoy の告知は `>= 1.18.0, < 1.40.0` と影響範囲を書いていて、CONTRIBUTING.md の 4 はそれを `affected` に書くとしている。
+  2026-11-02 と同じく `-` のままにした。判定は変わらない（istio の行はツールが読まず、Envoy の修正版のある系列に 1.18.0 より前の版は無い）。
+- Debian 11 bullseye・10 buster の修正は Extended LTS（ELA-1861-1、2026-10-23）だけで、契約者向けの private repository から入手する。Debian 自身の
+  追跡ページはもうこの 2 つを挙げない。行は足さない: これらのホストは UNKNOWN（データなし）のまま。
+- 開発中の Ubuntu 27.04 tenacious は、Ubuntu の CVE のページに無い。Launchpad では brotli は 1.2.0-4.1（Debian のもの。修正を含む）で、dotnet10・dotnet11 の
+  修正版は `-proposed` にだけある。ベンダーの言明が無いので行は足さない: UNKNOWN。
+- Node.js 27 は alpha。プレリリースは、行があってもなくても UNKNOWN。
+- Chromium と Firefox ESR の行は、今も `main` を指している。note は読んだタグを挙げている。
+- 修正版の出ない .NET の系列の次の一手は、今も 8.0.33・9.0.22・10.0.14 を挙げている（`lib/i18n.sh`）。2026-11-10 からは、このうちサポートがあるのは 10 だけ。
+  直すならメッセージと試験の変更で、データの変更ではない。
+
+確かめられなかったこと:
+
+- GHSA-9v8h-qqgm-4m35 の 2026-11-03 の変更の中身（API は履歴を返さない）。範囲・修正版・説明は同じ。
+- 1.0.3 より前の Brotli が影響を受けるか。ソースを読んで判断してはいない。Debian の「Introduced with」は Debian の言い分として書いた。
+- edk2: bookworm の edk2 のビルドの記録（見つからなかった）と Ubuntu のビルドは読んでいない。edk2 の外で、このライブラリを組み込むファームウェアも。
+- Chromium の gitiles の履歴はサインインが要る。roll の日付は GitHub のミラーで読んだ。
+- Google と Mozilla が告知を出していないことは、検索で見ただけ（Chrome Releases、GitHub のコード検索）。索引の漏れは否定できない。
+- Bun と Envoy の GHSA は GitHub の global advisory のデータベースに無い（404）。リポジトリの advisory を読んだ。
+- Envoy 1.18〜1.35 は各系列の .0 と最後のタグだけ。Firefox ESR は境の前後と最新だけ。
+- サポートの終わった Node.js の系列の、有償サポートのビルドが修正を含むか。
+- Istio 1.28 以前（行は無く、ツールも読まない）。
+- .NET: 2026-11-07 にバイナリで測った値（ビルドの刻印、.NET 8 のライブラリにエラー名が無いこと）は測り直していない。11 月の版のソースのツリーを
+  比べた。11.0.0 のバイナリは測っていない。10 章 27 の 3 では 11.0.0 の刻印だけなら UNKNOWN なので、`.version` の無い、11.0.0 で作った self-contained の
+  アプリは UNKNOWN になる見込み（走らせていない）。
+- Ubuntu が dotnet8 の終了を告げた文書は見つからなかった。見たのは USN-9042-1 と、保守は上流の期間に限るという Ubuntu の一般的な説明だけ。
+- Ubuntu が 27.04 を CVE のページに載せる時期。
+
 ## 3. このホストでの実測から足したこと
 
 開発機（Ubuntu 24.04.5）で読み取りだけ行って分かった、依頼文に無い要件。
@@ -146,7 +199,7 @@ Makefile                      lint（shellcheck）、test（bats）、dist、int
 - `fixed` — 一次資料が修正版を示している。`affected` があれば、`FIRST` より前の版は UNKNOWN とし（影響を受けるかは告知からは
   分からない）、更新を勧める
 - `no_fix` — 配布元が修正版を出していない（2026-10-26 までの Ubuntu 全版。2026-10-27 時点では該当なし）→ NO_FIX_AVAILABLE
-- `unreleased` — 修正版の番号は示されているがアーカイブ未着（Debian forky の 1.2.0-4.1。sid は 2026-10-27 まで）。
+- `unreleased` — 修正版の番号は示されているがアーカイブ未着（Debian の 1.2.0-4.1: sid は 2026-10-27 まで、forky は 2026-11-04 まで。2026-11-14 時点では該当なし）。
   インストール済みの版が `fixed` 以上なら FIXED、それ未満なら NO_FIX_AVAILABLE
 - `derived_eol` — 一次資料が EOL の版を常に影響ありとしていて、修正版が出ない（Node.js）→ VULNERABLE。理由にこの根拠を書く
 - `derived_bundled` — 同梱の Brotli が影響範囲の版で、修正版が出ない（Envoy 1.35 以前、.NET Core 3.0〜.NET 7、Ubuntu の dotnet7。

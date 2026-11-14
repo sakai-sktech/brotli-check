@@ -8,7 +8,7 @@ removed or renamed field changes the major part of `tool_version`.
 ```jsonc
 {
   "tool": "brotli-cve-check",
-  "tool_version": "0.1.0",
+  "tool_version": "0.2.0",
   "cve": "CVE-2026-111497",
 
   "data_snapshot_date": "2026-10-27",   // "# snapshot:" line of the advisory data

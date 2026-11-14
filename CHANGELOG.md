@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-11-14
+
+For automation: exit status `2` now also means that a range the run set out to look at could not
+be scanned, even when nothing was found, and JSON `skipped[]` entries carry `"kind"` (`"chosen"` or
+`"failed"`). Both are described in the item on exit status 2 below.
 
 - `RESTART_REQUIRED`: the line now gives what this report judged about the file now at the
   deleted file's path, and the next step follows from it: restart when that file is fixed; update
@@ -126,6 +130,15 @@
   Where the checks stop is a design decision and this document is the rule: code that differs
   from it is a bug, and moving a stop needs a design note and a change of the document in the
   same pull request (CONTRIBUTING.md, docs/design.md 10.30, #35). The README links to it.
+- Advisory data snapshot 2026-11-14 (docs/design.md 2.3): every primary source checked again. Debian
+  testing (forky) is fixed in 1.2.0-4.1, which migrated on 2026-11-04: 1.2.0-4 there is now
+  `VULNERABLE`, no longer `NO_FIX_AVAILABLE`, and no row is `unreleased`. A new `analysis` row for
+  Istio 1.32.0. The notes of .NET 8 and 9 give their end of support (2026-11-10) and their last
+  releases, which have the same Brotli; the note of .NET 11 says that 11.0.0 has the same Brotli as
+  the fixed release candidate. The notes of pre-1.0 Brotli and of PyPI's Brotli and brotlicffi add
+  Debian's statement that the flaw came with 35e69fc7 (v1.0.3); the sources still disagree below
+  1.0.3. Firefox's source URL points at the tag its note is about. The limitations name virtual
+  machine firmware (edk2), which Debian's tracker lists for this CVE and the tool does not check.
 
 ## 0.1.0 - 2026-11-02
 

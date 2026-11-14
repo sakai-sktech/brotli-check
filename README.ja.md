@@ -360,13 +360,13 @@ Docker Desktop のエンジンは、このホストの仮想マシンの中で�
 
 既知の版はすべて [data/advisories.tsv](data/advisories.tsv) にあり、各行に一次資料の URL と取得日が
 付いています。結果には既知データの日付が出て、30 日以上古ければ警告します。30 日未満でも最新とは限りません。
-新しいデータは `--data FILE` で差し替えられます。スナップショット: **2026-11-02**（この日にすべての行の一次資料を
+新しいデータは `--data FILE` で差し替えられます。スナップショット: **2026-11-14**（この日にすべての行の一次資料を
 確かめ直した）。.NET の行（Microsoft の 2026-10-25 の告知と Ubuntu の [USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)）は
-2026-11-07 にその取得日で足しました。スナップショットは、すべての行を確かめ直したときに動かします。
+2026-11-07 に足しました。
 Ubuntu は 2026-10-26 に 22.04・24.04・26.04・26.10 を修正し
 （[USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)）、2026-10-27 に Ubuntu Pro で 20.04・18.04・16.04 を
-修正しました（[USN-8956-2](https://ubuntu.com/security/notices/USN-8956-2)）。Debian は 12・13 と unstable が修正済みで、
-testing（forky）は修正の移行を待っていました。
+修正しました（[USN-8956-2](https://ubuntu.com/security/notices/USN-8956-2)）。Debian は 12・13・testing（forky）・unstable が
+修正済みです（testing には 2026-11-04 に修正が移りました）。
 
 注意: Red Hat の RHSA-2026:2042／2227／2389 は別件（CVE-2025-6176）です。`pip`・`certifi` の更新は
 本件と無関係です（CPython 本体は Brotli を含みません）。
@@ -374,6 +374,9 @@ testing（forky）は修正の移行を待っていました。
 ### 分かっている問題
 
 いまの版で分かっている問題です。直したら、この一覧から消します。
+
+- Ubuntu 20.04 の配布元の `nodejs` で、デコーダーの無い起動役 `/usr/bin/node` を `VENDORED_COPY`（「Brotli デコーダーを含みます」）と出し、デコーダーのある `libnode.so.64` は見ない（[#38](https://github.com/sakai-sktech/brotli-check/issues/38)）。「人の確認が必要なもの」（終了コード 2）には数えられる。22.04 以降では起きない
+- `--inspect-containers` で、コンテナの中の配布元の `nodejs`（OS の `libbrotli1` を読む）を Node.js の版で判定し、上流でサポートが終わった系列なので `VULNERABLE`（終了コード 1）になる（[#41](https://github.com/sakai-sktech/brotli-check/issues/41)）。同じコンテナの `libbrotli1` の行が実際の判定
 
 一覧: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 
@@ -386,7 +389,7 @@ testing（forky）は修正の移行を待っていました。
   ことを確かめました。
 - **統合試験**: Ubuntu 22.04・24.04・26.04、Debian 12・13 の x86_64 のコンテナに、未修正のものと修正済みのものを
   わざと入れ、root と一般ユーザー、`--no-exec` と `--yes` のそれぞれで、期待した判定と一致しました。
-- **単体試験** 239 件（2026-11-02 の時点）と ShellCheck（警告ゼロ）。文字列による推定は、上の「判定の根拠」に書いたビルドで確かめました。
+- **単体試験** 408 件（2026-11-14 の時点）と ShellCheck（警告ゼロ）。文字列による推定は、上の「判定の根拠」に書いたビルドで確かめました。
 - **確かめていないこと**: 実際のホストでの見つけ漏れや誤判定の率、x86_64 以外、RHEL 系、Ubuntu 26.10 と
   派生ディストリビューションの統合試験。
 

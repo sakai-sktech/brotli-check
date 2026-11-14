@@ -61,8 +61,8 @@ The tool finds only copies that leave one of these clues. **A copy that leaves n
 
 Examples of what is not found: a static copy without markers, built into a file of another name;
 without `--deep`, a copy in a file of another name; the inside of archives (`.asar`, `.jar`,
-`.zip`), squashfs (snaps, AppImages), stopped containers, container images and virtual machine
-disks; anything outside the places searched.
+`.zip`), squashfs (snaps, AppImages), stopped containers, container images, virtual machine disks
+and firmware (edk2); anything outside the places searched.
 
 ### 1.2 Where the walk goes
 

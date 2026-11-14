@@ -1,6 +1,6 @@
 # Sample output
 
-Captured on 2026-11-06, with the advisory data of this version (snapshot 2026-11-02), from the
+Captured on 2026-11-06, with the advisory data of that time (snapshot 2026-11-02), from the
 integration image for Ubuntu 24.04 (`tests/integration/`), scanned as root with
 `--roots /opt,/srv --yes` (no terminal in the container, so the consent to run the listed programs
 is given in advance). The tool is the source tree after issue #10, not yet released (its header

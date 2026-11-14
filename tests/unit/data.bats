@@ -12,7 +12,7 @@ write_data() {
 }
 
 @test "the shipped data file loads and has a snapshot date" {
-  [ "$BCC_DATA_SNAPSHOT" = 2026-11-02 ]
+  [ "$BCC_DATA_SNAPSHOT" = 2026-11-14 ]
   [ "${#BCC_DATA_ROWS[@]}" -gt 20 ]
 }
 
@@ -64,15 +64,31 @@ write_data() {
   [ "$BCC_J_STATUS" = NO_FIX_AVAILABLE ]
 }
 
-@test "judge: Debian sid has 1.2.0-4.1; forky waits for it (unreleased)" {
+@test "judge: Debian sid and forky have 1.2.0-4.1 (forky since 2026-11-04)" {
   command -v dpkg >/dev/null || skip "dpkg not available"
   bcc_judge deb-src:brotli debian:sid deb 1.2.0-4
   [ "$BCC_J_STATUS" = VULNERABLE ]
   bcc_judge deb-src:brotli debian:sid deb 1.2.0-4.1
   [ "$BCC_J_STATUS" = FIXED ]
   bcc_judge deb-src:brotli debian:forky deb 1.2.0-4
-  [ "$BCC_J_STATUS" = NO_FIX_AVAILABLE ]
+  [ "$BCC_J_STATUS" = VULNERABLE ]
   bcc_judge deb-src:brotli debian:forky deb 1.2.0-4.1
+  [ "$BCC_J_STATUS" = FIXED ]
+}
+
+# The shipped data has no unreleased row since forky got the fix; this row is made up, as
+# forky's was until 2026-11-04.
+@test "judge: a fix not yet in the archive gives NO_FIX_AVAILABLE below it, FIXED at it (unreleased row)" {
+  command -v dpkg >/dev/null || skip "dpkg not available"
+  write_data '# snapshot: 2026-11-02' 'deb-src:brotli|debian:forky|1.2.0-4.1|unreleased|-|https://x|2026-11-02|'
+  bcc_load_data test-data <"$DATA"
+  bcc_judge deb-src:brotli debian:forky deb 1.2.0-4
+  [ "$BCC_J_STATUS" = NO_FIX_AVAILABLE ]
+  [ "$BCC_J_REASON" = "The distributor lists 1.2.0-4.1 as the fix, but it has not reached the archive yet." ]
+  [ "$BCC_J_NEXT" = "$(bcc_msg n_wait_vendor)" ]
+  bcc_judge deb-src:brotli debian:forky deb 1.2.0-4.1
+  [ "$BCC_J_STATUS" = FIXED ]
+  bcc_judge deb-src:brotli debian:forky deb 1.2.0-4.2
   [ "$BCC_J_STATUS" = FIXED ]
 }
 

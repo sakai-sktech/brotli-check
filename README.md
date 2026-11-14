@@ -403,14 +403,13 @@ visible; the advisory data is a snapshot.
 All known versions live in [data/advisories.tsv](data/advisories.tsv), with the primary
 source URL and the retrieval date on every row. The report shows the data's snapshot date and
 warns when it is 30 days old or more; less than 30 days old is not necessarily up to date.
-Newer data can be passed with `--data FILE`. Snapshot: **2026-11-02**: every row's primary source
+Newer data can be passed with `--data FILE`. Snapshot: **2026-11-14**: every row's primary source
 was checked again on that date. The .NET rows (Microsoft's advisory of 2026-10-25 and Ubuntu's
-[USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)) were added on 2026-11-07 with that
-retrieval date; the snapshot moves when every row is checked again. Ubuntu fixed 22.04, 24.04,
-26.04 and 26.10 on 2026-10-26
+[USN-8958-1](https://ubuntu.com/security/notices/USN-8958-1)) were added on 2026-11-07. Ubuntu
+fixed 22.04, 24.04, 26.04 and 26.10 on 2026-10-26
 ([USN-8956-1](https://ubuntu.com/security/notices/USN-8956-1)) and, with Ubuntu Pro, 20.04, 18.04
 and 16.04 on 2026-10-27 ([USN-8956-2](https://ubuntu.com/security/notices/USN-8956-2)); Debian 12,
-13 and unstable are fixed, and testing (forky) was still waiting for the fix to migrate.
+13, testing (forky) and unstable are fixed (the fix reached testing on 2026-11-04).
 
 Note: Red Hat advisories RHSA-2026:2042 / 2227 / 2389 are about a different issue
 (CVE-2025-6176). Updating `pip` or `certifi` is unrelated to this CVE (CPython itself does
@@ -419,6 +418,9 @@ not contain Brotli).
 ### Known problems
 
 Problems known in the current version. Each is removed from this list once fixed.
+
+- On Ubuntu 20.04, the distribution's `nodejs` has a small launcher `/usr/bin/node` that holds no decoder; the tool reports it as `VENDORED_COPY` ("contains a Brotli decoder") and does not look at `libnode.so.64`, which holds the decoder ([#38](https://github.com/sakai-sktech/brotli-check/issues/38)). It is still counted as needing a human check (exit status 2). Ubuntu 22.04 and later are not affected
+- With `--inspect-containers`, a distribution's `nodejs` inside a container (which loads the OS's `libbrotli1`) is judged by its Node.js version; that release line is no longer supported upstream, so it is reported `VULNERABLE` (exit status 1) ([#41](https://github.com/sakai-sktech/brotli-check/issues/41)). The `libbrotli1` row of the same container is the actual verdict
 
 All: [issues](https://github.com/sakai-sktech/brotli-check/issues)
 
@@ -433,7 +435,7 @@ and on containers that can be built and thrown away.
 - **Integration tests**: x86_64 containers of Ubuntu 22.04, 24.04, 26.04 and Debian 12, 13, with
   unfixed and fixed copies put in on purpose; every expected verdict matched, as root and as an
   ordinary user, with `--no-exec` and with `--yes`.
-- **239 unit tests** (as of 2026-11-02) and ShellCheck with zero warnings. The string heuristic
+- **408 unit tests** (as of 2026-11-14) and ShellCheck with zero warnings. The string heuristic
   was checked on the builds listed under "What a verdict rests on".
 - **Not checked**: how often it misses copies or misjudges them on real hosts; architectures
   other than x86_64; RHEL and the like; integration tests on Ubuntu 26.10 and on derivatives.

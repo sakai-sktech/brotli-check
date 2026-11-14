@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # main.sh - command line, orchestration, output, exit code.
 
-BCC_VERSION="0.1.0"
+BCC_VERSION="0.2.0"
 BCC_CVE="CVE-2026-111497"
 BCC_DEFAULT_ROOTS="/opt,/usr/local,/srv,/var/www,/home,/root"
 
